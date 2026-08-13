@@ -1,0 +1,78 @@
+/* ============================================================
+   Happy Home — Reset & base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--neutral-900);
+  background: var(--neutral-50);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Số: mono + tabular để thẳng cột */
+.mono, .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+a { color: var(--brand-700); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button { font-family: inherit; font-size: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+
+img { max-width: 100%; display: block; }
+
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; }
+
+/* Tiện ích */
+.muted { color: var(--neutral-600); }
+.faint { color: var(--neutral-400); }
+.right { text-align: right; }
+.center { text-align: center; }
+.nowrap { white-space: nowrap; }
+.strike { text-decoration: line-through; }
+.hidden { display: none !important; }
+.grow { flex: 1; }
+.row { display: flex; align-items: center; }
+.row-gap-2 { display: flex; align-items: center; gap: var(--sp-2); }
+.row-gap-3 { display: flex; align-items: center; gap: var(--sp-3); }
+.col { display: flex; flex-direction: column; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.b { font-weight: 600; }
+.bb { font-weight: 700; }
+
+/* Viền tiêu điểm rõ ràng — §6.5 khả năng tiếp cận */
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Thanh cuộn gọn */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--neutral-300); border-radius: 8px; border: 2px solid var(--neutral-50); }
+::-webkit-scrollbar-thumb:hover { background: var(--neutral-400); }
+
+/* Khung xám (skeleton) — §6.1 */
+.skeleton {
+  background: linear-gradient(90deg, var(--neutral-100) 25%, var(--neutral-200) 37%, var(--neutral-100) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.3s ease infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
