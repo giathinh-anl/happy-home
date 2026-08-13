@@ -93,7 +93,14 @@
     },
     mount(ctx) {
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/tenants/new`);
-      document.getElementById('tnExport').onclick = () => UI.toast('Đã xuất Excel danh sách khách thuê (demo)', { type: 'ok' });
+      document.getElementById('tnExport').onclick = () => {
+        U.downloadCSV(`khach-thue-${ctx.bid}.csv`,
+          ['Phòng', 'Họ tên', 'Đại diện', 'SĐT', 'Ngày sinh', 'Giới tính', 'Nghề nghiệp', 'Địa chỉ', 'Số CCCD', 'Ngày cấp', 'Nơi cấp', 'Biển số xe', 'TTLock', 'Tạm trú'],
+          S.tenantsOf(ctx.bid).map(t => [t.roomCode, t.fullName, t.isRep ? 'x' : '', t.phone, t.dob, t.gender,
+            t.occupation, t.address, t.idNumber, t.cccdIssueDate, t.cccdIssuePlace, t.vehiclePlate || '',
+            t.ttlock ? 'Đã kết nối' : 'Chưa', t.tamtru ? 'Đã ĐK' : 'Chưa']));
+        UI.toast('Đã tải file Excel (CSV) khách thuê', { type: 'ok' });
+      };
       const refresh = () => { document.getElementById('tnBody').innerHTML = renderGroups(ctx); wireRows(ctx); };
       document.querySelectorAll('[data-tnfilter]').forEach(b => b.onclick = () => {
         tnFilter = (tnFilter === b.dataset.tnfilter) ? null : b.dataset.tnfilter; HH.router.render();
@@ -110,7 +117,7 @@
       const t = S.tenantById(b.dataset.tn);
       UI.openMenu(b, [
         { icon: '👁', label: 'Xem hồ sơ', onClick: () => showTenant(t) },
-        { icon: '🔐', label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
+        { icon: '🔐', label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
         { icon: '📋', label: 'Đăng ký tạm trú', onClick: () => UI.toast('Mở mẫu đăng ký tạm trú (demo)', { type: 'ok' }) },
       ]);
     });
@@ -262,11 +269,14 @@
       }
       btn.classList.add('loading');
       setTimeout(() => {
-        S.tenantsOf(ctx.bid).push({
+        S.addTenant({
           id: U.uid('tn'), buildingId: ctx.bid, roomCode: get('roomCode').trim() || null,
           fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\s/g, ''),
           dob: get('dateOfBirth'), gender: get('gender'), hometown: get('hometown'),
-          phone: get('phone'), occupants: 1,
+          phone: get('phone'), occupation: get('occupation') || '', address: get('address') || '',
+          cccdIssueDate: '', cccdIssuePlace: get('cccdIssuePlace') || 'Cục CSQLHC về TTXH',
+          cccdFront: true, cccdBack: !!get('backUploaded'), vehiclePlate: null,
+          ttlock: false, tamtru: false, occupants: 1, isRep: false,
         });
         S.log('tenant.create', `Thêm khách thuê ${get('fullName')}`);
         UI.toast('Đã lưu hồ sơ khách thuê', { type: 'ok' });

@@ -271,10 +271,11 @@
           tenantName: w.tenants.map(t => t.fullName).join(', '), tenantId: w.tenants[0].id,
           rent: w.term.rent, deposit: w.term.deposit, start, end: U.addMonths(new Date(w.term.start), w.term.months).toISOString(),
           billingDay: w.term.billingDay, dueDays: w.term.dueDays, cycle: w.term.cycle, status: 'active', debt: 0 };
-        S.contractsOf(ctx.bid).push(c);
+        S.addContract(c);
         room.status = 'occupied'; room.tenantName = c.tenantName; room.tenantId = c.tenantId;
         room.contractId = c.id; room.contractEnd = c.end;
         S.log('contract.sign', `Ký hợp đồng phòng ${room.code} cho ${c.tenantName}`);
+        S.persist();
         UI.toast('Đã ký hợp đồng và bàn giao phòng', { type: 'ok' });
         HH.router.go(`/b/${ctx.bid}/contracts`);
       }, 700);
@@ -433,6 +434,7 @@
         c.status = 'terminated'; room.status = 'cleaning'; room.tenantName = null; room.tenantId = null;
         room.contractId = null; room.contractEnd = null; room.debt = 0;
         S.log('contract.terminate', `Thanh lý hợp đồng ${c.roomCode}, hoàn ${U.currency(refund)}`);
+        S.persist();
         UI.toast('Đã thanh lý hợp đồng', { type: 'ok' });
         HH.router.go(`/b/${ctx.bid}/contracts`);
       }, 700);

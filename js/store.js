@@ -234,6 +234,23 @@ HH.store = (function () {
     return inv;
   }
 
+  /* ---------- Lưu bền dữ liệu (localStorage) ---------- */
+  const DATA_KEY = 'hh_data_v2';
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, auditLog };
+  function persist() { try { localStorage.setItem(DATA_KEY, JSON.stringify(groups)); } catch (e) {} }
+  function loadPersisted() {
+    try {
+      const rawStr = localStorage.getItem(DATA_KEY); if (!rawStr) return false;
+      const snap = JSON.parse(rawStr);
+      Object.keys(groups).forEach(k => {
+        if (Array.isArray(snap[k])) { groups[k].length = 0; snap[k].forEach(x => groups[k].push(x)); }
+      });
+      return true;
+    } catch (e) { return false; }
+  }
+  // Lần đầu: lưu dữ liệu mẫu. Lần sau: nạp lại đúng dữ liệu người dùng đã chỉnh.
+  if (!loadPersisted()) persist();
+
   /* ---------- Trạng thái ứng dụng ---------- */
   const PREFS_KEY = 'hh_prefs_v1';
   const defaultPrefs = { auth: false, role: 'owner', userName: 'Nguyễn Văn A',
@@ -318,16 +335,32 @@ HH.store = (function () {
     },
 
     /* ---------- Đột biến ---------- */
+    persist,
+    resetData() { try { localStorage.removeItem(DATA_KEY); } catch (e) {} location.reload(); },
+
+    // Thêm mới (đẩy vào MẢNG GỐC rồi lưu bền)
+    addRoom(r) { rooms.push(r); persist(); return r; },
+    addTenant(t) { tenants.push(t); persist(); return t; },
+    addContract(c) { contracts.push(c); persist(); return c; },
+    addAsset(a) { assets.push(a); persist(); return a; },
+    addBuilding(b) { buildings.push(b); persist(); return b; },
+    addIncident(x) { incidents.push(x); persist(); return x; },
+    addService(s) { services.push(s); persist(); return s; },
+    updateService(id, patch) { const s = services.find(x => x.id === id); if (s) { Object.assign(s, patch); persist(); } return s; },
+    removeService(id) { const i = services.findIndex(x => x.id === id); if (i >= 0) { const s = services[i]; services.splice(i, 1); persist(); api.log('service.remove', `Xóa dịch vụ ${s.name}`); } },
+
     setRoomStatus(bid, code, status, reason) {
       const r = api.room(bid, code);
       if (!r) return;
       const old = r.status; r.status = status;
       api.log('room.status', `Đổi trạng thái phòng ${code}: ${old} → ${status}`, reason);
+      persist();
     },
     cancelInvoice(id, reason) {
       const inv = api.invoice(id); if (!inv) return;
       inv.status = 'cancelled';
       api.log('invoice.cancel', `Hủy hóa đơn ${id}`, reason);
+      persist();
     },
     recordPayment(invId, amount, method, date, note) {
       const inv = api.invoice(invId); if (!inv) return;
@@ -336,10 +369,12 @@ HH.store = (function () {
       payments.push({ id: U.uid('pm'), invoiceId: invId, buildingId: inv.buildingId,
         contractId: inv.contractId, date, method, amount, note });
       api.log('payment.record', `Ghi nhận thanh toán ${U.currency(amount)} cho ${invId}`);
+      persist();
     },
     issueInvoices(ids) {
       ids.forEach(id => { const i = api.invoice(id); if (i && i.status === 'draft') i.status = 'issued'; });
       api.log('invoice.issue', `Phát hành ${ids.length} hóa đơn`);
+      persist();
     },
     log(action, message, reason) {
       auditLog.unshift({ id: U.uid('lg'), at: new Date().toISOString(),

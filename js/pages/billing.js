@@ -67,6 +67,7 @@
 
   function wireReadingInputs(ctx) {
     const inputs = Array.from(document.querySelectorAll('[data-read]'));
+    const savePersist = U.debounce(() => S.persist(), 400);
     inputs.forEach((inp) => {
       inp.oninput = () => {
         const n = U.parseNum(inp.value); inp.value = n != null ? n : '';
@@ -75,6 +76,7 @@
         if (!rd) return;
         const prev = ctx._tab === 'elec' ? rd.elecPrev : rd.waterPrev;
         if (ctx._tab === 'elec') rd.elecCurr = n; else rd.waterCurr = n;
+        savePersist();
         const useEl = document.querySelector(`[data-use="${code}"]`);
         if (n == null) { useEl.textContent = ''; return; }
         // chỉ số mới nhỏ hơn cũ -> hỏi nguyên nhân
@@ -96,6 +98,7 @@
     });
     document.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => {
       const rd = S.reading(ctx.bid, b.dataset.approve, S.CUR_PERIOD); if (rd) rd.approved = true;
+      S.persist();
       UI.toast(`Đã duyệt chỉ số phòng ${b.dataset.approve}`, { type: 'ok' }); HH.router.render();
     });
   }
@@ -160,10 +163,10 @@
         selectable: true, initialFilter: initStatus,
         filterFn: (r, f) => r.status === f,
         toolbarLeft: statusFilter,
-        toolbarRight: `<button class="btn btn-outline" id="genInv">Sinh hóa đơn</button><button class="btn btn-outline">Xuất Excel</button>`,
+        toolbarRight: `<button class="btn btn-outline" id="genInv">Sinh hóa đơn</button><button class="btn btn-success" id="invExport">📊 Xuất Excel</button>`,
         bulkActions: [
           { label: 'Phát hành', primary: true, onClick: (ids, clear) => issueFlow(ctx, ids, clear) },
-          { label: 'Xuất Excel', onClick: () => UI.toast('Đã xuất Excel (demo)', { type: 'ok' }) },
+          { label: 'Xuất Excel', onClick: (ids) => exportInvoices(ctx, list.filter(i => ids.includes(i.id))) },
         ],
         columns: [
           { key: 'id', label: 'Mã HĐ', mono: true, sortable: true, render: i => `<span class="mono b">${i.id}</span>` },
@@ -199,8 +202,18 @@
       const gen = () => generateFlow(ctx);
       document.getElementById('genInv').onclick = gen;
       document.getElementById('genInv2').onclick = gen;
+      const ie = document.getElementById('invExport');
+      if (ie) ie.onclick = () => exportInvoices(ctx, S.invoicesOf(ctx.bid, S.CUR_PERIOD));
     },
   };
+
+  function exportInvoices(ctx, list) {
+    U.downloadCSV(`hoa-don-${ctx.bid}-${S.CUR_PERIOD}.csv`,
+      ['Mã HĐ', 'Phòng', 'Khách', 'Tổng tiền', 'Đã trả', 'Còn lại', 'Trạng thái', 'Hạn TT'],
+      list.map(i => [i.id, i.roomCode, i.tenantName, i.total, i.paid, i.total - i.paid,
+        (UI.STATUS.invoice[i.status] || {}).label || i.status, U.fmtDate(i.dueDate)]));
+    UI.toast(`Đã tải file Excel (CSV) · ${list.length} hóa đơn`, { type: 'ok' });
+  }
 
   function invoiceActions(ctx, i) {
     const items = [

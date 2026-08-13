@@ -76,6 +76,22 @@ HH.util = (function () {
     let t; return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
   }
 
+  /** Xuất CSV thật (mở được bằng Excel). headers: [], rows: [][] */
+  function downloadCSV(filename, headers, rows) {
+    const escCell = (v) => {
+      const s = (v === null || v === undefined) ? '' : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [headers.map(escCell).join(',')]
+      .concat(rows.map(r => r.map(escCell).join(',')));
+    // BOM để Excel đọc đúng tiếng Việt
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a);
+    a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   return { currency, currencyShort, number, percent, parseNum, fmtDate, addMonths,
-           daysBetween, today, esc, html, raw, initials, uid, debounce };
+           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV };
 })();

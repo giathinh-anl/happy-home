@@ -6,44 +6,88 @@
   const methodLabel = { per_kwh: 'Theo chỉ số điện', per_person: 'Theo số người', flat: 'Cố định theo tháng' };
 
   /* ---------------- DỊCH VỤ & ĐƠN GIÁ ---------------- */
+  const SVC_ICONS = { per_kwh: '⚡', per_person: '💧', flat: '📄' };
+
   HH.pages.services = {
     render(ctx) {
       const svcs = S.servicesOf(ctx.bid);
+      const owner = S.isOwner();
       const rows = svcs.map(s => `<tr>
-        <td><b>${s.name}</b></td>
+        <td><span style="font-size:18px;margin-right:6px">${SVC_ICONS[s.method] || '🛎️'}</span><b>${U.esc(s.name)}</b></td>
         <td><span class="badge s-neutral"><span class="dot"></span>${methodLabel[s.method]}</span></td>
-        <td class="num mono">${U.number(s.unit)}</td>
+        <td class="num mono b">${U.number(s.unit)}</td>
         <td>${s.unitLabel}</td>
-        ${S.isOwner() ? `<td class="col-actions"><button class="kebab" data-edit="${s.id}">⋯</button></td>` : ''}
-      </tr>`).join('');
+        ${owner ? `<td class="col-actions"><button class="kebab" data-svmenu="${s.id}">⋯</button></td>` : ''}
+      </tr>`);
+      const tbody = rows.length ? rows
+        : [`<tr><td colspan="${owner ? 5 : 4}"><div class="empty"><div class="ic">🛎️</div><h4>Chưa có dịch vụ nào</h4><p class="muted">Thêm dịch vụ để tính vào hóa đơn hằng tháng.</p></div></td></tr>`];
       return h`<div class="page-head">
-        <div><div class="page-title">Dịch vụ & đơn giá</div><div class="page-sub">${ctx.building.name} · đơn giá hiện hành</div></div>
-        ${raw(S.isOwner() ? '<div class="page-actions"><button class="btn btn-primary" data-primary-new>+ Thêm dịch vụ</button></div>' : '')}
+        <div class="row-gap-3"><span class="lz-home-ic">🛎️</span>
+          <div><div class="page-title-lg">Dịch vụ & đơn giá</div><div class="page-sub">${ctx.building.name} · ${svcs.length} dịch vụ · đơn giá hiện hành</div></div></div>
+        <div class="page-actions"><button class="btn btn-success" id="svExport">📊 Xuất excel</button>
+        ${raw(owner ? '<button class="btn btn-primary" data-primary-new>＋ Thêm dịch vụ</button>' : '')}</div>
       </div>
       <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
-        <thead><tr><th>Dịch vụ</th><th>Phương pháp tính</th><th class="num">Đơn giá</th><th>Đơn vị</th>${S.isOwner() ? '<th></th>' : ''}</tr></thead>
-        <tbody>${rows}</tbody></table></div></div>`;
+        <thead><tr><th>Dịch vụ</th><th>Phương pháp tính</th><th class="num">Đơn giá</th><th>Đơn vị</th>${raw(owner ? '<th></th>' : '')}</tr></thead>
+        <tbody>${rows.length ? raw(rows.join('')) : raw(tbody[0])}</tbody></table></div></div>`;
     },
     mount(ctx) {
       const nb = document.querySelector('[data-primary-new]');
-      if (nb) nb.onclick = () => UI.toast('Thêm dịch vụ mới (demo)', { type: 'ok' });
-      document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
-        const s = S.servicesOf(ctx.bid).find(x => x.id === b.dataset.edit);
-        editService(ctx, s);
+      if (nb) nb.onclick = () => serviceForm(ctx, null);
+      const ex = document.getElementById('svExport');
+      if (ex) ex.onclick = () => {
+        const svcs = S.servicesOf(ctx.bid);
+        U.downloadCSV(`dich-vu-${ctx.bid}.csv`, ['Dịch vụ', 'Phương pháp tính', 'Đơn giá', 'Đơn vị'],
+          svcs.map(s => [s.name, methodLabel[s.method], s.unit, s.unitLabel]));
+        UI.toast('Đã tải file Excel (CSV)', { type: 'ok' });
+      };
+      document.querySelectorAll('[data-svmenu]').forEach(b => b.onclick = () => {
+        const s = S.servicesOf(ctx.bid).find(x => x.id === b.dataset.svmenu);
+        UI.openMenu(b, [
+          { icon: '✏️', label: 'Sửa dịch vụ', onClick: () => serviceForm(ctx, s) },
+          { sep: true },
+          { icon: '🗑', label: 'Xóa dịch vụ', danger: true, onClick: () => {
+            UI.dangerDialog({ title: `Xóa dịch vụ "${s.name}"`,
+              description: 'Dịch vụ sẽ không còn được tính vào hóa đơn các kỳ tới.',
+              consequences: ['Không ảnh hưởng hóa đơn đã phát hành', 'Thao tác được ghi vào nhật ký'],
+              confirmLabel: 'Xóa dịch vụ', reasonLabel: 'Lý do xóa',
+              onConfirm: () => { S.removeService(s.id); UI.toast('Đã xóa dịch vụ', { type: 'ok' }); HH.router.render(); } });
+          } },
+        ]);
       });
     },
   };
 
-  function editService(ctx, s) {
-    UI.modal({ title: `Sửa đơn giá — ${s.name}`, bodyHtml: h`
-      <div class="field"><label>Đơn giá (₫)</label><input class="input money" id="svUnit" value="${U.number(s.unit)}"></div>
-      <p class="muted text-xs" style="margin-top:8px">Áp dụng cho hóa đơn phát hành từ kỳ tới. Hợp đồng có đơn giá riêng không bị ảnh hưởng.</p>`,
-      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="svSave">Lưu</button>`,
+  function serviceForm(ctx, s) {
+    const isNew = !s;
+    const methods = { per_kwh: 'Theo chỉ số điện (₫/kWh)', per_person: 'Theo số người (₫/người)', flat: 'Cố định theo tháng (₫/tháng)' };
+    const method = s ? s.method : 'flat';
+    UI.modal({
+      title: isNew ? 'Thêm dịch vụ' : `Sửa dịch vụ — ${s.name}`,
+      bodyHtml: h`
+        <div class="field"><label>Tên dịch vụ *</label><input class="input" id="svName" value="${s ? s.name : ''}" placeholder="VD: Phí giữ xe"></div>
+        <div class="field" style="margin-top:12px"><label>Phương pháp tính *</label>
+          <select class="select" id="svMethod">${raw(Object.entries(methods).map(([k, v]) => `<option value="${k}" ${k === method ? 'selected' : ''}>${v}</option>`).join(''))}</select></div>
+        <div class="field" style="margin-top:12px"><label>Đơn giá (₫) *</label><input class="input money" id="svUnit" value="${s ? U.number(s.unit) : ''}" placeholder="0"></div>
+        <p class="muted text-xs" style="margin-top:8px">Áp dụng cho hóa đơn phát hành từ kỳ tới. Hợp đồng có đơn giá riêng không bị ảnh hưởng.</p>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="svSave">${isNew ? 'Thêm dịch vụ' : 'Lưu'}</button>`,
       onMount(el, close) {
-        const inp = el.querySelector('#svUnit');
-        inp.oninput = () => { const n = U.parseNum(inp.value); inp.value = n ? U.number(n) : ''; };
-        el.querySelector('#svSave').onclick = () => { s.unit = U.parseNum(inp.value) || s.unit; close();
-          UI.toast('Đã cập nhật đơn giá', { type: 'ok' }); HH.router.render(); };
+        const unit = el.querySelector('#svUnit');
+        unit.oninput = () => { const n = U.parseNum(unit.value); unit.value = n ? U.number(n) : ''; };
+        el.querySelector('#svSave').onclick = (e) => {
+          const name = el.querySelector('#svName').value.trim();
+          const m = el.querySelector('#svMethod').value;
+          const u = U.parseNum(unit.value);
+          if (!name || !u) { UI.toast('Nhập tên và đơn giá hợp lệ', { type: 'error' }); return; }
+          const unitLabel = m === 'per_kwh' ? '₫/kWh' : m === 'per_person' ? '₫/người' : '₫/tháng';
+          e.currentTarget.classList.add('loading');
+          setTimeout(() => {
+            if (isNew) { S.addService({ id: U.uid('sv'), buildingId: ctx.bid, name, method: m, unit: u, unitLabel });
+              S.log('service.add', `Thêm dịch vụ ${name}`); }
+            else S.updateService(s.id, { name, method: m, unit: u, unitLabel });
+            close(); UI.toast(isNew ? 'Đã thêm dịch vụ' : 'Đã cập nhật dịch vụ', { type: 'ok' }); HH.router.render();
+          }, 350);
+        };
       },
     });
   }
@@ -83,7 +127,11 @@
       const nb = document.querySelector('[data-primary-new]');
       if (nb) nb.onclick = () => addAsset(ctx);
       const ex = document.getElementById('assetExport');
-      if (ex) ex.onclick = () => UI.toast('Đã xuất Excel tài sản (demo)', { type: 'ok' });
+      if (ex) ex.onclick = () => {
+        U.downloadCSV(`tai-san-${ctx.bid}.csv`, ['Tên tài sản', 'Phòng', 'Số lượng', 'Đơn vị', 'Giá trị nhập', 'Tình trạng'],
+          S.assetsOf(ctx.bid).map(a => [a.name, a.roomCode || 'Kho chung', a.quantity || 1, a.unit || 'cái', a.buyPrice, (UI.STATUS.asset[a.condition] || {}).label || a.condition]));
+        UI.toast('Đã tải file Excel (CSV)', { type: 'ok' });
+      };
     },
   };
 
@@ -120,7 +168,7 @@
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
             const buy = U.parseNum(get('buy')) || U.parseNum(get('value'));
-            S.assets.push({ id: U.uid('TS').toUpperCase(), buildingId: ctx.bid, roomCode: null, icon,
+            S.addAsset({ id: U.uid('TS').toUpperCase(), buildingId: ctx.bid, roomCode: null, icon,
               name: get('name').trim(), buyPrice: buy, buyDate: U.today().toISOString(), lifeMonths: 60,
               condition: 'good', quantity: U.parseNum(get('qty')) || 1, unit: get('unit') });
             S.log('asset.create', `Thêm tài sản ${get('name')}`);

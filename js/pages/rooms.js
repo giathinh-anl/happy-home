@@ -237,10 +237,10 @@
       const btn = e.currentTarget; btn.classList.add('loading');
       setTimeout(() => {
         const create = rows.filter(r => !r.dup);
-        create.forEach(r => S.roomsOf(ctx.bid).push({
+        create.forEach(r => S.addRoom({
           id: U.uid('rm'), buildingId: ctx.bid, code: r.code, floor: r.floor, type: r.type,
           typeLabel: r.typeLabel, area: r.area, price: r.price, maxOccupants: r.max,
-          status: 'vacant', tenantName: null, tenantId: null, contractId: null, contractEnd: null, debt: 0,
+          status: 'vacant', tenantName: null, tenantId: null, contractId: null, contractEnd: null, debt: 0, holdingDeposit: 0,
         }));
         S.log('room.bulkCreate', `Tạo ${create.length} phòng`);
         close(); UI.toast(`Đã tạo ${create.length} phòng`, { type: 'ok' });
@@ -339,7 +339,13 @@
       const ct = document.getElementById('colToggle');
       if (ct) ct.onclick = () => openColMenu(ct, ctx);
       const ex = document.getElementById('exportXls');
-      if (ex) ex.onclick = () => UI.toast('Đã xuất Excel danh sách phòng (demo)', { type: 'ok' });
+      if (ex) ex.onclick = () => {
+        U.downloadCSV(`phong-${ctx.bid}.csv`, ['Tên phòng', 'Tầng', 'Loại phòng', 'DT (m2)', 'Giá thuê', 'Tình trạng', 'Khách thuê', 'Hạn hợp đồng', 'Công nợ'],
+          S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code)).map(r => [
+            r.code, r.floor, r.typeLabel, r.area, r.price, (UI.STATUS.room[r.status] || {}).label || r.status,
+            r.tenantName || '', r.contractEnd ? U.fmtDate(r.contractEnd) : '', r.debt || 0]));
+        UI.toast('Đã tải file Excel (CSV) danh sách phòng', { type: 'ok' });
+      };
       const pr = document.getElementById('promoteBtn');
       if (pr) pr.onclick = () => UI.toast('Tạo tòa nhà chính thức (demo)', { type: 'ok' });
       if (ctx._dt) ctx._dt.attach(document);

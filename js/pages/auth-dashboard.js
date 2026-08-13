@@ -193,7 +193,7 @@ HH.pages = HH.pages || {};
     },
     mount() {
       const b = document.querySelector('[data-primary-new]');
-      if (b) b.onclick = () => UI.toast('Chức năng thêm tòa nhà (demo)', { type: 'ok' });
+      if (b) b.onclick = () => HH.app.addBuildingDialog();
     },
   };
 

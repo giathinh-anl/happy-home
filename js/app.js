@@ -10,7 +10,6 @@ HH.app = (function () {
     { key: 'report', ic: '📊', label: 'Tổng báo cáo',     path: '/dashboard', pill: 'Mới', pillClass: 'new' },
     { key: 'bank',   ic: '💳', label: 'Khách chuyển khoản', path: '/transfers' },
     { key: 'post',   ic: '📢', label: 'Đăng tin',          path: '/post' },
-    { key: 'broker', ic: '🤝', label: 'Môi giới',          path: '/broker' },
     { key: 'group',  ic: '🧑‍🤝‍🧑', label: 'Công ty/nhóm', path: '/group', owner: true },
     { key: 'config', ic: '⚙️', label: 'Cài đặt chung',     path: '/config', owner: true },
     { key: 'noti',   ic: '🔔', label: 'Thông báo',         path: '/noti', pill: '0', pillClass: 'zero' },
@@ -132,7 +131,7 @@ HH.app = (function () {
       else if (a === 'account') openUserMenu(b);
     });
     const card = document.getElementById('bCard');
-    if (card) card.onclick = (e) => { if (e.target.id === 'bAdd') { UI().toast('Thêm tòa nhà (demo)', { type: 'ok' }); return; } openBuildingMenu(card, params.bid); };
+    if (card) card.onclick = (e) => { if (e.target.id === 'bAdd') { addBuildingDialog(); return; } openBuildingMenu(card, params.bid); };
     const more = document.getElementById('moreBtn');
     if (more) more.onclick = () => openMoreMenu(more, params.bid);
   }
@@ -152,6 +151,12 @@ HH.app = (function () {
       { icon: S.isOwner() ? '●' : '○', label: 'Vai trò: Chủ trọ', onClick: () => switchRole('owner') },
       { icon: !S.isOwner() ? '●' : '○', label: 'Vai trò: Nhân viên vận hành', onClick: () => switchRole('staff') },
       { sep: true },
+      { icon: '↺', label: 'Khôi phục dữ liệu mẫu', onClick: () => {
+        HH.ui.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
+          footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
+          onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });
+      } },
+      { sep: true },
       { icon: '🚪', label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } },
     ]);
   }
@@ -160,6 +165,22 @@ HH.app = (function () {
     HH.ui.toast(`Đã chuyển sang vai trò ${role === 'owner' ? 'Chủ trọ' : 'Nhân viên vận hành'}`, { type: 'ok' });
     HH.router.render();
   }
+  function addBuildingDialog() {
+    HH.ui.modal({ title: 'Thêm tòa nhà', bodyHtml: h`
+      <div class="field"><label>Tên tòa nhà *</label><input class="input" id="nbName" placeholder="VD: Happy Home Thủ Đức"></div>
+      <div class="field" style="margin-top:12px"><label>Địa chỉ</label><input class="input" id="nbAddr" placeholder="Số nhà, đường, quận, thành phố"></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="nbSave">Thêm tòa nhà</button>`,
+      onMount(el, close) {
+        el.querySelector('#nbSave').onclick = () => {
+          const name = el.querySelector('#nbName').value.trim();
+          if (!name) { HH.ui.toast('Vui lòng nhập tên tòa nhà', { type: 'error' }); return; }
+          const b = S.addBuilding({ id: U.uid('b'), name, address: el.querySelector('#nbAddr').value.trim(), floors: 1, perFloor: 0 });
+          S.log('building.add', `Thêm tòa nhà ${name}`);
+          close(); HH.ui.toast('Đã thêm tòa nhà — hãy tạo phòng', { type: 'ok' }); HH.router.go(`/b/${b.id}/units`);
+        };
+      } });
+  }
+
   function openBuildingMenu(anchor, curBid) {
     const path = HH.router.current();
     const seg = path.split('/')[3] || 'units';
@@ -206,5 +227,5 @@ HH.app = (function () {
     HH.router.start();
   }
 
-  return { renderShell, renderBare, boot, showShortcuts };
+  return { renderShell, renderBare, boot, showShortcuts, addBuildingDialog };
 })();

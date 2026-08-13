@@ -14,7 +14,6 @@ HH.router = (function () {
     { pat: '/logs', page: 'logs', meta: { title: 'Nhật ký hệ thống', owner: true } },
     { pat: '/transfers', page: 'stub', meta: { title: 'Khách chuyển khoản' } },
     { pat: '/post', page: 'stub', meta: { title: 'Đăng tin cho thuê' } },
-    { pat: '/broker', page: 'stub', meta: { title: 'Môi giới' } },
     { pat: '/group', page: 'stub', meta: { title: 'Công ty / nhóm', owner: true } },
     { pat: '/noti', page: 'stub', meta: { title: 'Thông báo' } },
     // Tầng tòa nhà

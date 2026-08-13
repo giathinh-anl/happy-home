@@ -82,12 +82,17 @@ js/
     misc.js           # dịch vụ, tài sản
 ```
 
-## Giới hạn của bản demo
+## Lưu dữ liệu & thao tác thật
 
-- **Dữ liệu giả lập trong bộ nhớ**, tạo lại mỗi lần tải trang. Các thao tác (đổi trạng thái, ghi thanh toán, hủy hóa đơn, ký/thanh lý hợp đồng) có hiệu lực trong phiên nhưng **không lưu vĩnh viễn** (chưa nối máy chủ). Chỉ tùy chọn giao diện (vai trò, chế độ xem) được lưu vào `localStorage`.
-- **OCR CCCD được mô phỏng** (không gọi dịch vụ thật) — điền sẵn dữ liệu mẫu kèm độ tin cậy để minh họa luồng.
-- Một số màn hình phụ (Báo cáo, Sổ kế toán, Nhân sự, Cấu hình, Khóa thông minh, Thu chi) hiện là trang giữ chỗ.
-- **Chưa dựng** phần IV (ứng dụng khách thuê) và phần V (trợ lý ảo) theo lựa chọn phạm vi "chỉ app quản trị". Có thể bổ sung ở bước sau.
+- **Dữ liệu được lưu bền trong trình duyệt** (`localStorage`). Mọi thao tác đều **giữ lại sau khi tải lại trang**: thêm/sửa/xóa dịch vụ, tạo phòng hàng loạt, thêm khách thuê, ký & thanh lý hợp đồng, ghi chỉ số, sinh/phát hành/hủy hóa đơn, ghi nhận thanh toán, thêm tài sản, thêm tòa nhà, kết nối/ngắt khóa TTLock…
+- **Xuất Excel thật**: các nút *Xuất excel* (phòng, khách thuê, dịch vụ, tài sản, hóa đơn) tải xuống **file CSV** mở được bằng Excel (có dấu tiếng Việt).
+- **Khôi phục dữ liệu mẫu**: ô **Tài khoản → Khôi phục dữ liệu mẫu** để xóa hết thay đổi và về dữ liệu ban đầu.
 
-## Bước tiếp theo gợi ý
-Nối API thật (thay `js/store.js` bằng lớp gọi máy chủ), thêm ứng dụng khách thuê (Phần IV), trợ lý ảo (Phần V), và các màn hình phụ còn giữ chỗ.
+## Còn là mô phỏng (chưa nối máy chủ thật)
+
+- **OCR CCCD** được mô phỏng (điền sẵn dữ liệu mẫu kèm độ tin cậy) — chưa gọi dịch vụ nhận diện thật.
+- Dữ liệu chỉ nằm **trên trình duyệt này**; chưa đồng bộ nhiều thiết bị / nhiều người dùng (cần backend + database).
+- Một vài màn hình phụ (Tổng báo cáo, Khách chuyển khoản, Đăng tin, Công ty/nhóm, Khóa thông minh, Thu chi) hiện là trang giữ chỗ.
+
+## Bước tiếp theo để thành "bản chính" thật
+Muốn nhiều người dùng chung + đồng bộ nhiều máy thì cần **máy chủ + cơ sở dữ liệu**: thay `js/store.js` bằng lớp gọi API thật (đăng nhập/JWT, REST/GraphQL), thêm OCR thật và cổng thanh toán. Giao diện & luồng nghiệp vụ hiện tại dùng lại được gần như nguyên vẹn.
