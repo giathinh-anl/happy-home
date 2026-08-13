@@ -11,3 +11,6 @@ desktop.ini
 # Logs / temp
 *.log
 tmp/
+
+# Khóa kết nối Supabase của người dùng (không commit)
+js/config.js
