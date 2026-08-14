@@ -37,11 +37,14 @@ HH.app = (function () {
   /* ---------- Thanh trên ---------- */
   function topbar(path) {
     const inBuilding = path.startsWith('/b/');
+    const notiCount = S.notificationCount ? S.notificationCount() : 0;
     const tiles = TOP_TILES.filter(t => !t.owner || S.isOwner()).map(t => {
       let active = false;
       if (t.key === 'home') active = inBuilding || path === '/buildings';
       else if (t.path) active = path === t.path;
-      const pill = t.pill ? `<span class="pill ${t.pillClass || ''}">${t.pill}</span>` : '';
+      let pillText = t.pill, pillClass = t.pillClass;
+      if (t.key === 'noti') { pillText = String(notiCount); pillClass = notiCount > 0 ? '' : 'zero'; }
+      const pill = pillText ? `<span class="pill ${pillClass || ''}">${pillText}</span>` : '';
       const attr = t.action ? `data-act="${t.action}"` : `href="#${t.path}"`;
       const tag = t.action ? 'button' : 'a';
       return `<${tag} class="lz-tile ${active ? 'active' : ''}" ${attr}>

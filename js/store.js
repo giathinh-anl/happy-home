@@ -297,6 +297,28 @@ HH.store = (function () {
     incidentsOf: (bid) => incidents.filter(x => x.buildingId === bid && x.status !== 'done'),
     building: (id) => buildings.find(b => b.id === id),
 
+    // Trung tâm thông báo (tính từ dữ liệu hiện có)
+    notifications() {
+      const list = [];
+      buildings.forEach(b => {
+        const overdue = invoices.filter(i => i.buildingId === b.id && i.status === 'overdue');
+        if (overdue.length) list.push({ icon: '🧾', tone: 'danger', title: `${overdue.length} hóa đơn quá hạn`,
+          sub: b.name, href: `#/b/${b.id}/invoices?status=overdue` });
+        const expiring = contracts.filter(c => c.buildingId === b.id && c.expiringSoon && c.status === 'active');
+        if (expiring.length) list.push({ icon: '📄', tone: 'warning', title: `${expiring.length} hợp đồng sắp hết hạn`,
+          sub: b.name, href: `#/b/${b.id}/contracts` });
+        const occ = rooms.filter(r => r.buildingId === b.id && (r.status === 'occupied' || r.status === 'notice'));
+        const pending = occ.filter(r => { const rd = api.reading(b.id, r.code, CUR_PERIOD); return !(rd && rd.elecCurr != null); });
+        if (pending.length) list.push({ icon: '📉', tone: 'info', title: `${pending.length} phòng chưa ghi chỉ số kỳ này`,
+          sub: b.name, href: `#/b/${b.id}/readings` });
+        const inc = incidents.filter(x => x.buildingId === b.id && x.status !== 'done');
+        if (inc.length) list.push({ icon: '🧰', tone: 'purple', title: `${inc.length} sự cố phòng đang mở`,
+          sub: b.name, href: `#/b/${b.id}/incidents` });
+      });
+      return list;
+    },
+    notificationCount() { return api.notifications().length; },
+
     // Tổng hợp cho 4 thẻ trang phòng (kiểu LOZIDO)
     roomSummary(bid) {
       const rs = rooms.filter(r => r.buildingId === bid);
@@ -371,6 +393,7 @@ HH.store = (function () {
     addContract(c) { contracts.push(c); persist(); return c; },
     addAsset(a) { assets.push(a); persist(); return a; },
     addBuilding(b) { buildings.push(b); persist(); return b; },
+    updateBuilding(id, patch) { const b = buildings.find(x => x.id === id); if (b) { Object.assign(b, patch); persist(); } return b; },
     addIncident(x) { incidents.push(x); persist(); return x; },
     addService(s) { services.push(s); persist(); return s; },
     updateService(id, patch) { const s = services.find(x => x.id === id); if (s) { Object.assign(s, patch); persist(); } return s; },

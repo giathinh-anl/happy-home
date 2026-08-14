@@ -15,7 +15,7 @@ HH.router = (function () {
     { pat: '/transfers', page: 'stub', meta: { title: 'Khách chuyển khoản' } },
     { pat: '/post', page: 'stub', meta: { title: 'Đăng tin cho thuê' } },
     { pat: '/group', page: 'stub', meta: { title: 'Công ty / nhóm', owner: true } },
-    { pat: '/noti', page: 'stub', meta: { title: 'Thông báo' } },
+    { pat: '/noti', page: 'noti' },
     // Tầng tòa nhà
     { pat: '/b/:bid/units', page: 'units' },
     { pat: '/b/:bid/tenants', page: 'tenants' },
@@ -31,8 +31,8 @@ HH.router = (function () {
     { pat: '/b/:bid/expenses', page: 'stub', meta: { title: 'Thu chi', owner: true } },
     { pat: '/b/:bid/assets', page: 'assets' },
     { pat: '/b/:bid/incidents', page: 'incidents' },
-    { pat: '/b/:bid/locks', page: 'stub', meta: { title: 'Khóa thông minh' } },
-    { pat: '/b/:bid/config', page: 'stub', meta: { title: 'Cấu hình tòa nhà', owner: true } },
+    { pat: '/b/:bid/locks', page: 'locks' },
+    { pat: '/b/:bid/config', page: 'buildingConfig', meta: { title: 'Cấu hình tòa nhà', owner: true } },
   ];
 
   function match(path) {
