@@ -46,6 +46,7 @@ HH.store = (function () {
   const payments = [];
   const assets = [];
   const incidents = [];
+  const transactions = [];
   const auditLog = [];
 
   const CUR_PERIOD = '2026-08';
@@ -236,7 +237,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, auditLog };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, auditLog };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -394,6 +395,10 @@ HH.store = (function () {
     addAsset(a) { assets.push(a); persist(); return a; },
     addBuilding(b) { buildings.push(b); persist(); return b; },
     updateBuilding(id, patch) { const b = buildings.find(x => x.id === id); if (b) { Object.assign(b, patch); persist(); } return b; },
+    transactionsOf: (bid) => transactions.filter(t => t.buildingId === bid),
+    addTransaction(t) { transactions.push(t); persist(); return t; },
+    removeTransaction(id) { const i = transactions.findIndex(x => x.id === id); if (i >= 0) { transactions.splice(i, 1); persist(); } },
+    paymentsAll: () => payments.slice(),
     addIncident(x) { incidents.push(x); persist(); return x; },
     addService(s) { services.push(s); persist(); return s; },
     updateService(id, patch) { const s = services.find(x => x.id === id); if (s) { Object.assign(s, patch); persist(); } return s; },

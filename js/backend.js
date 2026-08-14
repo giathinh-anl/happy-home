@@ -17,13 +17,22 @@ HH.backend = (function () {
   const KINDS = {
     buildings: 'buildings', rooms: 'rooms', tenants: 'tenants', contracts: 'contracts',
     services: 'services', readings: 'readings', invoices: 'invoices', payments: 'payments',
-    assets: 'assets', incidents: 'incidents', auditLog: 'audit_log',
+    assets: 'assets', incidents: 'incidents', transactions: 'transactions', auditLog: 'audit_log',
   };
   // field JS lệch quy tắc -> cột DB
   const ALIAS = {
     contracts: { start: 'start_date', end: 'end_date' },
     payments: { date: 'paid_date' },
+    transactions: { date: 'tx_date' },
   };
+
+  // Bảng chưa được tạo (chưa chạy migration) -> coi như rỗng, không làm hỏng cả luồng
+  function isMissingTable(e) {
+    if (!e) return false;
+    const s = ((e.message || '') + ' ' + (e.code || '') + ' ' + (e.details || '')).toLowerCase();
+    return e.code === '42p01' || e.code === 'pgrst205' ||
+      s.includes('does not exist') || s.includes('schema cache') || s.includes('could not find the table');
+  }
 
   const toSnake = (s) => s.replace(/([A-Z])/g, (m) => '_' + m.toLowerCase());
   const toCamel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -85,7 +94,10 @@ HH.backend = (function () {
       const out = {}; let failedMsg = null;
       for (const kind of Object.keys(KINDS)) {
         const { data, error } = await client.from(KINDS[kind]).select('*');
-        if (error) { failedMsg = '[load ' + kind + '] ' + error.message; break; }
+        if (error) {
+          if (isMissingTable(error)) { out[kind] = []; continue; } // bảng chưa tạo -> rỗng
+          failedMsg = '[load ' + kind + '] ' + error.message; break;
+        }
         out[kind] = (data || []).map((r) => rowToJs(kind, r));
       }
       if (!failedMsg) return { data: out };
@@ -98,7 +110,10 @@ HH.backend = (function () {
     if (!enabled || !arr || !arr.length) return { error: null };
     const rows = arr.map((o) => jsToRow(kind, o));
     const { error } = await client.from(KINDS[kind]).upsert(rows, { onConflict: 'owner_id,id' });
-    if (error) console.error('[save ' + kind + ']', error.message);
+    if (error) {
+      if (isMissingTable(error)) { console.info('Bảng ' + kind + ' chưa tạo — bỏ qua đồng bộ (chạy migration để bật).'); return { error: null }; }
+      console.error('[save ' + kind + ']', error.message);
+    }
     return { error };
   }
   async function saveOne(kind, obj) { return saveMany(kind, [obj]); }
