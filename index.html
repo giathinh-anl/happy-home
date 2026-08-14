@@ -9,29 +9,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/tokens.css">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/tokens.css?v=3">
+  <link rel="stylesheet" href="css/base.css?v=3">
+  <link rel="stylesheet" href="css/layout.css?v=3">
+  <link rel="stylesheet" href="css/components.css?v=3">
+  <link rel="stylesheet" href="css/pages.css?v=3">
 </head>
 <body>
   <div id="app"></div>
 
-  <!-- Nền tảng -->
-  <script src="js/utils.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/components.js"></script>
+  <!-- SDK Supabase (tùy chọn — nếu offline/không có mạng thì app tự chạy chế độ demo) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Nền tảng. ?v=N: đổi số này mỗi lần cập nhật để trình duyệt nạp lại (tránh cache cũ) -->
+  <script src="js/utils.js?v=3"></script>
+  <script>window.HH = window.HH || {};</script>
+  <script src="js/config.js?v=3" onerror="console.info('Chưa có js/config.js — chạy chế độ demo')"></script>
+  <script src="js/backend.js?v=3"></script>
+  <script src="js/store.js?v=3"></script>
+  <script src="js/components.js?v=3"></script>
   <!-- Trang -->
-  <script src="js/pages/auth-dashboard.js"></script>
-  <script src="js/pages/rooms.js"></script>
-  <script src="js/pages/tenants.js"></script>
-  <script src="js/pages/contracts.js"></script>
-  <script src="js/pages/billing.js"></script>
-  <script src="js/pages/misc.js"></script>
+  <script src="js/pages/auth-dashboard.js?v=3"></script>
+  <script src="js/pages/rooms.js?v=3"></script>
+  <script src="js/pages/tenants.js?v=3"></script>
+  <script src="js/pages/contracts.js?v=3"></script>
+  <script src="js/pages/billing.js?v=3"></script>
+  <script src="js/pages/misc.js?v=3"></script>
   <!-- Điều hướng + khởi động -->
-  <script src="js/router.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/router.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
   <script>
     // Bắt lỗi runtime để không "trắng màn hình" âm thầm
     window.addEventListener('error', function (e) {

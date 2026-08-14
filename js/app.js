@@ -222,8 +222,16 @@ HH.app = (function () {
       </tbody></table>`, footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Đóng</button>` });
   }
 
-  function boot() {
+  async function boot() {
     document.addEventListener('keydown', shortcuts);
+    if (S.usingBackend()) {
+      HH.backend.init();
+      try {
+        const session = await HH.backend.getSession();
+        if (session) await S.onSignedIn(session.user);
+        else S.prefs.auth = false;
+      } catch (e) { console.error('Khởi tạo backend lỗi:', e); S.prefs.auth = false; }
+    }
     HH.router.start();
   }
 

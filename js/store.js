@@ -144,7 +144,7 @@ HH.store = (function () {
           const elecUse = 150 + (seq * 37) % 120;
           const waterUse = 3 + (seq % 4);
           const reading = {
-            buildingId: b.id, roomCode: code, period: CUR_PERIOD,
+            id: U.uid('rd'), buildingId: b.id, roomCode: code, period: CUR_PERIOD,
             elecPrev, elecCurr: hasCurrent ? elecPrev + elecUse : null,
             waterPrev, waterCurr: hasCurrent ? waterPrev + waterUse : null,
             elecPhoto: hasCurrent, waterPhoto: hasCurrent,
@@ -234,22 +234,33 @@ HH.store = (function () {
     return inv;
   }
 
-  /* ---------- Lưu bền dữ liệu (localStorage) ---------- */
+  /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
   const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, auditLog };
-  function persist() { try { localStorage.setItem(DATA_KEY, JSON.stringify(groups)); } catch (e) {} }
+  const usingBackend = () => !!(HH.backend && HH.backend.enabled);
+
+  let syncTimer = null;
+  function persist() {
+    if (usingBackend()) { clearTimeout(syncTimer); syncTimer = setTimeout(syncAll, 350); return; }
+    try { localStorage.setItem(DATA_KEY, JSON.stringify(groups)); } catch (e) {}
+  }
+  async function syncAll() {
+    if (!usingBackend()) return;
+    for (const k of Object.keys(groups)) { await HH.backend.saveMany(k, groups[k]); }
+  }
+  function replaceAll(data) {
+    Object.keys(groups).forEach(k => { groups[k].length = 0; (data[k] || []).forEach(x => groups[k].push(x)); });
+  }
   function loadPersisted() {
     try {
       const rawStr = localStorage.getItem(DATA_KEY); if (!rawStr) return false;
       const snap = JSON.parse(rawStr);
-      Object.keys(groups).forEach(k => {
-        if (Array.isArray(snap[k])) { groups[k].length = 0; snap[k].forEach(x => groups[k].push(x)); }
-      });
+      replaceAll(snap);
       return true;
     } catch (e) { return false; }
   }
-  // Lần đầu: lưu dữ liệu mẫu. Lần sau: nạp lại đúng dữ liệu người dùng đã chỉnh.
-  if (!loadPersisted()) persist();
+  // Chế độ demo: lưu localStorage. Chế độ backend: nạp khi đăng nhập (bên dưới).
+  if (!usingBackend()) { if (!loadPersisted()) persist(); }
 
   /* ---------- Trạng thái ứng dụng ---------- */
   const PREFS_KEY = 'hh_prefs_v1';
@@ -264,10 +275,23 @@ HH.store = (function () {
     ROOM_TYPES, CUR_PERIOD, PREV_PERIOD,
     prefs,
     setPref(k, v) { prefs[k] = v; savePrefs(); },
+    usingBackend,
     login(role) { prefs.auth = true; prefs.role = role || 'owner';
       prefs.userName = role === 'staff' ? 'Trần Thị Vận Hành' : 'Nguyễn Văn A'; savePrefs(); },
-    logout() { prefs.auth = false; savePrefs(); },
+    logout() { prefs.auth = false; savePrefs(); if (usingBackend()) HH.backend.signOut(); },
     isOwner() { return prefs.role === 'owner'; },
+
+    // Sau khi Supabase xác thực xong: nạp dữ liệu của người dùng (hoặc đẩy dữ liệu mẫu nếu trống)
+    async onSignedIn(user) {
+      prefs.role = 'owner';
+      prefs.userName = (user && (user.user_metadata && user.user_metadata.full_name)) || (user && user.email) || 'Chủ trọ';
+      const res = await HH.backend.loadAll();
+      if (res.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
+      const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
+      prefs.auth = true; savePrefs();
+      if (total === 0) { await syncAll(); return 'seeded'; }   // tài khoản mới: đẩy dữ liệu mẫu đang có
+      replaceAll(res.data); return 'loaded';
+    },
 
     buildings, services, assets, auditLog, incidents,
     incidentsOf: (bid) => incidents.filter(x => x.buildingId === bid && x.status !== 'done'),
@@ -335,8 +359,11 @@ HH.store = (function () {
     },
 
     /* ---------- Đột biến ---------- */
-    persist,
-    resetData() { try { localStorage.removeItem(DATA_KEY); } catch (e) {} location.reload(); },
+    persist, syncAll,
+    async resetData() {
+      if (usingBackend()) { await HH.backend.deleteAll(); location.reload(); return; }
+      try { localStorage.removeItem(DATA_KEY); } catch (e) {} location.reload();
+    },
 
     // Thêm mới (đẩy vào MẢNG GỐC rồi lưu bền)
     addRoom(r) { rooms.push(r); persist(); return r; },

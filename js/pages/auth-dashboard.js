@@ -8,6 +8,18 @@ HH.pages = HH.pages || {};
   /* ---------------- ĐĂNG NHẬP (§3.1) ---------------- */
   HH.pages.login = {
     render() {
+      const backend = S.usingBackend();
+      const demoBlock = backend ? '' : `
+        <div class="field">
+          <label>Đăng nhập với vai trò (demo)</label>
+          <div class="view-toggle" role="tablist">
+            <button type="button" class="active" data-role="owner">Chủ trọ</button>
+            <button type="button" data-role="staff">Nhân viên vận hành</button>
+          </div>
+        </div>`;
+      const hint = backend
+        ? `<div class="login-hints">Kết nối máy chủ <b>Supabase</b>. <a href="#" id="toggleMode">Chưa có tài khoản? Đăng ký</a></div>`
+        : `<div class="login-hints">Bản demo: nhập email hợp lệ và mật khẩu bất kỳ. <a href="#" id="quickFill">Điền nhanh</a></div>`;
       return h`<div class="login-split">
         <div class="login-brand">
           <div class="logo-lg"><span class="mark">H</span> HAPPY HOME</div>
@@ -16,8 +28,12 @@ HH.pages = HH.pages || {};
         </div>
         <div class="login-form-wrap">
           <form class="login-form" id="loginForm" novalidate>
-            <div><h1>Đăng nhập</h1><p class="lead">Hệ thống quản lý</p></div>
-            <div id="loginError" class="alert alert-danger hidden"><span class="ic">⚠</span><div>Email hoặc mật khẩu không đúng</div></div>
+            <div><h1 id="authTitle">Đăng nhập</h1><p class="lead">${raw(backend ? 'Tài khoản của bạn' : 'Hệ thống quản lý')}</p></div>
+            <div id="loginError" class="alert alert-danger hidden"><span class="ic">⚠</span><div id="loginErrText">Email hoặc mật khẩu không đúng</div></div>
+            <div class="field" id="nameField" style="display:none">
+              <label for="fullName">Họ và tên</label>
+              <input class="input" id="fullName" placeholder="Nguyễn Văn A">
+            </div>
             <div class="field">
               <label for="email">Email</label>
               <input class="input" id="email" type="email" autocomplete="username" placeholder="ban@happyhome.vn">
@@ -29,58 +45,103 @@ HH.pages = HH.pages || {};
                 <input class="input" id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
                 <button type="button" class="toggle" id="pwToggle" aria-label="Hiện mật khẩu">👁</button>
               </div>
+              ${raw(backend ? '<span class="hint">Tối thiểu 6 ký tự</span>' : '')}
             </div>
-            <div class="field">
-              <label>Đăng nhập với vai trò (demo)</label>
-              <div class="view-toggle" role="tablist">
-                <button type="button" class="active" data-role="owner">Chủ trọ</button>
-                <button type="button" data-role="staff">Nhân viên vận hành</button>
-              </div>
-            </div>
-            <label class="check"><input type="checkbox" id="remember" checked> Ghi nhớ đăng nhập</label>
+            ${raw(demoBlock)}
             <button class="btn btn-primary btn-lg btn-block" id="loginBtn" type="submit">Đăng nhập</button>
-            <div class="login-hints">Bản demo: nhập email hợp lệ và mật khẩu bất kỳ. Chọn vai trò để xem khác biệt phân quyền. <a href="#" id="quickFill">Điền nhanh</a></div>
-            <a href="#" style="text-align:center">Quên mật khẩu?</a>
+            ${raw(hint)}
           </form>
         </div>
       </div>`;
     },
     mount() {
-      const form = document.getElementById('loginForm');
-      const email = document.getElementById('email');
-      const pw = document.getElementById('pw');
-      const errBox = document.getElementById('loginError');
-      let role = 'owner';
-
-      document.getElementById('pwToggle').onclick = () => {
-        pw.type = pw.type === 'password' ? 'text' : 'password';
-      };
-      document.querySelectorAll('[data-role]').forEach(b => b.onclick = () => {
-        document.querySelectorAll('[data-role]').forEach(x => x.classList.remove('active'));
-        b.classList.add('active'); role = b.dataset.role;
-      });
-      document.getElementById('quickFill').onclick = (e) => {
-        e.preventDefault(); email.value = 'chutro@happyhome.vn'; pw.value = 'demo1234';
-      };
-      // kiểm tra email khi rời ô (§3.1)
-      email.onblur = () => {
-        const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim());
-        const err = form.querySelector('[data-err="email"]');
-        if (email.value && !ok) { email.classList.add('invalid'); err.classList.remove('hidden'); }
-        else { email.classList.remove('invalid'); err.classList.add('hidden'); }
-      };
-      form.onsubmit = (e) => {
-        e.preventDefault();
-        errBox.classList.add('hidden');
-        const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim());
-        if (!emailOk || !pw.value) { errBox.classList.remove('hidden'); return; }
-        const btn = document.getElementById('loginBtn');
-        btn.classList.add('loading'); btn.textContent = 'Đang đăng nhập...';
-        form.querySelectorAll('input,button').forEach(el => el.disabled = true);
-        setTimeout(() => { S.login(role); HH.router.go('/b/' + S.buildings[0].id + '/units'); }, 700);
-      };
+      if (S.usingBackend()) return mountBackendAuth();
+      mountDemoAuth();
     },
   };
+
+  function emailValid(v) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((v || '').trim()); }
+
+  function mountDemoAuth() {
+    const form = document.getElementById('loginForm');
+    const email = document.getElementById('email');
+    const pw = document.getElementById('pw');
+    const errBox = document.getElementById('loginError');
+    let role = 'owner';
+    document.getElementById('pwToggle').onclick = () => { pw.type = pw.type === 'password' ? 'text' : 'password'; };
+    document.querySelectorAll('[data-role]').forEach(b => b.onclick = () => {
+      document.querySelectorAll('[data-role]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active'); role = b.dataset.role;
+    });
+    const qf = document.getElementById('quickFill');
+    if (qf) qf.onclick = (e) => { e.preventDefault(); email.value = 'chutro@happyhome.vn'; pw.value = 'demo1234'; };
+    email.onblur = () => {
+      const err = form.querySelector('[data-err="email"]');
+      if (email.value && !emailValid(email.value)) { email.classList.add('invalid'); err.classList.remove('hidden'); }
+      else { email.classList.remove('invalid'); err.classList.add('hidden'); }
+    };
+    form.onsubmit = (e) => {
+      e.preventDefault(); errBox.classList.add('hidden');
+      if (!emailValid(email.value) || !pw.value) { errBox.classList.remove('hidden'); return; }
+      const btn = document.getElementById('loginBtn');
+      btn.classList.add('loading'); btn.textContent = 'Đang đăng nhập...';
+      form.querySelectorAll('input,button').forEach(el => el.disabled = true);
+      setTimeout(() => { S.login(role); HH.router.go('/b/' + S.buildings[0].id + '/units'); }, 700);
+    };
+  }
+
+  function mountBackendAuth() {
+    const form = document.getElementById('loginForm');
+    const email = document.getElementById('email');
+    const pw = document.getElementById('pw');
+    const nameField = document.getElementById('nameField');
+    const errBox = document.getElementById('loginError');
+    const errText = document.getElementById('loginErrText');
+    const title = document.getElementById('authTitle');
+    const btn = document.getElementById('loginBtn');
+    let mode = 'signin';
+
+    document.getElementById('pwToggle').onclick = () => { pw.type = pw.type === 'password' ? 'text' : 'password'; };
+    const toggle = document.getElementById('toggleMode');
+    toggle.onclick = (e) => {
+      e.preventDefault(); errBox.classList.add('hidden');
+      mode = mode === 'signin' ? 'signup' : 'signin';
+      title.textContent = mode === 'signup' ? 'Đăng ký' : 'Đăng nhập';
+      btn.textContent = mode === 'signup' ? 'Đăng ký' : 'Đăng nhập';
+      nameField.style.display = mode === 'signup' ? '' : 'none';
+      toggle.textContent = mode === 'signup' ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký';
+    };
+
+    const showErr = (msg) => { errText.textContent = msg; errBox.classList.remove('hidden'); };
+    const mapErr = (m) => {
+      m = (m || '').toLowerCase();
+      if (m.includes('invalid login')) return 'Email hoặc mật khẩu không đúng.';
+      if (m.includes('already registered') || m.includes('already been registered')) return 'Email này đã được đăng ký. Hãy đăng nhập.';
+      if (m.includes('password')) return 'Mật khẩu chưa đạt yêu cầu (tối thiểu 6 ký tự).';
+      if (m.includes('email')) return 'Email không hợp lệ.';
+      return 'Có lỗi xảy ra. Vui lòng thử lại. (' + m + ')';
+    };
+
+    form.onsubmit = async (e) => {
+      e.preventDefault(); errBox.classList.add('hidden');
+      if (!emailValid(email.value)) { showErr('Email không hợp lệ.'); return; }
+      if ((pw.value || '').length < 6) { showErr('Mật khẩu tối thiểu 6 ký tự.'); return; }
+      btn.classList.add('loading'); const old = btn.textContent;
+      btn.textContent = mode === 'signup' ? 'Đang đăng ký...' : 'Đang đăng nhập...';
+      form.querySelectorAll('input,button').forEach(el => el.disabled = true);
+      const unlock = () => { btn.classList.remove('loading'); btn.textContent = old; form.querySelectorAll('input,button').forEach(el => el.disabled = false); };
+      try {
+        let res;
+        if (mode === 'signup') res = await HH.backend.signUp(email.value.trim(), pw.value, document.getElementById('fullName').value.trim());
+        else res = await HH.backend.signIn(email.value.trim(), pw.value);
+        if (res.error) { unlock(); showErr(mapErr(res.error.message)); return; }
+        if (!res.data.session) { unlock(); showErr('Tài khoản đã tạo. Vui lòng kiểm tra email xác nhận rồi đăng nhập.'); return; }
+        const outcome = await S.onSignedIn(res.data.user);
+        if (outcome === 'error') { unlock(); showErr('Kết nối máy chủ chưa ổn định. Vui lòng bấm lại sau vài giây.'); return; }
+        HH.router.go('/b/' + (S.buildings[0] ? S.buildings[0].id : 'b1') + '/units');
+      } catch (err) { unlock(); showErr(mapErr(err.message)); }
+    };
+  }
 
   /* ---------------- TỔNG QUAN CÔNG TY (§3.2) ---------------- */
   HH.pages.dashboard = {
