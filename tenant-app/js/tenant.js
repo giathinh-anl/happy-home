@@ -89,7 +89,7 @@
       ${enabled ? '' : '<div class="t-hint">⚠ Chưa cấu hình máy chủ (js/config.js).</div>'}
       <div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>
       <div style="flex:1"></div>
-      <a href="index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
+      <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
     </div>`;
     el('phone').addEventListener('keydown', e => { if (e.key === 'Enter') el('sendOtp').click(); });
     el('sendOtp').onclick = async () => {

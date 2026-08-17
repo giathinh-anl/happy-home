@@ -50,7 +50,7 @@ HH.pages = HH.pages || {};
             ${raw(demoBlock)}
             <button class="btn btn-primary btn-lg btn-block" id="loginBtn" type="submit">Đăng nhập</button>
             ${raw(hint)}
-            <a href="tenant.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
+            <a href="tenant-app/index.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
           </form>
         </div>
       </div>`;

@@ -14,3 +14,4 @@ tmp/
 
 # Khóa kết nối Supabase của người dùng (không commit)
 js/config.js
+tenant-app/js/config.js
