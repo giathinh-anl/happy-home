@@ -153,29 +153,31 @@ HH.pages = HH.pages || {};
       if (owner) {
         cards = [
           UI.metricCard({ label: 'Tỷ lệ lấp đầy', value: d.occupancyRate, format: 'percent', trend: d.occupancyTrend }),
-          UI.metricCard({ label: 'Doanh thu tháng 8', value: d.revenue, format: 'currency', trend: d.revenueTrend }),
+          UI.metricCard({ label: 'Doanh thu ' + S.periodLabel(d.period), value: d.revenue, format: 'currency', trend: d.revenueTrend }),
           UI.metricCard({ label: 'Công nợ', value: d.outstandingDebt, format: 'currency', trend: d.debtTrend, intent: 'warning' }),
           UI.metricCard({ label: 'Chi phí vận hành', value: d.operatingCost, format: 'currency', trend: d.costTrend }),
         ];
       } else {
         const vacant = S.buildings.reduce((s, b) => s + S.roomsOf(b.id).filter(r => r.status === 'vacant').length, 0);
+        const openInc = S.incidents.filter(x => x.status !== 'done').length;
         cards = [
           UI.metricCard({ label: 'Tỷ lệ lấp đầy', value: d.occupancyRate, format: 'percent', trend: d.occupancyTrend }),
           UI.metricCard({ label: 'Phòng trống', value: vacant, format: 'number' }),
           UI.metricCard({ label: 'Phòng chưa ghi chỉ số', value: d.alerts.pendingReadings, format: 'number', intent: 'warning' }),
-          UI.metricCard({ label: 'Yêu cầu đang mở', value: 4, format: 'number' }),
+          UI.metricCard({ label: 'Sự cố đang mở', value: openInc, format: 'number' }),
         ];
       }
-      const maxRev = Math.max(...d.revenueHistory.map(x => x.amount));
+      const firstB = S.buildings[0] ? S.buildings[0].id : '';
+      const maxRev = Math.max(1, ...d.revenueHistory.map(x => x.amount));
       const bars = d.revenueHistory.map(x => h`<div class="bar-col">
         <div class="bar" style="height:${raw(Math.round(x.amount / maxRev * 100))}%" title="${U.currency(x.amount)}"></div>
         <div class="cap">${x.period}</div></div>`);
 
       const alerts = [
         { ic: '⚠', tone: 'warning', n: d.alerts.expiringContracts, text: 'hợp đồng sắp hết hạn trong 30 ngày', href: '#/buildings' },
-        { ic: '⚠', tone: 'danger', n: d.alerts.overdueInvoices, text: 'hóa đơn quá hạn', href: `#/b/b1/invoices?status=overdue` },
-        { ic: '⚠', tone: 'info', n: d.alerts.pendingReadings, text: 'phòng chưa ghi chỉ số kỳ này', href: `#/b/b1/readings` },
-      ].map(a => h`<a class="todo-item" href="${a.href}">
+        { ic: '⚠', tone: 'danger', n: d.alerts.overdueInvoices, text: 'hóa đơn quá hạn', href: `#/b/${firstB}/invoices?status=overdue` },
+        { ic: '⚠', tone: 'info', n: d.alerts.pendingReadings, text: 'phòng chưa ghi chỉ số kỳ này', href: `#/b/${firstB}/readings` },
+      ].filter(a => a.n > 0).map(a => h`<a class="todo-item" href="${a.href}">
         <span class="ic alert-${a.tone}">${raw(a.ic)}</span>
         <span><b class="num">${a.n}</b> ${a.text}</span>
         <span class="chev">›</span></a>`);
@@ -194,12 +196,12 @@ HH.pages = HH.pages || {};
 
       return h`
       <div class="page-head">
-        <div><div class="page-title">Tổng quan</div><div class="page-sub">Toàn công ty · Kỳ T8/2026</div></div>
+        <div><div class="page-title">Tổng quan</div><div class="page-sub">Toàn công ty · Kỳ ${S.periodLabel(d.period)}</div></div>
         <div class="page-actions">
-          <button class="period-chip">📅 T8/2026 ▾</button>
-          ${raw(owner ? `<button class="btn btn-outline">Xuất báo cáo</button>` : '')}
+          ${raw(owner ? `<button class="btn btn-outline" id="exportReport">📊 Xuất báo cáo</button>` : '')}
         </div>
       </div>
+      <div id="periodSel" style="margin-bottom:16px"></div>
       <div class="metric-grid">${cards}</div>
       <div class="dash-grid">
         <div class="card">
@@ -208,7 +210,7 @@ HH.pages = HH.pages || {};
         </div>
         <div class="card">
           <div class="card-head"><h3>Cần xử lý</h3></div>
-          <div class="card-pad"><div class="todo-list">${alerts}</div></div>
+          <div class="card-pad"><div class="todo-list">${raw(alerts.length ? alerts.join('') : '<div class="muted" style="text-align:center;padding:12px">✓ Không có việc cần xử lý</div>')}</div></div>
         </div>
       </div>
       <div class="card" style="margin-top:16px">
@@ -224,8 +226,19 @@ HH.pages = HH.pages || {};
     mount() {
       document.querySelectorAll('#bldRows tr[data-bid]').forEach(tr =>
         tr.onclick = () => HH.router.go(`/b/${tr.dataset.bid}/units`));
-      const chip = document.querySelector('.period-chip');
-      if (chip) chip.onclick = () => UI.toast('Bản demo cố định ở kỳ T8/2026', { type: 'ok' });
+      const psel = document.getElementById('periodSel');
+      if (psel) {
+        const opt = { value: S.period(), pending: S.periodsWithData(), onChange: (p) => { S.setPeriod(p); HH.router.render(); } };
+        psel.innerHTML = UI.periodSelector(opt);
+        UI.attachPeriod(psel.querySelector('[data-period-root]'), opt);
+      }
+      const ex = document.getElementById('exportReport');
+      if (ex) ex.onclick = () => {
+        const d = S.dashboardSummary();
+        U.downloadCSV(`bao-cao-${d.period}.csv`, ['Tòa nhà', 'Số phòng', 'Tỷ lệ lấp đầy', 'Doanh thu kỳ', 'Công nợ'],
+          d.buildings.map(b => [b.name, b.unitCount, U.percent(b.occupancyRate), b.revenue, b.debt]));
+        UI.toast('Đã tải báo cáo (CSV)', { type: 'ok' });
+      };
     },
   };
 

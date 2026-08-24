@@ -271,6 +271,43 @@ HH.store = (function () {
   try { const p = JSON.parse(localStorage.getItem(PREFS_KEY)); if (p) prefs = Object.assign(prefs, p); } catch (e) {}
   function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} }
 
+  function shiftPeriod(period, delta) {
+    const [y, m] = period.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  // Dựng hóa đơn nháp từ hợp đồng + chỉ số + dịch vụ (dùng khi sinh hóa đơn thật)
+  function runtimeInvoice(bid, contract, reading, period, svcs) {
+    const [y, m] = period.split('-').map(Number);
+    const periodStart = new Date(y, m - 1, 1);
+    const periodEnd = new Date(y, m, 0);
+    const dueDate = new Date(y, m, contract.dueDays || 5);
+    const elec = svcs.find(s => s.method === 'per_kwh');
+    const water = svcs.find(s => s.method === 'per_person');
+    const flats = svcs.filter(s => s.method === 'flat');
+    const roomTenants = tenants.filter(t => t.buildingId === bid && t.roomCode === contract.roomCode);
+    const occ = Math.max(1, roomTenants.length);
+    const lines = [{ label: 'Tiền phòng', amount: contract.rent, meta: `Trọn kỳ, ${periodEnd.getDate()}/${periodEnd.getDate()} ngày` }];
+    if (elec && reading.elecCurr != null) {
+      const use = Math.max(0, reading.elecCurr - (reading.elecPrev || 0));
+      lines.push({ label: 'Tiền điện', amount: use * elec.unit, type: 'elec',
+        meta: `Chỉ số ${U.number(reading.elecPrev)} → ${U.number(reading.elecCurr)} · ${U.number(use)} kWh × ${U.number(elec.unit)} ₫` });
+    }
+    if (water) lines.push({ label: 'Tiền nước', amount: occ * water.unit, meta: `${occ} người × ${U.number(water.unit)} ₫/người` });
+    flats.forEach(f => lines.push({ label: f.name, amount: f.unit, meta: 'Cố định theo tháng' }));
+    const total = lines.reduce((s, l) => s + l.amount, 0);
+    const num = String(invoices.filter(i => i.period === period).length + 1).padStart(3, '0');
+    const rep = roomTenants.find(t => t.isRep) || roomTenants[0] || {};
+    return {
+      id: `HD-${period.slice(2, 4)}${String(m).padStart(2, '0')}-${num}`,
+      buildingId: bid, roomCode: contract.roomCode, contractId: contract.id, tenantId: rep.id || contract.tenantId,
+      tenantName: contract.tenantName, period,
+      periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(), dueDate: dueDate.toISOString(),
+      lines, total, paid: 0, status: 'draft', edited: false, editedAt: null, editedBy: null,
+    };
+  }
+
   /* ---------- Truy vấn ---------- */
   const api = {
     ROOM_TYPES, CUR_PERIOD, PREV_PERIOD,
@@ -281,6 +318,15 @@ HH.store = (function () {
       prefs.userName = role === 'staff' ? 'Trần Thị Vận Hành' : 'Nguyễn Văn A'; savePrefs(); },
     logout() { prefs.auth = false; savePrefs(); if (usingBackend()) HH.backend.signOut(); },
     isOwner() { return prefs.role === 'owner'; },
+
+    // ----- Kỳ (tháng) đang xem -----
+    period: () => prefs.period || CUR_PERIOD,
+    setPeriod(p) { prefs.period = p; savePrefs(); },
+    prevPeriodOf(p) { const [y, m] = p.split('-').map(Number); const d = new Date(y, m - 2, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); },
+    periodLabel(p) { const a = (p || '').split('-'); return 'T' + Number(a[1]) + '/' + a[0]; },
+    periodsWithData() {
+      const s = new Set(); invoices.forEach(i => s.add(i.period)); readings.forEach(r => s.add(r.period)); return s;
+    },
 
     // Sau khi Supabase xác thực xong: nạp dữ liệu của người dùng (hoặc đẩy dữ liệu mẫu nếu trống)
     async onSignedIn(user) {
@@ -347,36 +393,40 @@ HH.store = (function () {
     invoicesForContract: (cid) => invoices.filter(i => i.contractId === cid),
     paymentsOf: (invId) => payments.filter(p => p.invoiceId === invId),
 
-    /* ---------- Tổng hợp dashboard ---------- */
+    /* ---------- Tổng hợp dashboard (theo kỳ đang chọn) ---------- */
     dashboardSummary() {
+      const per = api.period();
       const bstats = buildings.map(b => {
         const rs = rooms.filter(r => r.buildingId === b.id);
-        const occ = rs.filter(r => r.status === 'occupied' || r.status === 'notice').length;
-        const invs = invoices.filter(i => i.buildingId === b.id && i.period === CUR_PERIOD);
+        const occRooms = rs.filter(r => r.status === 'occupied' || r.status === 'notice').length;
+        const invs = invoices.filter(i => i.buildingId === b.id && i.period === per);
         const revenue = invs.reduce((s, i) => s + i.paid, 0);
-        const debt = invoices.filter(i => i.buildingId === b.id).reduce((s, i) => s + (i.total - i.paid), 0);
+        const debt = invoices.filter(i => i.buildingId === b.id && i.status !== 'cancelled').reduce((s, i) => s + (i.total - i.paid), 0);
         return { id: b.id, name: b.name, unitCount: rs.length,
-          occupancyRate: occ / rs.length, revenue, debt };
+          occupancyRate: rs.length ? occRooms / rs.length : 0, revenue, debt };
       });
       const totalRooms = rooms.length;
       const occ = rooms.filter(r => r.status === 'occupied' || r.status === 'notice').length;
       const revenue = bstats.reduce((s, x) => s + x.revenue, 0);
       const debt = bstats.reduce((s, x) => s + x.debt, 0);
+      const cost = transactions.filter(t => t.kind === 'expense' && (t.date || '').slice(0, 7) === per).reduce((s, t) => s + t.amount, 0);
       const overdue = invoices.filter(i => i.status === 'overdue').length;
-      const expiring = contracts.filter(c => c.expiringSoon).length;
-      const pendingReadings = rooms.filter(r =>
-        (r.status === 'occupied' || r.status === 'notice')).length -
-        readings.filter(r => r.period === CUR_PERIOD && r.elecCurr != null).length;
+      const expiring = contracts.filter(c => c.expiringSoon && c.status === 'active').length;
+      const occRoomsAll = rooms.filter(r => r.status === 'occupied' || r.status === 'notice');
+      const pendingReadings = occRoomsAll.filter(r => { const rd = api.reading(r.buildingId, r.code, per); return !(rd && rd.elecCurr != null); }).length;
+      // Doanh thu 6 kỳ gần nhất (thu thật theo từng tháng)
+      const revenueHistory = [];
+      for (let k = 5; k >= 0; k--) {
+        const mp = shiftPeriod(per, -k);
+        const amt = invoices.filter(i => i.period === mp).reduce((s, i) => s + i.paid, 0);
+        revenueHistory.push({ period: 'T' + Number(mp.split('-')[1]), amount: amt });
+      }
       return {
-        occupancyRate: occ / totalRooms, occupancyTrend: 0.03,
+        period: per, occupancyRate: totalRooms ? occ / totalRooms : 0, occupancyTrend: 0.03,
         revenue, revenueTrend: 0.12, outstandingDebt: debt, debtTrend: -0.05,
-        operatingCost: 12100000, costTrend: 0.08,
-        revenueHistory: [
-          { period: 'T3', amount: Math.round(revenue * 0.83) }, { period: 'T4', amount: Math.round(revenue * 0.86) },
-          { period: 'T5', amount: Math.round(revenue * 0.9) }, { period: 'T6', amount: Math.round(revenue * 0.93) },
-          { period: 'T7', amount: Math.round(revenue * 0.96) }, { period: 'T8', amount: revenue },
-        ],
-        alerts: { expiringContracts: expiring || 3, overdueInvoices: overdue, pendingReadings: Math.max(pendingReadings, 0) },
+        operatingCost: cost, costTrend: 0.08,
+        revenueHistory,
+        alerts: { expiringContracts: expiring, overdueInvoices: overdue, pendingReadings },
         buildings: bstats,
       };
     },
@@ -395,6 +445,47 @@ HH.store = (function () {
     addAsset(a) { assets.push(a); persist(); return a; },
     addBuilding(b) { buildings.push(b); persist(); return b; },
     updateBuilding(id, patch) { const b = buildings.find(x => x.id === id); if (b) { Object.assign(b, patch); persist(); } return b; },
+    // Xóa tòa nhà + toàn bộ dữ liệu liên quan
+    async removeBuilding(id) {
+      const b = buildings.find(x => x.id === id); if (!b) return;
+      const scoped = [rooms, tenants, contracts, services, readings, invoices, assets, incidents, transactions];
+      scoped.forEach(arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i].buildingId === id) arr.splice(i, 1); });
+      for (let i = payments.length - 1; i >= 0; i--) if (payments[i].buildingId === id) payments.splice(i, 1);
+      const bi = buildings.findIndex(x => x.id === id); if (bi >= 0) buildings.splice(bi, 1);
+      api.log('building.remove', `Xóa tòa nhà ${b.name}`);
+      if (usingBackend()) await HH.backend.deleteByBuilding(id);
+      persist();
+    },
+
+    // ----- Ghi chỉ số theo kỳ: lấy hoặc tạo bản ghi cho (phòng, kỳ) -----
+    readingFor(bid, code, period) {
+      let rd = readings.find(r => r.buildingId === bid && r.roomCode === code && r.period === period);
+      if (rd) return rd;
+      const prev = readings.find(r => r.buildingId === bid && r.roomCode === code && r.period === api.prevPeriodOf(period));
+      rd = { id: U.uid('rd'), buildingId: bid, roomCode: code, period,
+        elecPrev: prev ? (prev.elecCurr != null ? prev.elecCurr : prev.elecPrev) : 0,
+        waterPrev: prev ? (prev.waterCurr != null ? prev.waterCurr : prev.waterPrev) : 0,
+        elecCurr: null, waterCurr: null, elecPhoto: false, waterPhoto: false,
+        elecAvg: prev ? prev.elecAvg || 190 : 190, source: 'staff', approved: true };
+      readings.push(rd);
+      return rd;
+    },
+
+    // ----- Sinh hóa đơn thật cho kỳ đang chọn -----
+    generateInvoices(bid, period) {
+      const svcs = services.filter(s => s.buildingId === bid);
+      const cs = contracts.filter(c => c.buildingId === bid && (c.status === 'active' || c.status === 'terminating'));
+      const created = [], skipped = [];
+      cs.forEach(c => {
+        if (invoices.find(i => i.buildingId === bid && i.contractId === c.id && i.period === period)) return;
+        const rd = readings.find(r => r.buildingId === bid && r.roomCode === c.roomCode && r.period === period);
+        if (!rd || rd.elecCurr == null) { skipped.push(c.roomCode); return; }
+        const inv = runtimeInvoice(bid, c, rd, period, svcs);
+        invoices.push(inv); created.push(inv); // đẩy ngay để mã HĐ kế tiếp tăng đúng
+      });
+      if (created.length) { api.log('invoice.generate', `Sinh ${created.length} hóa đơn kỳ ${api.periodLabel(period)}`); persist(); }
+      return { created, skipped };
+    },
     transactionsOf: (bid) => transactions.filter(t => t.buildingId === bid),
     addTransaction(t) { transactions.push(t); persist(); return t; },
     removeTransaction(id) { const i = transactions.findIndex(x => x.id === id); if (i >= 0) { transactions.splice(i, 1); persist(); } },

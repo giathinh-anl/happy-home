@@ -130,7 +130,18 @@ HH.backend = (function () {
       if (error) console.error('[deleteAll ' + kind + ']', error.message);
     }
   }
+  // Xóa toàn bộ dữ liệu của 1 tòa nhà
+  async function deleteByBuilding(bid) {
+    if (!enabled) return;
+    const scoped = ['rooms', 'tenants', 'contracts', 'services', 'readings', 'invoices', 'payments', 'assets', 'incidents', 'transactions'];
+    for (const kind of scoped) {
+      const { error } = await client.from(KINDS[kind]).delete().eq('building_id', bid);
+      if (error && !isMissingTable(error)) console.error('[delByBuilding ' + kind + ']', error.message);
+    }
+    const { error } = await client.from('buildings').delete().eq('id', bid);
+    if (error) console.error('[delByBuilding buildings]', error.message);
+  }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId,
-    loadAll, saveMany, saveOne, deleteOne, deleteAll, KINDS };
+    loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, KINDS };
 })();

@@ -299,11 +299,6 @@
       if (f) rooms = rooms.filter(f.test);
       const content = view === 'map' ? mapView(ctx, rooms) : tableView(ctx, rooms);
       return h`
-        <div class="trial-banner">
-          <div class="tb-text"><b>Tòa nhà thử nghiệm!</b>
-            <p>Sau khi kết thúc thời gian thử nghiệm, bạn có thể tạo tòa nhà chính thức.</p></div>
-          <button class="tb-btn" id="promoteBtn">⚡ Tạo tòa nhà chính thức</button>
-        </div>
         ${raw(summaryCards(ctx))}
         <div class="page-head">
           <div class="row-gap-3"><span class="lz-home-ic">🏠</span>
@@ -346,8 +341,6 @@
             r.tenantName || '', r.contractEnd ? U.fmtDate(r.contractEnd) : '', r.debt || 0]));
         UI.toast('Đã tải file Excel (CSV) danh sách phòng', { type: 'ok' });
       };
-      const pr = document.getElementById('promoteBtn');
-      if (pr) pr.onclick = () => UI.toast('Tạo tòa nhà chính thức (demo)', { type: 'ok' });
       if (ctx._dt) ctx._dt.attach(document);
       document.querySelectorAll('[data-kebab]').forEach(b => b.onclick = (e) => {
         e.stopPropagation();

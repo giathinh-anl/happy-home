@@ -10,15 +10,16 @@
       ctx._tab = ctx._tab || 'elec';
       const rooms = S.roomsOf(ctx.bid).filter(r => r.status === 'occupied' || r.status === 'notice')
         .sort((a, b) => a.code.localeCompare(b.code));
-      const period = S.CUR_PERIOD;
+      const period = S.period();
       const done = rooms.filter(r => { const rd = S.reading(ctx.bid, r.code, period); return rd && rd.elecCurr != null; }).length;
       return h`<div class="page-head">
-        <div><div class="page-title">Chỉ số điện nước</div><div class="page-sub">${ctx.building.name} · Kỳ T8/2026</div></div>
+        <div><div class="page-title">Chỉ số điện nước</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
         <div class="page-actions">
           <span class="badge s-info" style="align-self:center"><span class="dot"></span>Đã ghi ${done}/${rooms.length} phòng</span>
           <button class="btn btn-outline" id="importXls">Nhập từ Excel</button>
           <button class="btn btn-primary" id="toBill">Xong, lập hóa đơn →</button>
         </div></div>
+        <div id="periodSel" style="margin-bottom:16px"></div>
         <div class="tabs" style="margin-bottom:16px">
           <button class="tab ${raw(ctx._tab === 'elec' ? 'active' : '')}" data-tab="elec">⚡ Điện</button>
           <button class="tab ${raw(ctx._tab === 'water' ? 'active' : '')}" data-tab="water">💧 Nước</button>
@@ -33,6 +34,7 @@
         <p class="muted text-xs" style="margin-top:10px">Mẹo: dùng <kbd>Enter</kbd> hoặc <kbd>Tab</kbd> để nhảy xuống phòng kế tiếp.</p>`;
     },
     mount(ctx) {
+      mountPeriodSelector();
       document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { ctx._tab = b.dataset.tab; HH.router.render(); });
       document.getElementById('toBill').onclick = () => HH.router.go(`/b/${ctx.bid}/invoices`);
       document.getElementById('importXls').onclick = () => importExcel(ctx);
@@ -42,9 +44,16 @@
 
   function readingRows(ctx, rooms, period) {
     const tab = ctx._tab;
+    const prevPeriod = S.prevPeriodOf(period);
     return rooms.map((r, idx) => {
       const rd = S.reading(ctx.bid, r.code, period) || {};
-      const prev = tab === 'elec' ? rd.elecPrev : rd.waterPrev;
+      const prevRd = S.reading(ctx.bid, r.code, prevPeriod);
+      const prevOf = (w) => {
+        if (rd[w + 'Prev'] != null) return rd[w + 'Prev'];
+        if (prevRd) return prevRd[w + 'Curr'] != null ? prevRd[w + 'Curr'] : prevRd[w + 'Prev'];
+        return 0;
+      };
+      const prev = tab === 'elec' ? prevOf('elec') : prevOf('water');
       const curr = tab === 'elec' ? rd.elecCurr : rd.waterCurr;
       const use = (curr != null && prev != null) ? curr - prev : null;
       const avg = tab === 'elec' ? (rd.elecAvg || 190) : 4;
@@ -72,7 +81,7 @@
       inp.oninput = () => {
         const n = U.parseNum(inp.value); inp.value = n != null ? n : '';
         const code = inp.dataset.code;
-        const rd = S.reading(ctx.bid, code, S.CUR_PERIOD);
+        const rd = S.readingFor(ctx.bid, code, S.period()); // tạo bản ghi nếu chưa có
         if (!rd) return;
         const prev = ctx._tab === 'elec' ? rd.elecPrev : rd.waterPrev;
         if (ctx._tab === 'elec') rd.elecCurr = n; else rd.waterCurr = n;
@@ -97,7 +106,7 @@
       };
     });
     document.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => {
-      const rd = S.reading(ctx.bid, b.dataset.approve, S.CUR_PERIOD); if (rd) rd.approved = true;
+      const rd = S.reading(ctx.bid, b.dataset.approve, S.period()); if (rd) rd.approved = true;
       S.persist();
       UI.toast(`Đã duyệt chỉ số phòng ${b.dataset.approve}`, { type: 'ok' }); HH.router.render();
     });
@@ -133,7 +142,7 @@
   /* ================= HÓA ĐƠN (§3.7) ================= */
   HH.pages.invoices = {
     render(ctx) {
-      const period = S.CUR_PERIOD;
+      const period = S.period();
       let list = S.invoicesOf(ctx.bid, period);
       // lọc theo query ?status=
       const q = new URLSearchParams((location.hash.split('?')[1] || ''));
@@ -181,7 +190,7 @@
       });
       ctx._dt = dt;
       return h`<div class="page-head">
-        <div><div class="page-title">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ T8/2026</div></div>
+        <div><div class="page-title">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
         <div class="page-actions"><button class="btn btn-primary" data-primary-new id="genInv2">+ Sinh hóa đơn</button></div>
       </div>
       <div id="periodSel" style="margin-bottom:16px"></div>
@@ -189,12 +198,7 @@
       <div style="margin-top:16px">${raw(dt.render())}</div>`;
     },
     mount(ctx) {
-      // period selector
-      const pending = new Set(['2026-08']);
-      const psel = document.getElementById('periodSel');
-      psel.innerHTML = UI.periodSelector({ value: S.CUR_PERIOD, pending });
-      UI.attachPeriod(psel.querySelector('[data-period-root]'), { value: S.CUR_PERIOD, pending,
-        onChange: () => UI.toast('Bản demo cố định ở kỳ T8/2026', { type: 'ok' }) });
+      mountPeriodSelector();
       ctx._dt.attach(document);
       const st = document.getElementById('stFilter');
       st.onchange = () => ctx._dt.setFilter(st.value || null);
@@ -203,22 +207,57 @@
       document.getElementById('genInv').onclick = gen;
       document.getElementById('genInv2').onclick = gen;
       const ie = document.getElementById('invExport');
-      if (ie) ie.onclick = () => exportInvoices(ctx, S.invoicesOf(ctx.bid, S.CUR_PERIOD));
+      if (ie) ie.onclick = () => exportInvoices(ctx, S.invoicesOf(ctx.bid, S.period()));
     },
   };
 
+  // Bộ chọn kỳ dùng chung — đổi kỳ thật, nạp lại dữ liệu theo kỳ
+  function mountPeriodSelector() {
+    const psel = document.getElementById('periodSel'); if (!psel) return;
+    const opt = { value: S.period(), pending: S.periodsWithData(),
+      onChange: (p) => { S.setPeriod(p); HH.router.render(); } };
+    psel.innerHTML = UI.periodSelector(opt);
+    UI.attachPeriod(psel.querySelector('[data-period-root]'), opt);
+  }
+
   function exportInvoices(ctx, list) {
-    U.downloadCSV(`hoa-don-${ctx.bid}-${S.CUR_PERIOD}.csv`,
+    U.downloadCSV(`hoa-don-${ctx.bid}-${S.period()}.csv`,
       ['Mã HĐ', 'Phòng', 'Khách', 'Tổng tiền', 'Đã trả', 'Còn lại', 'Trạng thái', 'Hạn TT'],
       list.map(i => [i.id, i.roomCode, i.tenantName, i.total, i.paid, i.total - i.paid,
         (UI.STATUS.invoice[i.status] || {}).label || i.status, U.fmtDate(i.dueDate)]));
     UI.toast(`Đã tải file Excel (CSV) · ${list.length} hóa đơn`, { type: 'ok' });
   }
 
+  function printInvoice(ctx, inv) {
+    const b = S.building(ctx.bid) || {};
+    const rows = inv.lines.map(l => `<tr><td>${U.esc(l.label)}<div class="basis">${U.esc(l.meta || '')}</div></td><td class="r">${U.currency(l.amount)}</td></tr>`).join('');
+    const win = window.open('', '_blank', 'width=820,height=960');
+    if (!win) { UI.toast('Trình duyệt chặn cửa sổ in. Hãy cho phép popup.', { type: 'error' }); return; }
+    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${inv.id}</title>
+      <style>body{font-family:'Be Vietnam Pro',Arial,sans-serif;color:#1c1917;max-width:640px;margin:24px auto;padding:0 16px}
+      h1{font-size:20px;margin:0}.muted{color:#57534e}.r{text-align:right;font-variant-numeric:tabular-nums}
+      table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:10px 0;border-bottom:1px solid #eee;vertical-align:top}
+      .basis{font-size:11px;color:#777;margin-top:2px}.tot{display:flex;justify-content:space-between;padding:6px 0}
+      .grand{font-size:18px;font-weight:700;border-top:2px solid #333;margin-top:8px;padding-top:10px}
+      .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #16a34a;padding-bottom:12px}
+      .brand{font-weight:800;color:#16a34a}</style></head><body>
+      <div class="head"><div><div class="brand">HAPPY HOME</div><div class="muted">${U.esc(b.name || '')}</div><div class="muted" style="font-size:12px">${U.esc(b.address || '')}</div></div>
+        <div class="r"><h1>HÓA ĐƠN</h1><div class="muted" style="font-family:monospace">${inv.id}</div></div></div>
+      <div style="margin-top:14px"><b>Phòng ${U.esc(inv.roomCode)}</b> · ${U.esc(inv.tenantName)}<br>
+        <span class="muted">Kỳ ${U.fmtDate(inv.periodStart)} – ${U.fmtDate(inv.periodEnd)} · Hạn ${U.fmtDate(inv.dueDate)}</span></div>
+      <table><tbody>${rows}</tbody></table>
+      <div class="tot"><span>Đã thanh toán</span><span class="r">${U.currency(inv.paid)}</span></div>
+      <div class="tot"><span>Còn lại</span><span class="r">${U.currency(inv.total - inv.paid)}</span></div>
+      <div class="tot grand"><span>Tổng cộng</span><span class="r">${U.currency(inv.total)}</span></div>
+      <p class="muted" style="margin-top:24px;font-size:12px">Cảm ơn quý khách. In từ Happy Home.</p>
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    win.document.close();
+  }
+
   function invoiceActions(ctx, i) {
     const items = [
       { icon: '👁', label: 'Xem chi tiết', onClick: () => HH.router.go(`/b/${ctx.bid}/invoices/${i.id}`) },
-      { icon: '🖨', label: 'In hóa đơn', onClick: () => UI.toast('Đang chuẩn bị bản in (demo)', { type: 'ok' }) },
+      { icon: '🖨', label: 'In hóa đơn', onClick: () => printInvoice(ctx, i) },
     ];
     if (i.status !== 'paid' && i.status !== 'cancelled')
       items.push({ icon: '₫', label: 'Ghi nhận thanh toán', onClick: () => paymentDialog(ctx, i) });
@@ -228,26 +267,27 @@
   }
 
   function generateFlow(ctx) {
+    const period = S.period();
     const contracts = S.contractsOf(ctx.bid).filter(c => c.status === 'active' || c.status === 'terminating');
-    const withReading = contracts.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, S.CUR_PERIOD); return rd && rd.elecCurr != null; });
-    const missing = contracts.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, S.CUR_PERIOD); return !(rd && rd.elecCurr != null); });
-    UI.modal({ title: `Sinh hóa đơn kỳ T8/2026`, bodyHtml: h`
-      <p class="muted" style="margin-bottom:12px">Hệ thống sẽ tạo hóa đơn cho <b>${contracts.length}</b> hợp đồng đang hiệu lực.</p>
-      <div class="alert alert-success" style="margin-bottom:10px"><span class="ic">✓</span><div><b>${withReading.length}</b> phòng đã có đủ chỉ số điện nước</div></div>
+    const hasInv = (c) => S.invoicesOf(ctx.bid, period).some(i => i.contractId === c.id);
+    const pending = contracts.filter(c => !hasInv(c));
+    const withReading = pending.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, period); return rd && rd.elecCurr != null; });
+    const missing = pending.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, period); return !(rd && rd.elecCurr != null); });
+    const already = contracts.length - pending.length;
+    UI.modal({ title: `Sinh hóa đơn kỳ ${S.periodLabel(period)}`, bodyHtml: h`
+      <p class="muted" style="margin-bottom:12px">Có <b>${contracts.length}</b> hợp đồng đang hiệu lực${already ? ` · <b>${already}</b> phòng đã có hóa đơn kỳ này` : ''}.</p>
+      <div class="alert alert-success" style="margin-bottom:10px"><span class="ic">✓</span><div><b>${withReading.length}</b> phòng đủ chỉ số, sẽ được sinh hóa đơn</div></div>
       ${raw(missing.length ? `<div class="alert alert-warning"><span class="ic">⚠</span><div><b>${missing.length}</b> phòng thiếu chỉ số: ${missing.map(c => c.roomCode).join(', ')}<br>
-        <span class="text-sm">Các phòng thiếu chỉ số sẽ được bỏ qua. Bạn có thể bổ sung và sinh lại sau.</span></div></div>` : '')}`,
-      footHtml: `${missing.length ? `<button class="btn btn-outline" id="toReadings">Bổ sung chỉ số</button>` : '<span></span>'}<span class="spacer"></span><button class="btn btn-primary" data-go>Vẫn tiếp tục</button>`,
+        <span class="text-sm">Các phòng thiếu chỉ số sẽ được bỏ qua. Bạn có thể bổ sung và sinh lại sau.</span></div></div>` : '')}
+      ${raw(withReading.length === 0 ? `<div class="alert alert-info"><span class="ic">ℹ</span><div>Không có phòng nào để sinh. Hãy ghi chỉ số trước.</div></div>` : '')}`,
+      footHtml: `${missing.length ? `<button class="btn btn-outline" id="toReadings">Bổ sung chỉ số</button>` : '<span></span>'}<span class="spacer"></span><button class="btn btn-primary" data-go ${withReading.length === 0 ? 'disabled' : ''}>Sinh ${withReading.length} hóa đơn</button>`,
       onMount(el, close) {
         const tr = el.querySelector('#toReadings'); if (tr) tr.onclick = () => { close(); HH.router.go(`/b/${ctx.bid}/readings`); };
         el.querySelector('[data-go]').onclick = () => {
+          const res = S.generateInvoices(ctx.bid, period);
           close();
-          // tạo hóa đơn nháp cho phòng có chỉ số nhưng chưa có HĐ kỳ này
-          let created = 0;
-          withReading.forEach(c => {
-            const exists = S.invoicesOf(ctx.bid, S.CUR_PERIOD).find(i => i.contractId === c.id);
-            if (!exists) { /* trong bản demo dữ liệu đã có sẵn phần lớn */ created++; }
-          });
-          UI.toast(created ? `Đã sinh ${created} hóa đơn nháp để rà soát` : 'Các hóa đơn kỳ này đã được tạo trước đó — chuyển sang rà soát', { type: 'ok' });
+          UI.toast(res.created.length ? `Đã sinh ${res.created.length} hóa đơn nháp — hãy rà soát rồi phát hành` : 'Không có hóa đơn nào được sinh', { type: 'ok' });
+          HH.router.render();
         };
       },
     });
@@ -326,14 +366,14 @@
       const inv = ctx._inv; if (!inv) return;
       const mb = document.getElementById('invMenu');
       if (mb) mb.onclick = () => UI.openMenu(mb, [
-        { icon: '🖨', label: 'In hóa đơn', onClick: () => UI.toast('Đang chuẩn bị bản in (demo)', { type: 'ok' }) },
-        { icon: '✉', label: 'Gửi lại cho khách', onClick: () => UI.toast('Đã gửi lại hóa đơn cho khách', { type: 'ok' }) },
+        { icon: '🖨', label: 'In hóa đơn', onClick: () => printInvoice(ctx, inv) },
+        { icon: '✉', label: 'Gửi lại cho khách', onClick: () => { S.log('invoice.resend', `Gửi lại hóa đơn ${inv.id} cho khách`); UI.toast('Đã ghi nhận gửi lại cho khách', { type: 'ok' }); } },
         ...(inv.status !== 'paid' && inv.status !== 'cancelled' ? [{ icon: '₫', label: 'Ghi nhận thanh toán', onClick: () => paymentDialog(ctx, inv) }] : []),
         ...(S.isOwner() && inv.status !== 'cancelled' ? [{ sep: true }, { icon: '✕', label: 'Hủy hóa đơn', danger: true, onClick: () => cancelInvoice(ctx, inv) }] : []),
       ]);
       const meter = document.querySelector('[data-meter]');
       if (meter) meter.onclick = (e) => { e.preventDefault();
-        UI.modal({ title: 'Ảnh đồng hồ điện', bodyHtml: `<div class="ocr-img" style="min-height:280px">🔌 Ảnh chốt chỉ số (demo)</div>`,
+        UI.modal({ title: 'Ảnh đồng hồ điện', bodyHtml: `<div class="ocr-img" style="min-height:280px">🔌 Chưa có ảnh đồng hồ cho kỳ này</div>`,
           footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` }); };
     },
   };

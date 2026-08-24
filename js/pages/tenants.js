@@ -118,7 +118,7 @@
       UI.openMenu(b, [
         { icon: '👁', label: 'Xem hồ sơ', onClick: () => showTenant(t) },
         { icon: '🔐', label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
-        { icon: '📋', label: 'Đăng ký tạm trú', onClick: () => UI.toast('Mở mẫu đăng ký tạm trú (demo)', { type: 'ok' }) },
+        { icon: '📋', label: t.tamtru ? 'Đã đăng ký tạm trú' : 'Đánh dấu đã đăng ký tạm trú', onClick: () => { t.tamtru = !t.tamtru; S.persist(); UI.toast(t.tamtru ? 'Đã đánh dấu đăng ký tạm trú' : 'Đã bỏ đánh dấu', { type: 'ok' }); HH.router.render(); } },
       ]);
     });
   }

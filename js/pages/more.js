@@ -103,7 +103,12 @@
             <thead><tr><th>Loại phòng</th><th class="num">Giá thuê</th><th class="num">Diện tích</th><th class="num">Sức chứa</th></tr></thead>
             <tbody>${raw(types)}</tbody></table></div>
         </div>
-      </div>`;
+      </div>
+      <div class="card" style="border-color:#fecaca;margin-top:16px;max-width:520px"><div class="card-pad">
+        <h3 style="color:var(--danger)">Vùng nguy hiểm</h3>
+        <p class="muted text-sm" style="margin:6px 0 12px">Xóa tòa nhà sẽ xóa vĩnh viễn toàn bộ phòng, khách thuê, hợp đồng, hóa đơn… của tòa này.</p>
+        <button class="btn btn-danger" id="delBuilding">🗑 Xóa tòa nhà này</button>
+      </div></div>`;
     },
     mount(ctx) {
       document.getElementById('saveBuilding').onclick = (e) => {
@@ -118,6 +123,19 @@
           UI.toast('Đã lưu cấu hình tòa nhà', { type: 'ok' });
           HH.router.render();
         }, 300);
+      };
+      document.getElementById('delBuilding').onclick = () => {
+        UI.dangerDialog({
+          title: `Xóa tòa nhà "${ctx.building.name}"`,
+          description: 'Toàn bộ phòng, khách thuê, hợp đồng, hóa đơn, thanh toán… của tòa này sẽ bị xóa vĩnh viễn.',
+          consequences: ['Không thể hoàn tác', 'Dữ liệu bị xóa cả trên máy chủ', 'Thao tác được ghi vào nhật ký'],
+          confirmLabel: 'Xóa tòa nhà', reasonLabel: 'Lý do xóa',
+          onConfirm: async () => {
+            await S.removeBuilding(ctx.bid);
+            UI.toast('Đã xóa tòa nhà', { type: 'ok' });
+            HH.router.go('/buildings');
+          },
+        });
       };
     },
   };
