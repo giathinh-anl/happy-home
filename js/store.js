@@ -440,9 +440,17 @@ HH.store = (function () {
 
     // Thêm mới (đẩy vào MẢNG GỐC rồi lưu bền)
     addRoom(r) { rooms.push(r); persist(); return r; },
+    updateRoom(bid, code, patch) { const r = api.room(bid, code); if (r) { Object.assign(r, patch); persist(); } return r; },
     addTenant(t) { tenants.push(t); persist(); return t; },
     addContract(c) { contracts.push(c); persist(); return c; },
     addAsset(a) { assets.push(a); persist(); return a; },
+    asset: (id) => assets.find(a => a.id === id),
+    updateAsset(id, patch) { const a = assets.find(x => x.id === id); if (a) { Object.assign(a, patch); persist(); } return a; },
+    removeAsset(id) {
+      const i = assets.findIndex(x => x.id === id);
+      if (i >= 0) { const a = assets[i]; assets.splice(i, 1); api.log('asset.remove', `Xóa tài sản ${a.name}`); persist();
+        if (usingBackend()) HH.backend.deleteOne('assets', id); }
+    },
     addBuilding(b) { buildings.push(b); persist(); return b; },
     updateBuilding(id, patch) { const b = buildings.find(x => x.id === id); if (b) { Object.assign(b, patch); persist(); } return b; },
     // Xóa tòa nhà + toàn bộ dữ liệu liên quan
@@ -488,12 +496,14 @@ HH.store = (function () {
     },
     transactionsOf: (bid) => transactions.filter(t => t.buildingId === bid),
     addTransaction(t) { transactions.push(t); persist(); return t; },
-    removeTransaction(id) { const i = transactions.findIndex(x => x.id === id); if (i >= 0) { transactions.splice(i, 1); persist(); } },
+    removeTransaction(id) { const i = transactions.findIndex(x => x.id === id); if (i >= 0) { transactions.splice(i, 1); persist();
+      if (usingBackend()) HH.backend.deleteOne('transactions', id); } },
     paymentsAll: () => payments.slice(),
     addIncident(x) { incidents.push(x); persist(); return x; },
     addService(s) { services.push(s); persist(); return s; },
     updateService(id, patch) { const s = services.find(x => x.id === id); if (s) { Object.assign(s, patch); persist(); } return s; },
-    removeService(id) { const i = services.findIndex(x => x.id === id); if (i >= 0) { const s = services[i]; services.splice(i, 1); persist(); api.log('service.remove', `Xóa dịch vụ ${s.name}`); } },
+    removeService(id) { const i = services.findIndex(x => x.id === id); if (i >= 0) { const s = services[i]; services.splice(i, 1); persist(); api.log('service.remove', `Xóa dịch vụ ${s.name}`);
+      if (usingBackend()) HH.backend.deleteOne('services', id); } },
 
     setRoomStatus(bid, code, status, reason) {
       const r = api.room(bid, code);

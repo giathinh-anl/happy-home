@@ -87,7 +87,18 @@
   }
 
   function showRoom(ctx, r) {
-    UI.modal({ title: `Phòng ${r.code}`, size: '', bodyHtml: h`
+    const assets = S.assetsOf(ctx.bid, r.code);
+    const assetHtml = assets.length
+      ? `<div class="room-assets">${assets.map(a => `<span class="room-asset-chip ${a.condition === 'good' ? '' : a.condition}">
+          ${a.icon || '📦'} ${U.esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>`
+      : '<span class="faint text-sm">Chưa gắn tài sản nào cho phòng này</span>';
+    const photos = r.photos || [];
+    const photoHtml = photos.length
+      ? `<div class="photo-strip">${photos.map((p, i) => `<div class="photo-thumb"><img src="${p}" alt="Ảnh ${i + 1}">
+          ${S.isOwner() ? `<button class="ph-del" data-delphoto="${i}" title="Xóa ảnh">✕</button>` : ''}</div>`).join('')}</div>`
+      : '<span class="faint text-sm">Chưa có ảnh phòng</span>';
+
+    UI.modal({ title: `Phòng ${r.code}`, size: 'wide', bodyHtml: h`
       <div class="row-gap-3" style="margin-bottom:12px">${raw(UI.statusBadge(r.status, 'room'))}
         <span class="badge s-neutral"><span class="dot"></span>${r.typeLabel}</span></div>
       <div class="grid-2">
@@ -97,8 +108,47 @@
         <div class="field"><label>Hết hạn HĐ</label><div class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '—'}</div></div>
         <div class="field"><label>Công nợ</label><div class="mono b" style="color:${raw(r.debt ? 'var(--danger)' : 'inherit')}">${U.currency(r.debt)}</div></div>
         <div class="field"><label>Số người tối đa</label><div>${r.maxOccupants}</div></div>
-      </div>`,
-      footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>Tài sản trong phòng (${assets.length})</label>
+        ${raw(assetHtml)}
+        ${raw(S.isOwner() ? `<div style="margin-top:8px"><a href="#/b/${ctx.bid}/assets" class="text-sm">Quản lý tài sản →</a></div>` : '')}
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>Ảnh phòng (${photos.length}/6) <span class="hint" style="font-weight:400">· dùng cho đăng tin</span></label>
+        ${raw(photoHtml)}
+        ${raw(S.isOwner() && photos.length < 6 ? `<div style="margin-top:8px">
+          <label class="btn btn-outline btn-sm" style="width:fit-content">📷 Tải ảnh lên<input type="file" accept="image/*" multiple hidden id="roomPhotoInput"></label></div>` : '')}
+      </div>
+      <div class="field" style="margin-top:16px"><label>Mô tả (hiện trong tin đăng)</label>
+        <textarea class="textarea" id="roomDesc" placeholder="VD: Phòng thoáng, có ban công, gần chợ...">${U.esc(r.description || '')}</textarea></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>${S.isOwner() ? '<button class="btn btn-primary" id="saveRoomInfo">Lưu</button>' : ''}`,
+      onMount(el, close) {
+        const inp = el.querySelector('#roomPhotoInput');
+        if (inp) inp.onchange = async () => {
+          const files = Array.from(inp.files || []).slice(0, 6 - (r.photos || []).length);
+          if (!files.length) return;
+          UI.toast('Đang xử lý ảnh...', { type: 'ok' });
+          try {
+            const list = (r.photos || []).slice();
+            for (const f of files) list.push(await U.compressImage(f, 1000, 0.72));
+            S.updateRoom(ctx.bid, r.code, { photos: list });
+            UI.toast(`Đã thêm ${files.length} ảnh`, { type: 'ok' });
+            close(); showRoom(ctx, S.room(ctx.bid, r.code));
+          } catch (err) { UI.toast('Không xử lý được ảnh', { type: 'error' }); }
+        };
+        el.querySelectorAll('[data-delphoto]').forEach(b => b.onclick = () => {
+          const list = (r.photos || []).slice(); list.splice(+b.dataset.delphoto, 1);
+          S.updateRoom(ctx.bid, r.code, { photos: list });
+          UI.toast('Đã xóa ảnh', { type: 'ok' });
+          close(); showRoom(ctx, S.room(ctx.bid, r.code));
+        });
+        const save = el.querySelector('#saveRoomInfo');
+        if (save) save.onclick = () => {
+          S.updateRoom(ctx.bid, r.code, { description: el.querySelector('#roomDesc').value.trim() });
+          close(); UI.toast('Đã lưu thông tin phòng', { type: 'ok' }); HH.router.render();
+        };
+      } });
   }
 
   /* ---- Đổi trạng thái thủ công: DangerDialog (§3.3) ---- */

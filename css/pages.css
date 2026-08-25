@@ -205,6 +205,53 @@ table.dt tr.disabled-row td { color: var(--neutral-400); background: var(--neutr
 .tn-doc-miss { color: var(--danger); font-weight: 600; }
 .tn-doc-ok { color: var(--success); font-weight: 600; }
 
+/* ---------- Tài sản theo phòng ---------- */
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.asset-card { display: flex; flex-direction: column; }
+.asset-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 0;
+  border-bottom: 1px solid var(--neutral-100);
+}
+.asset-row:last-of-type { border-bottom: none; }
+.asset-row .a-ic { font-size: 20px; width: 32px; height: 32px; border-radius: 8px; background: var(--neutral-100); display: grid; place-items: center; flex: 0 0 32px; }
+.asset-row .a-name { flex: 1; min-width: 0; font-size: var(--text-sm); }
+.asset-row .a-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asset-row .kebab { flex: 0 0 30px; }
+
+/* Đăng tin — thẻ tin đăng */
+.listing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+.listing-card { overflow: hidden; display: flex; flex-direction: column; }
+.listing-cover { position: relative; height: 170px; background: var(--neutral-100); }
+.listing-cover img { width: 100%; height: 100%; object-fit: cover; }
+.listing-cover.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--neutral-400); }
+.listing-cover.empty span { font-size: 34px; }
+.listing-cover .pcount {
+  position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.62); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: var(--r-pill);
+}
+
+/* Ảnh phòng */
+.photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+.photo-thumb {
+  position: relative; width: 92px; height: 72px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--neutral-200); background: var(--neutral-100);
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb .ph-del {
+  position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,.6); color: #fff; border: none; font-size: 11px; line-height: 1; display: grid; place-items: center;
+}
+.photo-thumb .ph-del:hover { background: var(--danger); }
+
+/* Tài sản hiển thị trong chi tiết phòng */
+.room-assets { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-asset-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+  background: var(--neutral-100); border-radius: var(--r-pill); font-size: var(--text-xs); font-weight: 600;
+}
+.room-asset-chip.broken { background: var(--danger-bg); color: var(--danger); }
+.room-asset-chip.wear { background: var(--warning-bg); color: var(--warning); }
+
 /* ---------- LOZIDO: lưới chọn icon tài sản ---------- */
 .icon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; background: var(--brand-50); border: 1px solid var(--brand-100); border-radius: var(--r-card); padding: 14px; }
 @media (max-width: 520px) { .icon-grid { grid-template-columns: repeat(4, 1fr); } }

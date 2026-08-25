@@ -92,6 +92,30 @@ HH.util = (function () {
     a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /** Nén ảnh về JPEG nhỏ gọn (mặc định ≤1000px) -> data URL, để lưu vào CSDL */
+  function compressImage(file, maxSize, quality) {
+    maxSize = maxSize || 1000; quality = quality || 0.72;
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Không đọc được ảnh'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Ảnh không hợp lệ'));
+        img.onload = () => {
+          let { width: w, height: hh } = img;
+          const scale = Math.min(1, maxSize / Math.max(w, hh));
+          w = Math.round(w * scale); hh = Math.round(hh * scale);
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = hh;
+          cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+          resolve(cv.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   return { currency, currencyShort, number, percent, parseNum, fmtDate, addMonths,
-           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV };
+           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV, compressImage };
 })();

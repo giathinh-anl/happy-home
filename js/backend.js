@@ -26,6 +26,14 @@ HH.backend = (function () {
     transactions: { date: 'tx_date' },
   };
 
+  /** Nếu lỗi là "thiếu cột", trả về tên cột đó (để bỏ qua và thử lại) */
+  function missingColumn(e) {
+    if (!e) return null;
+    const m = ((e.message || '') + ' ' + (e.details || '')).match(/'([a-z0-9_]+)' column|column "([a-z0-9_]+)" of/i);
+    if (m) return m[1] || m[2];
+    return null;
+  }
+
   // Bảng chưa được tạo (chưa chạy migration) -> coi như rỗng, không làm hỏng cả luồng
   function isMissingTable(e) {
     if (!e) return false;
@@ -108,13 +116,22 @@ HH.backend = (function () {
   }
   async function saveMany(kind, arr) {
     if (!enabled || !arr || !arr.length) return { error: null };
-    const rows = arr.map((o) => jsToRow(kind, o));
-    const { error } = await client.from(KINDS[kind]).upsert(rows, { onConflict: 'owner_id,id' });
-    if (error) {
+    let rows = arr.map((o) => jsToRow(kind, o));
+    // Thử lưu; nếu DB thiếu cột mới (chưa chạy migration) thì bỏ cột đó rồi thử lại
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { error } = await client.from(KINDS[kind]).upsert(rows, { onConflict: 'owner_id,id' });
+      if (!error) return { error: null };
       if (isMissingTable(error)) { console.info('Bảng ' + kind + ' chưa tạo — bỏ qua đồng bộ (chạy migration để bật).'); return { error: null }; }
+      const miss = missingColumn(error);
+      if (miss) {
+        console.info(`Cột "${miss}" chưa có trong bảng ${kind} — bỏ qua cột này (chạy migration để lưu đầy đủ).`);
+        rows = rows.map(r => { const c = Object.assign({}, r); delete c[miss]; return c; });
+        continue;
+      }
       console.error('[save ' + kind + ']', error.message);
+      return { error };
     }
-    return { error };
+    return { error: null };
   }
   async function saveOne(kind, obj) { return saveMany(kind, [obj]); }
   async function deleteOne(kind, id) {

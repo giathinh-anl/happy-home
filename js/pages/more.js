@@ -257,35 +257,146 @@
   };
 
   /* ---------------- ĐĂNG TIN ---------------- */
+  const AMENITIES = ['Máy lạnh', 'Nóng lạnh', 'Ban công', 'Cửa sổ', 'Tủ lạnh', 'Máy giặt', 'Giường', 'Tủ quần áo', 'Bếp', 'Wifi', 'Giữ xe', 'Tự do giờ giấc'];
+
+  function listingText(b, r) {
+    const am = (r.amenities && r.amenities.length) ? r.amenities
+      : S.assetsOf(b.id, r.code).map(a => a.name);
+    const lines = [
+      `🏠 [CHO THUÊ] ${r.typeLabel} ${r.code} — ${b.name}`,
+      ``,
+      `💰 Giá thuê: ${U.currency(r.price)}/tháng`,
+      `📐 Diện tích: ${r.area}m² · Tối đa ${r.maxOccupants} người`,
+      `📍 Địa chỉ: ${b.address || '(đang cập nhật)'}`,
+    ];
+    if (am.length) lines.push(`✨ Tiện nghi: ${am.join(', ')}`);
+    if (r.description) lines.push(``, r.description);
+    const phone = b.contactPhone || '';
+    lines.push(``, `📞 Liên hệ xem phòng${phone ? ': ' + phone : ''}`, `#chothue #phongtro #${(b.name || '').replace(/\s+/g, '')}`);
+    return lines.join('\n');
+  }
+
   HH.pages.post = {
     render() {
-      const cards = [];
+      const items = [];
       S.buildings.forEach(b => {
-        S.roomsOf(b.id).filter(r => r.status === 'vacant').forEach(r => {
-          const text = `[CHO THUÊ] ${r.typeLabel} ${r.code} - ${b.name}\nGiá: ${U.currency(r.price)}/tháng · Diện tích: ${r.area}m² · Tối đa ${r.maxOccupants} người\nĐịa chỉ: ${b.address || ''}\nLiên hệ để xem phòng!`;
-          cards.push(`<div class="card card-pad">
-            <div class="between"><h3>${r.code} · ${b.name}</h3><span class="badge s-success"><span class="dot"></span>Trống</span></div>
-            <div class="mono b text-lg" style="color:var(--brand-700);margin:6px 0">${U.currency(r.price)}/tháng</div>
-            <div class="muted text-sm">${r.typeLabel} · ${r.area}m² · tối đa ${r.maxOccupants} người</div>
-            <div class="muted text-xs" style="margin:6px 0">${b.address || ''}</div>
-            <button class="btn btn-outline btn-sm" data-copy="${encodeURIComponent(text)}">📋 Sao chép tin đăng</button>
-          </div>`);
-        });
+        S.roomsOf(b.id).filter(r => r.status === 'vacant' || r.status === 'cleaning').forEach(r => items.push({ b, r }));
       });
+      const withPhoto = items.filter(x => (x.r.photos || []).length).length;
+
+      const cards = items.map(({ b, r }) => {
+        const photos = r.photos || [];
+        const cover = photos.length
+          ? `<div class="listing-cover"><img src="${photos[0]}" alt="${U.esc(r.code)}">
+              ${photos.length > 1 ? `<span class="pcount">📷 ${photos.length}</span>` : ''}</div>`
+          : `<div class="listing-cover empty"><span>📷</span><small>Chưa có ảnh</small></div>`;
+        const am = (r.amenities && r.amenities.length) ? r.amenities : S.assetsOf(b.id, r.code).map(a => a.name);
+        return `<div class="card listing-card">
+          ${cover}
+          <div class="card-pad">
+            <div class="between"><b>${r.code} · ${U.esc(b.name)}</b>${UI.statusBadge(r.status, 'room')}</div>
+            <div class="mono b text-lg" style="color:var(--brand-700);margin:6px 0">${U.currency(r.price)}<span class="text-xs muted">/tháng</span></div>
+            <div class="muted text-sm">${U.esc(r.typeLabel)} · ${r.area}m² · tối đa ${r.maxOccupants} người</div>
+            <div class="muted text-xs" style="margin:4px 0 8px">📍 ${U.esc(b.address || '(chưa có địa chỉ)')}</div>
+            ${am.length ? `<div class="room-assets" style="margin-bottom:10px">${am.slice(0, 4).map(x => `<span class="room-asset-chip">${U.esc(x)}</span>`).join('')}${am.length > 4 ? `<span class="room-asset-chip">+${am.length - 4}</span>` : ''}</div>` : ''}
+            <div class="row-gap-2 wrap">
+              <button class="btn btn-primary btn-sm" data-preview="${b.id}|${r.code}">👁 Xem & đăng</button>
+              <button class="btn btn-outline btn-sm" data-quickcopy="${b.id}|${r.code}">📋 Chép</button>
+            </div>
+          </div></div>`;
+      }).join('');
+
       return h`<div class="page-head">
         <div class="row-gap-3"><span class="lz-home-ic">📢</span>
-          <div><div class="page-title-lg">Đăng tin cho thuê</div><div class="page-sub">Phòng trống sẵn sàng cho thuê · ${cards.length} phòng</div></div></div>
+          <div><div class="page-title-lg">Đăng tin cho thuê</div>
+          <div class="page-sub">Phòng trống sẵn sàng cho thuê · ${items.length} phòng · ${withPhoto} phòng đã có ảnh</div></div></div>
+        <div class="page-actions">
+          ${raw(items.length ? '<button class="btn btn-outline" id="copyAll">📋 Chép tất cả tin</button>' : '')}
+        </div>
       </div>
-      ${raw(cards.length ? `<div class="grid-3">${cards.join('')}</div>` : `<div class="card"><div class="empty"><div class="ic">📢</div><h4>Không có phòng trống</h4><p class="muted">Tất cả phòng đang được thuê hoặc giữ chỗ.</p></div></div>`)}`;
+      ${raw(items.length && withPhoto < items.length ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">💡</span>
+        <div>Tin có ảnh thu hút gấp nhiều lần. Thêm ảnh tại <b>Quản lý phòng → bấm vào phòng → Ảnh phòng</b>.</div></div>` : '')}
+      ${raw(items.length ? `<div class="listing-grid">${cards}</div>`
+        : `<div class="card"><div class="empty"><div class="ic">📢</div><h4>Không có phòng trống</h4><p class="muted">Tất cả phòng đang được thuê hoặc giữ chỗ.</p></div></div>`)}`;
     },
     mount() {
-      document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
-        const text = decodeURIComponent(b.dataset.copy);
-        if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => UI.toast('Đã sao chép tin đăng', { type: 'ok' }), () => UI.toast('Không sao chép được', { type: 'error' }));
-        else UI.toast('Trình duyệt không hỗ trợ sao chép', { type: 'error' });
+      const find = (key) => { const [bid, code] = key.split('|'); return { b: S.building(bid), r: S.room(bid, code) }; };
+      document.querySelectorAll('[data-quickcopy]').forEach(btn => btn.onclick = () => {
+        const { b, r } = find(btn.dataset.quickcopy);
+        copyText(listingText(b, r), 'tin đăng');
       });
+      document.querySelectorAll('[data-preview]').forEach(btn => btn.onclick = () => {
+        const { b, r } = find(btn.dataset.preview);
+        listingDialog(b, r);
+      });
+      const all = document.getElementById('copyAll');
+      if (all) all.onclick = () => {
+        const texts = [];
+        S.buildings.forEach(b => S.roomsOf(b.id).filter(r => r.status === 'vacant' || r.status === 'cleaning')
+          .forEach(r => texts.push(listingText(b, r))));
+        copyText(texts.join('\n\n──────────\n\n'), `${texts.length} tin đăng`);
+      };
     },
   };
+
+  function copyText(text, label) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(
+      () => UI.toast('Đã sao chép ' + (label || ''), { type: 'ok' }),
+      () => UI.toast('Không sao chép được', { type: 'error' }));
+    else UI.toast('Trình duyệt không hỗ trợ sao chép', { type: 'error' });
+  }
+
+  function listingDialog(b, r) {
+    const photos = r.photos || [];
+    const curAm = (r.amenities && r.amenities.length) ? r.amenities : S.assetsOf(b.id, r.code).map(a => a.name);
+    const text = listingText(b, r);
+    const gallery = photos.length
+      ? `<div class="photo-strip" style="margin-bottom:12px">${photos.map(p => `<div class="photo-thumb" style="width:120px;height:92px"><img src="${p}"></div>`).join('')}</div>`
+      : `<div class="alert alert-warning" style="margin-bottom:12px"><span class="ic">📷</span><div>Phòng chưa có ảnh — tin đăng sẽ kém hấp dẫn. Thêm ảnh trong <b>Quản lý phòng</b>.</div></div>`;
+    const amChips = AMENITIES.map(a => `<button type="button" class="lz-chip ${curAm.includes(a) ? 'on' : ''}" data-am="${a}">
+      <span class="lz-chip-box">${curAm.includes(a) ? '✓' : ''}</span>${a}</button>`).join('');
+
+    UI.modal({
+      size: 'wide', title: `Tin đăng — Phòng ${r.code}`,
+      bodyHtml: h`
+        ${raw(gallery)}
+        <div class="field"><label>Tiện nghi (hiện trong tin)</label>
+          <div class="lz-chips" style="margin-bottom:0">${raw(amChips)}</div></div>
+        <div class="field" style="margin-top:14px"><label>Nội dung tin đăng (sửa được)</label>
+          <textarea class="textarea" id="listingText" style="min-height:220px;font-size:14px">${U.esc(text)}</textarea></div>
+        <p class="muted text-xs" style="margin-top:8px">Mẹo: bấm <b>Chép nội dung</b> rồi dán vào Facebook/Zalo. Ảnh cần tải lên thủ công ở bài đăng.</p>`,
+      footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
+        <button class="btn btn-outline" id="dlPhotos" ${photos.length ? '' : 'disabled'}>⬇ Tải ảnh</button>
+        <button class="btn btn-outline" id="shareFb">📘 Mở Facebook</button>
+        <button class="btn btn-primary" id="copyListing">📋 Chép nội dung</button>`,
+      onMount(el, close) {
+        const ta = el.querySelector('#listingText');
+        // đổi tiện nghi -> lưu + dựng lại nội dung
+        el.querySelectorAll('[data-am]').forEach(c => c.onclick = () => {
+          const list = (r.amenities && r.amenities.length ? r.amenities.slice() : curAm.slice());
+          const i = list.indexOf(c.dataset.am);
+          if (i >= 0) list.splice(i, 1); else list.push(c.dataset.am);
+          S.updateRoom(b.id, r.code, { amenities: list });
+          close(); listingDialog(b, S.room(b.id, r.code));
+        });
+        el.querySelector('#copyListing').onclick = () => copyText(ta.value, 'nội dung tin');
+        el.querySelector('#shareFb').onclick = () => {
+          copyText(ta.value, 'nội dung tin');
+          window.open('https://www.facebook.com/', '_blank', 'noopener');
+          UI.toast('Đã chép nội dung — dán vào ô đăng bài Facebook', { type: 'ok', sticky: true });
+        };
+        const dl = el.querySelector('#dlPhotos');
+        if (dl && photos.length) dl.onclick = () => {
+          photos.forEach((p, i) => {
+            const a = document.createElement('a');
+            a.href = p; a.download = `${r.code}-anh-${i + 1}.jpg`;
+            document.body.appendChild(a); a.click(); a.remove();
+          });
+          UI.toast(`Đang tải ${photos.length} ảnh`, { type: 'ok' });
+        };
+      },
+    });
+  }
 
   /* ---------------- CÔNG TY / NHÓM ---------------- */
   HH.pages.group = {
