@@ -174,7 +174,8 @@ HH.pages = HH.pages || {};
         <div class="cap">${x.period}</div></div>`);
 
       const alerts = [
-        { ic: '⚠', tone: 'warning', n: d.alerts.expiringContracts, text: 'hợp đồng sắp hết hạn trong 30 ngày', href: '#/buildings' },
+        { ic: '⛔', tone: 'danger', n: d.alerts.expiredContracts || 0, text: 'hợp đồng đã quá hạn — cần xử lý', href: `#/b/${firstB}/contracts?filter=expired` },
+        { ic: '⚠', tone: 'warning', n: d.alerts.expiringContracts, text: 'hợp đồng sắp hết hạn trong 30 ngày', href: `#/b/${firstB}/contracts?filter=soon` },
         { ic: '⚠', tone: 'danger', n: d.alerts.overdueInvoices, text: 'hóa đơn quá hạn', href: `#/b/${firstB}/invoices?status=overdue` },
         { ic: '⚠', tone: 'info', n: d.alerts.pendingReadings, text: 'phòng chưa ghi chỉ số kỳ này', href: `#/b/${firstB}/readings` },
       ].filter(a => a.n > 0).map(a => h`<a class="todo-item" href="${a.href}">

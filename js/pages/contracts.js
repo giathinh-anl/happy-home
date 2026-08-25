@@ -4,59 +4,380 @@
 (function () {
   const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
 
-  /* ---------------- DANH SÁCH ---------------- */
+  /* ---------------- DANH SÁCH + NHẮC HẾT HẠN ---------------- */
+  // Nhãn đếm ngược theo mức độ khẩn
+  function expiryChip(c) {
+    const lvl = S.expiryLevel(c), d = S.daysToExpiry(c);
+    if (c.status === 'terminated') return '<span class="faint">—</span>';
+    if (d == null) return '<span class="faint">—</span>';
+    if (lvl === 'expired') return `<span class="exp-chip expired">⛔ Quá hạn ${Math.abs(d)} ngày</span>`;
+    if (lvl === 'urgent') return `<span class="exp-chip urgent">🔥 Còn ${d} ngày</span>`;
+    if (lvl === 'soon') return `<span class="exp-chip soon">⚠ Còn ${d} ngày</span>`;
+    if (lvl === 'watch') return `<span class="exp-chip watch">Còn ${d} ngày</span>`;
+    return `<span class="faint">Còn ${d} ngày</span>`;
+  }
+
+  const CT_FILTERS = [
+    { key: 'expired', label: 'Đã quá hạn', tone: 'danger', test: c => S.expiryLevel(c) === 'expired' },
+    { key: 'urgent', label: 'Hết hạn ≤ 7 ngày', tone: 'danger', test: c => S.expiryLevel(c) === 'urgent' },
+    { key: 'soon', label: 'Sắp hết hạn ≤ 30 ngày', tone: 'warning', test: c => { const l = S.expiryLevel(c); return l === 'soon' || l === 'urgent'; } },
+    { key: 'active', label: 'Đang hiệu lực', tone: 'success', test: c => c.status === 'active' },
+    { key: 'terminated', label: 'Đã thanh lý', tone: 'neutral', test: c => c.status === 'terminated' },
+  ];
+
   HH.pages.contracts = {
     render(ctx) {
-      const rows = S.contractsOf(ctx.bid);
+      const all = S.contractsOf(ctx.bid);
+      const q = new URLSearchParams((location.hash.split('?')[1] || ''));
+      const filterKey = q.get('filter');
+      const f = CT_FILTERS.find(x => x.key === filterKey);
+      const rows = f ? all.filter(f.test) : all;
+
+      // --- Khối nhắc nhở sắp hết hạn ---
+      const expired = S.expiringContracts(ctx.bid, -1);
+      const urgent = S.expiringContracts(ctx.bid, 7).filter(c => S.daysToExpiry(c) >= 0);
+      const soon = S.expiringContracts(ctx.bid, 30).filter(c => S.daysToExpiry(c) > 7);
+      let reminder = '';
+      if (expired.length || urgent.length || soon.length) {
+        const line = (list, cls, icon, label) => list.length ? `<div class="rem-line">
+          <span class="rem-ic ${cls}">${icon}</span>
+          <div class="grow"><b>${list.length} hợp đồng ${label}</b>
+            <div class="muted text-xs">${list.slice(0, 6).map(c => `${c.roomCode} (${c.tenantName})`).join(' · ')}${list.length > 6 ? ' …' : ''}</div></div>
+          <button class="btn btn-sm ${cls === 'danger' ? 'btn-danger' : 'btn-outline'}" data-remfilter="${cls === 'danger' && icon === '⛔' ? 'expired' : (icon === '🔥' ? 'urgent' : 'soon')}">Xem</button>
+        </div>` : '';
+        reminder = `<div class="reminder-box ${expired.length || urgent.length ? 'alarm' : ''}">
+          <div class="rem-head"><span>🔔</span><b>Nhắc nhở hạn hợp đồng</b>
+            <span class="muted text-xs">Cập nhật ${U.fmtDate(U.today())}</span></div>
+          ${line(expired, 'danger', '⛔', 'ĐÃ QUÁ HẠN — cần gia hạn hoặc thanh lý')}
+          ${line(urgent, 'danger', '🔥', 'hết hạn trong 7 ngày')}
+          ${line(soon, 'warning', '⚠', 'sắp hết hạn trong 30 ngày')}
+        </div>`;
+      }
+
+      const chips = CT_FILTERS.map(x => {
+        const n = all.filter(x.test).length;
+        const on = filterKey === x.key;
+        return `<button class="lz-chip ${on ? 'on' : ''}" data-ctfilter="${x.key}">
+          <span class="lz-chip-box">${on ? '✓' : ''}</span>${x.label}
+          <span class="lz-chip-cnt s-${x.tone}">${n}</span></button>`;
+      }).join('');
+
       const dt = UI.DataTable({
         rows, rowId: c => c.id, searchKeys: ['id', 'roomCode', 'tenantName'],
         searchPlaceholder: 'Tìm mã HĐ, phòng, khách...',
         emptyTitle: 'Chưa có hợp đồng nào', emptyIcon: '📄',
         emptyAction: { label: 'Lập hợp đồng', onClick: () => HH.router.go(`/b/${ctx.bid}/contracts/new`) },
         columns: [
-          { key: 'id', label: 'Mã HĐ', mono: true, sortable: true, render: c => `<span class="mono b">${c.id.slice(0, 8)}</span>` },
-          { key: 'roomCode', label: 'Phòng', render: c => `<span class="badge s-info"><span class="dot"></span>${c.roomCode}</span>` },
-          { key: 'tenantName', label: 'Khách thuê', sortable: true, render: c => `<b>${c.tenantName}</b>` },
+          { key: 'roomCode', label: 'Phòng', sortable: true, render: c => `<span class="badge s-info"><span class="dot"></span>${c.roomCode}</span>` },
+          { key: 'tenantName', label: 'Khách thuê', sortable: true, render: c => `<b>${U.esc(c.tenantName)}</b>` },
           { key: 'rent', label: 'Giá thuê', align: 'right', sortable: true, render: c => U.currency(c.rent) },
+          { key: 'deposit', label: 'Tiền cọc', align: 'right', render: c => U.currency(c.deposit) },
           { key: 'start', label: 'Bắt đầu', render: c => `<span class="mono">${U.fmtDate(c.start)}</span>` },
           { key: 'end', label: 'Kết thúc', sortable: true, sortVal: c => new Date(c.end).getTime(),
-            render: c => { const d = U.daysBetween(U.today(), c.end); const soon = d >= 0 && d <= 30;
-              return `<span class="mono ${soon ? '' : ''}" style="${soon ? 'color:var(--warning);font-weight:600' : ''}">${U.fmtDate(c.end)}${soon ? ` · còn ${d}n` : ''}</span>`; } },
-          { key: 'status', label: 'Trạng thái', render: c => UI.statusBadge(c.expiringSoon && c.status === 'active' ? 'expiring' : c.status, 'contract') },
+            render: c => `<span class="mono">${U.fmtDate(c.end)}</span>` },
+          { key: 'expiry', label: 'Còn lại', sortVal: c => S.daysToExpiry(c) || 9999, sortable: true, render: c => expiryChip(c) },
+          { key: 'status', label: 'Trạng thái', render: c => UI.statusBadge(
+              c.status === 'active' && c.expiringSoon ? 'expiring' : c.status, 'contract') },
         ],
-        actions: c => {
-          const items = [{ icon: '👁', label: 'Xem hợp đồng', onClick: () => showContract(c) }];
-          if (c.status === 'active' || c.status === 'terminating')
-            items.push({ sep: true }, { icon: '⏻', label: 'Trả phòng & thanh lý', danger: true, onClick: () => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}/terminate`) });
-          return items;
-        },
+        onRowClick: c => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}`),
+        rowClass: c => { const l = S.expiryLevel(c); return l === 'expired' ? 'row-expired' : (l === 'urgent' ? 'row-urgent' : ''); },
+        actions: c => contractActions(ctx, c),
       });
       ctx._dt = dt;
       return h`<div class="page-head">
-        <div><div class="page-title">Hợp đồng</div><div class="page-sub">${ctx.building.name} · ${rows.length} hợp đồng</div></div>
-        <div class="page-actions"><button class="btn btn-primary" data-primary-new>+ Lập hợp đồng</button></div>
-      </div>${raw(dt.render())}`;
+        <div class="row-gap-3"><span class="lz-home-ic">📄</span>
+          <div><div class="page-title-lg">Hợp đồng</div>
+          <div class="page-sub">${ctx.building.name} · ${all.length} hợp đồng${raw(f ? ` · lọc: ${f.label}` : '')}</div></div></div>
+        <div class="page-actions">
+          <button class="btn btn-success" id="ctExport">📊 Xuất excel</button>
+          <button class="btn btn-primary" data-primary-new>+ Lập hợp đồng</button></div>
+      </div>
+      ${raw(reminder)}
+      <div class="lz-chips"><span class="lz-chips-ic">▽</span>${raw(chips)}</div>
+      ${raw(dt.render())}`;
     },
     mount(ctx) {
       ctx._dt.attach(document);
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/contracts/new`);
+      document.querySelectorAll('[data-ctfilter]').forEach(b => b.onclick = () => {
+        const k = b.dataset.ctfilter;
+        const cur = new URLSearchParams((location.hash.split('?')[1] || '')).get('filter');
+        HH.router.go(`/b/${ctx.bid}/contracts` + (cur === k ? '' : `?filter=${k}`));
+      });
+      document.querySelectorAll('[data-remfilter]').forEach(b => b.onclick = () =>
+        HH.router.go(`/b/${ctx.bid}/contracts?filter=${b.dataset.remfilter}`));
+      const ex = document.getElementById('ctExport');
+      if (ex) ex.onclick = () => {
+        U.downloadCSV(`hop-dong-${ctx.bid}.csv`,
+          ['Mã HĐ', 'Phòng', 'Khách thuê', 'Giá thuê', 'Tiền cọc', 'Bắt đầu', 'Kết thúc', 'Còn lại (ngày)', 'Trạng thái'],
+          S.contractsOf(ctx.bid).map(c => [c.id, c.roomCode, c.tenantName, c.rent, c.deposit,
+            U.fmtDate(c.start), U.fmtDate(c.end), S.daysToExpiry(c), (UI.STATUS.contract[c.status] || {}).label || c.status]));
+        UI.toast('Đã tải file Excel (CSV)', { type: 'ok' });
+      };
     },
   };
 
-  function showContract(c) {
-    UI.modal({ title: `Hợp đồng ${c.roomCode}`, size: 'wide', bodyHtml: h`
-      <div class="row-gap-3" style="margin-bottom:16px">${raw(UI.statusBadge(c.status, 'contract'))}
-        <span class="mono muted">${c.id}</span></div>
+  function contractActions(ctx, c) {
+    const items = [{ icon: '👁', label: 'Xem chi tiết & điều khoản', onClick: () => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}`) },
+      { icon: '🖨', label: 'In hợp đồng', onClick: () => printContract(ctx, c) }];
+    if (c.status === 'active' || c.status === 'terminating' || c.status === 'expired') {
+      items.push({ sep: true }, { icon: '🔄', label: 'Gia hạn hợp đồng', onClick: () => renewDialog(ctx, c) });
+      items.push({ icon: '⏻', label: 'Trả phòng & thanh lý', danger: true, onClick: () => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}/terminate`) });
+    }
+    return items;
+  }
+
+  /* ---------------- GIA HẠN ---------------- */
+  function renewDialog(ctx, c) {
+    const d = S.daysToExpiry(c);
+    UI.modal({ title: `Gia hạn hợp đồng — Phòng ${c.roomCode}`, bodyHtml: h`
+      <p class="muted" style="margin-bottom:12px">Hợp đồng hiện hết hạn ngày <b class="mono">${U.fmtDate(c.end)}</b>
+        ${raw(d < 0 ? `<span style="color:var(--danger)">(đã quá hạn ${Math.abs(d)} ngày)</span>` : `(còn ${d} ngày)`)}</p>
+      <div class="field"><label>Gia hạn thêm</label>
+        <select class="select" id="rnMonths">
+          <option value="3">3 tháng</option><option value="6">6 tháng</option>
+          <option value="12" selected>12 tháng</option><option value="24">24 tháng</option></select></div>
+      <div class="field" style="margin-top:12px"><label>Giá thuê mới (để trống nếu giữ nguyên)</label>
+        <input class="input money" id="rnRent" placeholder="${U.number(c.rent)}"></div>
+      <p class="hint" id="rnPreview" style="margin-top:10px"></p>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="rnGo">Gia hạn</button>`,
+      onMount(el, close) {
+        const sel = el.querySelector('#rnMonths'), rent = el.querySelector('#rnRent'), pv = el.querySelector('#rnPreview');
+        const upd = () => {
+          const base = new Date(c.end) > U.today() ? new Date(c.end) : U.today();
+          pv.innerHTML = `→ Hạn mới: <b class="mono">${U.fmtDate(U.addMonths(base, +sel.value))}</b>`;
+        };
+        sel.onchange = upd; upd();
+        rent.oninput = () => { const n = U.parseNum(rent.value); rent.value = n ? U.number(n) : ''; };
+        el.querySelector('#rnGo').onclick = (e) => {
+          e.currentTarget.classList.add('loading');
+          setTimeout(() => {
+            S.renewContract(c.id, +sel.value, U.parseNum(rent.value) || null);
+            close(); UI.toast('Đã gia hạn hợp đồng', { type: 'ok' }); HH.router.render();
+          }, 350);
+        };
+      } });
+  }
+
+  /* ---------------- IN HỢP ĐỒNG ---------------- */
+  function printContract(ctx, c) {
+    const b = S.building(ctx.bid) || {};
+    const terms = S.termsOf(c);
+    const tenants = S.tenantsOf(ctx.bid).filter(t => t.roomCode === c.roomCode);
+    const rep = tenants.find(t => t.isRep) || tenants[0] || {};
+    const assets = S.assetsOf(ctx.bid, c.roomCode);
+    const win = window.open('', '_blank', 'width=860,height=1000');
+    if (!win) { UI.toast('Trình duyệt chặn cửa sổ in. Hãy cho phép popup.', { type: 'error' }); return; }
+    const termsHtml = terms.map((t, i) => `<div class="clause"><b>Điều ${i + 1}. ${U.esc(t.title)}</b><p>${U.esc(t.body)}</p></div>`).join('');
+    const assetHtml = assets.length
+      ? `<table class="tbl"><thead><tr><th>Tài sản</th><th>SL</th><th>Tình trạng</th></tr></thead><tbody>${assets.map(a =>
+          `<tr><td>${U.esc(a.name)}</td><td>${a.quantity || 1} ${U.esc(a.unit || '')}</td><td>${(UI.STATUS.asset[a.condition] || {}).label || ''}</td></tr>`).join('')}</tbody></table>`
+      : '<p><i>Không có tài sản bàn giao.</i></p>';
+    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Hợp đồng ${c.roomCode}</title>
+      <style>body{font-family:'Times New Roman',serif;font-size:14px;line-height:1.6;color:#000;max-width:760px;margin:28px auto;padding:0 20px}
+      h1{text-align:center;font-size:19px;margin:6px 0}.center{text-align:center}.muted{color:#555}
+      .head{text-align:center;margin-bottom:18px}.head .nation{font-weight:700;font-size:14px}
+      .head .slogan{font-weight:700;text-decoration:underline;margin-bottom:14px}
+      .party{margin:10px 0}.party b{display:block;margin-bottom:2px}
+      .clause{margin:10px 0}.clause p{margin:3px 0 0;text-align:justify}
+      .tbl{width:100%;border-collapse:collapse;margin:8px 0}.tbl th,.tbl td{border:1px solid #333;padding:5px 8px;font-size:13px}
+      .sign{display:flex;justify-content:space-around;margin-top:36px;text-align:center}
+      .sign div{width:45%}.sign i{font-size:12px;color:#555}
+      table.info{width:100%;margin:8px 0}table.info td{padding:3px 0;vertical-align:top}
+      @media print{body{margin:0}}</style></head><body>
+      <div class="head"><div class="nation">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+        <div class="slogan">Độc lập – Tự do – Hạnh phúc</div>
+        <h1>HỢP ĐỒNG THUÊ PHÒNG TRỌ</h1>
+        <div class="muted">Số: ${U.esc(c.id)}</div></div>
+      <p>Hôm nay, ngày ${U.fmtDate(c.start)}, tại ${U.esc(b.address || b.name || '')}, chúng tôi gồm:</p>
+      <div class="party"><b>BÊN CHO THUÊ (Bên A):</b>
+        <table class="info"><tr><td style="width:38%">Đại diện</td><td>${U.esc(b.contactName || S.prefs.userName || '')}</td></tr>
+        <tr><td>Địa chỉ</td><td>${U.esc(b.address || '')}</td></tr>
+        <tr><td>Điện thoại</td><td>${U.esc(b.contactPhone || '')}</td></tr></table></div>
+      <div class="party"><b>BÊN THUÊ (Bên B):</b>
+        <table class="info"><tr><td style="width:38%">Họ và tên</td><td>${U.esc(rep.fullName || c.tenantName || '')}</td></tr>
+        <tr><td>Số CCCD</td><td>${U.esc(rep.idNumber || '')}${rep.cccdIssueDate ? ' — cấp ngày ' + U.esc(rep.cccdIssueDate) : ''}</td></tr>
+        <tr><td>Ngày sinh</td><td>${U.esc(rep.dob || '')}</td></tr>
+        <tr><td>Điện thoại</td><td>${U.esc(rep.phone || '')}</td></tr>
+        <tr><td>Địa chỉ thường trú</td><td>${U.esc(rep.address || '')}</td></tr></table></div>
+      ${tenants.length > 1 ? `<p><b>Những người ở cùng:</b> ${tenants.filter(t => t !== rep).map(t => U.esc(t.fullName)).join(', ')}</p>` : ''}
+      <p>Hai bên thống nhất ký hợp đồng thuê phòng trọ với các nội dung sau:</p>
+      <div class="clause"><b>Thông tin phòng thuê</b>
+        <table class="tbl"><tr><td>Phòng</td><td><b>${U.esc(c.roomCode)}</b></td><td>Giá thuê</td><td><b>${U.currency(c.rent)}/tháng</b></td></tr>
+        <tr><td>Thời hạn</td><td>${U.fmtDate(c.start)} – ${U.fmtDate(c.end)}</td><td>Tiền cọc</td><td>${U.currency(c.deposit)}</td></tr>
+        <tr><td>Kỳ thanh toán</td><td>Ngày ${c.billingDay} hàng tháng</td><td>Hạn thanh toán</td><td>${c.dueDays} ngày sau ngày chốt</td></tr></table></div>
+      ${termsHtml}
+      <div class="clause"><b>Phụ lục: Tài sản bàn giao</b>${assetHtml}</div>
+      <div class="sign"><div><b>BÊN CHO THUÊ (Bên A)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(b.contactName || S.prefs.userName || '')}</div>
+        <div><b>BÊN THUÊ (Bên B)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(rep.fullName || c.tenantName || '')}</div></div>
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    win.document.close();
+  }
+
+  /* ---------------- CHI TIẾT HỢP ĐỒNG + ĐIỀU KHOẢN ---------------- */
+  HH.pages.contractDetail = {
+    render(ctx) {
+      const c = S.contract(ctx.params.cid);
+      if (!c) return `<div class="alert alert-danger"><span class="ic">⚠</span><div>Không tìm thấy hợp đồng.</div></div>`;
+      ctx._c = c;
+      const d = S.daysToExpiry(c), lvl = S.expiryLevel(c);
+      const tenants = S.tenantsOf(ctx.bid).filter(t => t.roomCode === c.roomCode);
+      const assets = S.assetsOf(ctx.bid, c.roomCode);
+      const invs = S.invoicesForContract(c.id);
+      const debt = invs.filter(i => i.status !== 'cancelled').reduce((s, i) => s + (i.total - i.paid), 0);
+      const terms = S.termsOf(c);
+      const custom = !!(c.terms && c.terms.length);
+
+      let banner = '';
+      if (lvl === 'expired') banner = `<div class="alert alert-danger" style="margin-bottom:16px"><span class="ic">⛔</span>
+        <div><b>Hợp đồng đã quá hạn ${Math.abs(d)} ngày</b> (hết hạn ${U.fmtDate(c.end)}). Hãy <b>gia hạn</b> hoặc <b>thanh lý</b> để dữ liệu chính xác.</div></div>`;
+      else if (lvl === 'urgent') banner = `<div class="alert alert-danger" style="margin-bottom:16px"><span class="ic">🔥</span>
+        <div><b>Hợp đồng hết hạn trong ${d} ngày</b> (${U.fmtDate(c.end)}). Liên hệ khách thuê để xác nhận gia hạn.</div></div>`;
+      else if (lvl === 'soon') banner = `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">⚠</span>
+        <div><b>Sắp hết hạn — còn ${d} ngày</b> (${U.fmtDate(c.end)}). Nên hỏi ý khách thuê về việc gia hạn.</div></div>`;
+
+      const termsHtml = terms.map((t, i) => `<div class="clause-item">
+        <div class="clause-title"><span class="cnum">Điều ${i + 1}</span> ${U.esc(t.title)}</div>
+        <div class="clause-body">${U.esc(t.body)}</div></div>`).join('');
+
+      const total = invs.length, paidCount = invs.filter(i => i.status === 'paid').length;
+
+      return h`<div class="page-head">
+        <div><a class="back-link" href="#/b/${ctx.bid}/contracts">← Hợp đồng</a>
+          <div class="row-gap-3"><span class="lz-home-ic">📄</span>
+            <div><div class="page-title-lg">Hợp đồng phòng ${c.roomCode}</div>
+            <div class="page-sub mono">${c.id}</div></div></div></div>
+        <div class="page-actions">
+          <button class="btn btn-outline" id="ctPrint">🖨 In hợp đồng</button>
+          ${raw(c.status !== 'terminated' ? `<button class="btn btn-primary" id="ctRenew">🔄 Gia hạn</button>` : '')}
+          ${raw(c.status !== 'terminated' ? `<button class="btn btn-danger" id="ctTerm">⏻ Thanh lý</button>` : '')}
+        </div></div>
+      ${raw(banner)}
+      <div class="row-gap-3 wrap" style="margin-bottom:16px">
+        ${raw(UI.statusBadge(c.status === 'active' && c.expiringSoon ? 'expiring' : c.status, 'contract'))}
+        ${raw(expiryChip(c))}
+        ${raw(c.renewCount ? `<span class="badge s-info"><span class="dot"></span>Đã gia hạn ${c.renewCount} lần</span>` : '')}
+      </div>
+
+      <div class="ct-grid">
+        <div class="col" style="gap:16px">
+          <div class="card"><div class="card-head"><h3>Thông tin hợp đồng</h3></div><div class="card-pad">
+            <div class="grid-2">
+              <div class="field"><label>Phòng</label><div class="b">${c.roomCode}</div></div>
+              <div class="field"><label>Khách thuê đại diện</label><div class="b">${U.esc(c.tenantName)}</div></div>
+              <div class="field"><label>Giá thuê</label><div class="mono b" style="color:var(--brand-700)">${U.currency(c.rent)}<span class="muted text-xs">/tháng</span></div></div>
+              <div class="field"><label>Tiền cọc</label><div class="mono b">${U.currency(c.deposit)}</div></div>
+              <div class="field"><label>Ngày bắt đầu</label><div class="mono">${U.fmtDate(c.start)}</div></div>
+              <div class="field"><label>Ngày kết thúc</label><div class="mono">${U.fmtDate(c.end)}</div></div>
+              <div class="field"><label>Ngày chốt hóa đơn</label><div>Ngày ${c.billingDay} hàng tháng</div></div>
+              <div class="field"><label>Hạn thanh toán</label><div>${c.dueDays} ngày sau ngày chốt</div></div>
+            </div>
+            ${raw(S.isOwner() && c.status !== 'terminated' ? `<div style="margin-top:14px"><button class="btn btn-outline btn-sm" id="ctEdit">✏️ Sửa thông tin</button></div>` : '')}
+          </div></div>
+
+          <div class="card"><div class="card-head">
+            <h3>Điều khoản hợp đồng ${raw(custom ? '<span class="badge s-purple" style="margin-left:6px"><span class="dot"></span>Đã tùy chỉnh</span>' : '<span class="badge s-neutral" style="margin-left:6px"><span class="dot"></span>Mẫu chuẩn</span>')}</h3>
+            ${raw(S.isOwner() ? '<button class="btn btn-outline btn-sm" id="ctTerms">✏️ Sửa điều khoản</button>' : '')}
+          </div><div class="card-pad">${raw(termsHtml)}</div></div>
+        </div>
+
+        <div class="col" style="gap:16px">
+          <div class="card"><div class="card-head"><h3>Người ở (${tenants.length})</h3></div><div class="card-pad">
+            ${raw(tenants.length ? tenants.map(t => `<div class="row-gap-2" style="padding:8px 0;border-bottom:1px solid var(--neutral-100)">
+              <span class="avatar" style="width:30px;height:30px;flex:0 0 30px;font-size:12px">${U.initials(t.fullName)}</span>
+              <div class="grow"><b>${U.esc(t.fullName)}</b>${t.isRep ? ' <span class="tn-tag rep">Đại diện</span>' : ''}
+                <div class="muted text-xs mono">${U.esc(t.phone || '')} · CCCD ${U.esc(t.idNumber || '—')}</div></div>
+              </div>`).join('') : '<span class="faint text-sm">Chưa có thông tin người ở</span>')}
+          </div></div>
+
+          <div class="card"><div class="card-head"><h3>Tài chính</h3></div><div class="card-pad">
+            <div class="settle-row"><span class="muted">Số hóa đơn</span><span class="b">${total} (đã trả ${paidCount})</span></div>
+            <div class="settle-row"><span class="muted">Công nợ hiện tại</span>
+              <span class="amt" style="color:${raw(debt > 0 ? 'var(--danger)' : 'var(--success)')}">${U.currency(debt)}</span></div>
+            <div class="settle-row"><span class="muted">Tiền cọc đang giữ</span><span class="amt">${U.currency(c.deposit)}</span></div>
+            <div style="margin-top:10px"><a href="#/b/${ctx.bid}/invoices" class="text-sm">Xem hóa đơn →</a></div>
+          </div></div>
+
+          <div class="card"><div class="card-head"><h3>Tài sản bàn giao (${assets.length})</h3></div><div class="card-pad">
+            ${raw(assets.length ? `<div class="room-assets">${assets.map(a => `<span class="room-asset-chip ${a.condition === 'good' ? '' : a.condition}">${a.icon || '📦'} ${U.esc(a.name)}</span>`).join('')}</div>`
+              : '<span class="faint text-sm">Chưa có tài sản</span>')}
+          </div></div>
+        </div>
+      </div>`;
+    },
+    mount(ctx) {
+      const c = ctx._c; if (!c) return;
+      const p = document.getElementById('ctPrint'); if (p) p.onclick = () => printContract(ctx, c);
+      const r = document.getElementById('ctRenew'); if (r) r.onclick = () => renewDialog(ctx, c);
+      const t = document.getElementById('ctTerm'); if (t) t.onclick = () => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}/terminate`);
+      const e = document.getElementById('ctEdit'); if (e) e.onclick = () => editContract(ctx, c);
+      const tm = document.getElementById('ctTerms'); if (tm) tm.onclick = () => editTerms(ctx, c);
+    },
+  };
+
+  function editContract(ctx, c) {
+    UI.modal({ title: 'Sửa thông tin hợp đồng', size: 'wide', bodyHtml: h`
       <div class="grid-2">
-        <div class="field"><label>Khách thuê</label><div class="b">${c.tenantName}</div></div>
-        <div class="field"><label>Phòng</label><div>${c.roomCode}</div></div>
-        <div class="field"><label>Giá thuê</label><div class="mono b">${U.currency(c.rent)}</div></div>
-        <div class="field"><label>Tiền cọc</label><div class="mono b">${U.currency(c.deposit)}</div></div>
-        <div class="field"><label>Ngày bắt đầu</label><div class="mono">${U.fmtDate(c.start)}</div></div>
-        <div class="field"><label>Ngày kết thúc</label><div class="mono">${U.fmtDate(c.end)}</div></div>
-        <div class="field"><label>Ngày chốt hóa đơn</label><div>Ngày ${c.billingDay} hàng tháng</div></div>
-        <div class="field"><label>Hạn thanh toán</label><div>${c.dueDays} ngày sau ngày chốt</div></div>
-      </div>`, footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
+        <div class="field"><label>Giá thuê (₫/tháng)</label><input class="input money" id="edRent" value="${U.number(c.rent)}"></div>
+        <div class="field"><label>Tiền cọc (₫)</label><input class="input money" id="edDep" value="${U.number(c.deposit)}"></div>
+        <div class="field"><label>Ngày bắt đầu</label><input class="input" type="date" id="edStart" value="${new Date(c.start).toISOString().slice(0, 10)}"></div>
+        <div class="field"><label>Ngày kết thúc</label><input class="input" type="date" id="edEnd" value="${new Date(c.end).toISOString().slice(0, 10)}"></div>
+        <div class="field"><label>Ngày chốt hóa đơn</label><select class="select" id="edBill">
+          ${raw([1, 5, 10, 15].map(x => `<option ${c.billingDay === x ? 'selected' : ''}>${x}</option>`).join(''))}</select></div>
+        <div class="field"><label>Hạn thanh toán (ngày)</label><input class="input mono" id="edDue" value="${c.dueDays}"></div>
+      </div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="edSave">Lưu</button>`,
+      onMount(el, close) {
+        ['edRent', 'edDep'].forEach(id => { const i = el.querySelector('#' + id);
+          i.oninput = () => { const n = U.parseNum(i.value); i.value = n ? U.number(n) : ''; }; });
+        el.querySelector('#edSave').onclick = () => {
+          const patch = {
+            rent: U.parseNum(el.querySelector('#edRent').value) || c.rent,
+            deposit: U.parseNum(el.querySelector('#edDep').value) || 0,
+            start: new Date(el.querySelector('#edStart').value).toISOString(),
+            end: new Date(el.querySelector('#edEnd').value).toISOString(),
+            billingDay: +el.querySelector('#edBill').value,
+            dueDays: U.parseNum(el.querySelector('#edDue').value) || 5,
+          };
+          S.updateContract(c.id, patch);
+          const room = S.room(ctx.bid, c.roomCode); if (room) { room.contractEnd = patch.end; room.price = patch.rent; }
+          S.refreshExpiryFlags(); S.persist();
+          S.log('contract.update', `Sửa hợp đồng ${c.roomCode}`);
+          close(); UI.toast('Đã lưu hợp đồng', { type: 'ok' }); HH.router.render();
+        };
+      } });
+  }
+
+  function editTerms(ctx, c) {
+    let list = (c.terms && c.terms.length ? c.terms : S.DEFAULT_TERMS).map(t => ({ title: t.title, body: t.body }));
+    const render = (el) => {
+      el.querySelector('[data-terms]').innerHTML = list.map((t, i) => `<div class="card" style="box-shadow:none;margin-bottom:10px"><div class="card-pad" style="padding:12px">
+        <div class="between" style="margin-bottom:6px"><b>Điều ${i + 1}</b>
+          <button class="kebab" data-rmterm="${i}" title="Xóa">✕</button></div>
+        <input class="input" data-tt="${i}" value="${U.esc(t.title)}" placeholder="Tiêu đề điều khoản" style="margin-bottom:6px">
+        <textarea class="textarea" data-tb="${i}" style="min-height:70px" placeholder="Nội dung">${U.esc(t.body)}</textarea>
+      </div></div>`).join('');
+      el.querySelectorAll('[data-rmterm]').forEach(b => b.onclick = () => { list.splice(+b.dataset.rmterm, 1); render(el); });
+      el.querySelectorAll('[data-tt]').forEach(i => i.oninput = () => list[+i.dataset.tt].title = i.value);
+      el.querySelectorAll('[data-tb]').forEach(i => i.oninput = () => list[+i.dataset.tb].body = i.value);
+    };
+    UI.modal({ title: `Điều khoản hợp đồng — Phòng ${c.roomCode}`, size: 'xwide',
+      bodyHtml: `<p class="muted" style="margin-bottom:12px">Có thể dùng biến: <b class="mono">{deposit}</b> (tiền cọc), <b class="mono">{rent}</b> (giá thuê), <b class="mono">{dueDays}</b> (hạn thanh toán).</p>
+        <div data-terms></div>
+        <button class="btn btn-outline btn-sm" id="addTerm">＋ Thêm điều khoản</button>`,
+      footHtml: `<button class="btn btn-outline" id="resetTerms">↺ Về mẫu chuẩn</button><span class="spacer"></span>
+        <button class="btn btn-outline" data-close>Hủy</button><button class="btn btn-primary" id="saveTerms">Lưu điều khoản</button>`,
+      onMount(el, close) {
+        render(el);
+        el.querySelector('#addTerm').onclick = () => { list.push({ title: '', body: '' }); render(el); };
+        el.querySelector('#resetTerms').onclick = () => { list = S.DEFAULT_TERMS.map(t => ({ title: t.title, body: t.body })); render(el); };
+        el.querySelector('#saveTerms').onclick = () => {
+          const clean = list.filter(t => (t.title || '').trim() || (t.body || '').trim());
+          S.updateContract(c.id, { terms: clean });
+          S.log('contract.terms', `Cập nhật điều khoản hợp đồng ${c.roomCode}`);
+          close(); UI.toast('Đã lưu điều khoản', { type: 'ok' }); HH.router.render();
+        };
+      } });
   }
 
   /* ---------------- LẬP HỢP ĐỒNG (5 bước) ---------------- */
@@ -182,7 +503,20 @@
       </div>
       <div class="field" style="margin-top:12px"><label>Hạn thanh toán</label>
         <div class="row-gap-2"><input class="input mono" data-t="dueDays" value="${t.dueDays}" style="width:70px"> <span class="muted">ngày sau ngày chốt</span></div></div>
+      <div class="alert alert-info" style="margin-top:16px"><span class="ic">📋</span>
+        <div>Hợp đồng áp dụng <b>${S.DEFAULT_TERMS.length} điều khoản mẫu chuẩn</b> (mục đích thuê, thanh toán, tiền cọc, quyền–nghĩa vụ hai bên, chấm dứt trước hạn…).
+        <button class="btn btn-sm btn-outline" id="viewTerms" style="margin-left:8px">Xem điều khoản</button>
+        <div class="text-xs" style="margin-top:4px">Sau khi ký có thể chỉnh sửa riêng cho hợp đồng này.</div></div></div>
       ${navFoot(ctx)}`;
+    const viewT = body.querySelector('#viewTerms');
+    if (viewT) viewT.onclick = () => {
+      const preview = { deposit: t.deposit, rent: t.rent, dueDays: t.dueDays };
+      const html = S.termsOf(preview).map((x, i) => `<div class="clause-item">
+        <div class="clause-title"><span class="cnum">Điều ${i + 1}</span> ${U.esc(x.title)}</div>
+        <div class="clause-body">${U.esc(x.body)}</div></div>`).join('');
+      UI.modal({ title: 'Điều khoản hợp đồng (mẫu chuẩn)', size: 'wide', bodyHtml: html,
+        footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Đã hiểu</button>` });
+    };
     const g = (k) => body.querySelector(`[data-t="${k}"]`);
     const recompute = () => { g('rent').value; document.getElementById('endDate').textContent = U.fmtDate(U.addMonths(new Date(t.start), t.months)); };
     g('start').oninput = () => { t.start = g('start').value; recompute(); };

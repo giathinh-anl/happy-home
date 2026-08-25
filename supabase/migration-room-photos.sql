@@ -12,3 +12,8 @@ alter table public.rooms add column if not exists amenities jsonb default '[]'::
 -- Thông tin liên hệ đăng tin của tòa nhà
 alter table public.buildings add column if not exists contact_name text;
 alter table public.buildings add column if not exists contact_phone text;
+
+-- Hợp đồng: điều khoản tùy chỉnh & lịch sử gia hạn
+alter table public.contracts add column if not exists terms jsonb;
+alter table public.contracts add column if not exists renew_count int default 0;
+alter table public.contracts add column if not exists renewed_at timestamptz;

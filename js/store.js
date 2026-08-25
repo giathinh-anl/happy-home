@@ -261,7 +261,7 @@ HH.store = (function () {
     } catch (e) { return false; }
   }
   // Chế độ demo: lưu localStorage. Chế độ backend: nạp khi đăng nhập (bên dưới).
-  if (!usingBackend()) { if (!loadPersisted()) persist(); }
+  if (!usingBackend()) { if (!loadPersisted()) persist(); setTimeout(() => { if (api.refreshExpiryFlags()) persist(); }, 0); }
 
   /* ---------- Trạng thái ứng dụng ---------- */
   const PREFS_KEY = 'hh_prefs_v1';
@@ -270,6 +270,20 @@ HH.store = (function () {
   let prefs = Object.assign({}, defaultPrefs);
   try { const p = JSON.parse(localStorage.getItem(PREFS_KEY)); if (p) prefs = Object.assign(prefs, p); } catch (e) {}
   function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} }
+
+  /* ---------- Điều khoản hợp đồng mẫu (chuẩn thuê nhà VN) ---------- */
+  const DEFAULT_TERMS = [
+    { title: 'Mục đích thuê', body: 'Bên B thuê phòng của Bên A để làm nơi ở. Không sử dụng vào mục đích khác nếu không có sự đồng ý bằng văn bản của Bên A.' },
+    { title: 'Tiền thuê và thanh toán', body: 'Tiền thuê được thanh toán hàng tháng theo kỳ ghi trong hợp đồng. Quá hạn thanh toán {dueDays} ngày, Bên A có quyền nhắc nhở và áp dụng biện pháp theo thỏa thuận.' },
+    { title: 'Tiền đặt cọc', body: 'Bên B đặt cọc {deposit} để bảo đảm thực hiện hợp đồng. Tiền cọc được hoàn trả khi kết thúc hợp đồng sau khi trừ các khoản còn nợ và chi phí hư hỏng (nếu có).' },
+    { title: 'Chi phí dịch vụ', body: 'Tiền điện, nước và các dịch vụ khác được tính theo chỉ số thực tế hoặc đơn giá niêm yết tại thời điểm sử dụng, thanh toán cùng kỳ tiền thuê.' },
+    { title: 'Quyền và nghĩa vụ của Bên A (bên cho thuê)', body: 'Bàn giao phòng đúng hiện trạng thỏa thuận; bảo đảm quyền sử dụng ổn định cho Bên B; sửa chữa hư hỏng do kết cấu công trình hoặc hao mòn tự nhiên.' },
+    { title: 'Quyền và nghĩa vụ của Bên B (bên thuê)', body: 'Thanh toán đầy đủ, đúng hạn; giữ gìn tài sản trong phòng; không tự ý sửa chữa, cải tạo khi chưa được đồng ý; không chuyển nhượng lại phòng cho người khác.' },
+    { title: 'Sử dụng tài sản trong phòng', body: 'Bên B có trách nhiệm bảo quản tài sản đã nhận bàn giao. Hư hỏng do lỗi của Bên B thì Bên B bồi thường theo giá trị còn lại của tài sản.' },
+    { title: 'An ninh, trật tự và phòng cháy chữa cháy', body: 'Bên B tuân thủ nội quy nhà trọ, giữ gìn an ninh trật tự, vệ sinh chung, chấp hành quy định về phòng cháy chữa cháy và đăng ký tạm trú theo quy định pháp luật.' },
+    { title: 'Chấm dứt hợp đồng trước hạn', body: 'Bên muốn chấm dứt hợp đồng trước hạn phải báo trước ít nhất 30 ngày. Trường hợp Bên B tự ý chấm dứt không báo trước, Bên A có quyền khấu trừ tiền cọc theo thỏa thuận.' },
+    { title: 'Điều khoản chung', body: 'Hai bên cam kết thực hiện đúng các điều khoản. Mọi thay đổi phải được lập thành văn bản có chữ ký hai bên. Tranh chấp được giải quyết trên tinh thần thương lượng, nếu không được thì đưa ra cơ quan có thẩm quyền.' },
+  ];
 
   function shiftPeriod(period, delta) {
     const [y, m] = period.split('-').map(Number);
@@ -310,7 +324,18 @@ HH.store = (function () {
 
   /* ---------- Truy vấn ---------- */
   const api = {
-    ROOM_TYPES, CUR_PERIOD, PREV_PERIOD,
+    ROOM_TYPES, CUR_PERIOD, PREV_PERIOD, DEFAULT_TERMS,
+    // Điều khoản của 1 hợp đồng (dùng mẫu nếu chưa tùy chỉnh), đã thay biến {deposit},{dueDays}
+    termsOf(c) {
+      const list = (c && c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
+      return list.map(t => ({
+        title: t.title,
+        body: (t.body || '')
+          .replace('{deposit}', U.currency(c ? c.deposit : 0))
+          .replace('{dueDays}', c ? (c.dueDays || 5) : 5)
+          .replace('{rent}', U.currency(c ? c.rent : 0)),
+      }));
+    },
     prefs,
     setPref(k, v) { prefs[k] = v; savePrefs(); },
     usingBackend,
@@ -336,8 +361,10 @@ HH.store = (function () {
       if (res.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
       const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
       prefs.auth = true; savePrefs();
-      if (total === 0) { await syncAll(); return 'seeded'; }   // tài khoản mới: đẩy dữ liệu mẫu đang có
-      replaceAll(res.data); return 'loaded';
+      if (total === 0) { api.refreshExpiryFlags(); await syncAll(); return 'seeded'; }  // tài khoản mới: đẩy dữ liệu mẫu
+      replaceAll(res.data);
+      if (api.refreshExpiryFlags()) persist();   // cập nhật cờ sắp hết hạn theo ngày hiện tại
+      return 'loaded';
     },
 
     buildings, services, assets, auditLog, incidents,
@@ -351,9 +378,15 @@ HH.store = (function () {
         const overdue = invoices.filter(i => i.buildingId === b.id && i.status === 'overdue');
         if (overdue.length) list.push({ icon: '🧾', tone: 'danger', title: `${overdue.length} hóa đơn quá hạn`,
           sub: b.name, href: `#/b/${b.id}/invoices?status=overdue` });
-        const expiring = contracts.filter(c => c.buildingId === b.id && c.expiringSoon && c.status === 'active');
-        if (expiring.length) list.push({ icon: '📄', tone: 'warning', title: `${expiring.length} hợp đồng sắp hết hạn`,
-          sub: b.name, href: `#/b/${b.id}/contracts` });
+        const expired = api.expiringContracts(b.id, -1);
+        if (expired.length) list.push({ icon: '⛔', tone: 'danger', title: `${expired.length} hợp đồng ĐÃ QUÁ HẠN`,
+          sub: b.name + ' · cần gia hạn hoặc thanh lý ngay', href: `#/b/${b.id}/contracts?filter=expired` });
+        const urgent = api.expiringContracts(b.id, 7).filter(c => api.daysToExpiry(c) >= 0);
+        if (urgent.length) list.push({ icon: '🔥', tone: 'danger', title: `${urgent.length} hợp đồng hết hạn trong 7 ngày`,
+          sub: b.name + ' · ' + urgent.map(c => c.roomCode).join(', '), href: `#/b/${b.id}/contracts?filter=urgent` });
+        const soon = api.expiringContracts(b.id, 30).filter(c => api.daysToExpiry(c) > 7);
+        if (soon.length) list.push({ icon: '📄', tone: 'warning', title: `${soon.length} hợp đồng sắp hết hạn (30 ngày)`,
+          sub: b.name + ' · ' + soon.map(c => c.roomCode).join(', '), href: `#/b/${b.id}/contracts?filter=soon` });
         const occ = rooms.filter(r => r.buildingId === b.id && (r.status === 'occupied' || r.status === 'notice'));
         const pending = occ.filter(r => { const rd = api.reading(b.id, r.code, CUR_PERIOD); return !(rd && rd.elecCurr != null); });
         if (pending.length) list.push({ icon: '📉', tone: 'info', title: `${pending.length} phòng chưa ghi chỉ số kỳ này`,
@@ -411,7 +444,8 @@ HH.store = (function () {
       const debt = bstats.reduce((s, x) => s + x.debt, 0);
       const cost = transactions.filter(t => t.kind === 'expense' && (t.date || '').slice(0, 7) === per).reduce((s, t) => s + t.amount, 0);
       const overdue = invoices.filter(i => i.status === 'overdue').length;
-      const expiring = contracts.filter(c => c.expiringSoon && c.status === 'active').length;
+      const expiring = api.expiringContracts(null, 30).length;
+      const expiredCount = api.expiringContracts(null, -1).length;
       const occRoomsAll = rooms.filter(r => r.status === 'occupied' || r.status === 'notice');
       const pendingReadings = occRoomsAll.filter(r => { const rd = api.reading(r.buildingId, r.code, per); return !(rd && rd.elecCurr != null); }).length;
       // Doanh thu 6 kỳ gần nhất (thu thật theo từng tháng)
@@ -426,7 +460,7 @@ HH.store = (function () {
         revenue, revenueTrend: 0.12, outstandingDebt: debt, debtTrend: -0.05,
         operatingCost: cost, costTrend: 0.08,
         revenueHistory,
-        alerts: { expiringContracts: expiring, overdueInvoices: overdue, pendingReadings },
+        alerts: { expiringContracts: expiring, expiredContracts: expiredCount, overdueInvoices: overdue, pendingReadings },
         buildings: bstats,
       };
     },
@@ -443,6 +477,59 @@ HH.store = (function () {
     updateRoom(bid, code, patch) { const r = api.room(bid, code); if (r) { Object.assign(r, patch); persist(); } return r; },
     addTenant(t) { tenants.push(t); persist(); return t; },
     addContract(c) { contracts.push(c); persist(); return c; },
+    updateContract(id, patch) { const c = contracts.find(x => x.id === id); if (c) { Object.assign(c, patch); persist(); } return c; },
+
+    /* ---------- Hợp đồng: hạn & nhắc nhở ---------- */
+    // Số ngày còn lại (âm = đã quá hạn). null nếu không có ngày kết thúc.
+    daysToExpiry(c) { return (c && c.end) ? U.daysBetween(U.today(), c.end) : null; },
+    // Tình trạng hạn: 'expired' | 'urgent' (≤7n) | 'soon' (≤30n) | 'watch' (≤60n) | 'ok'
+    expiryLevel(c) {
+      if (!c || c.status === 'terminated' || !c.end) return 'ok';
+      const d = api.daysToExpiry(c);
+      if (d < 0) return 'expired';
+      if (d <= 7) return 'urgent';
+      if (d <= 30) return 'soon';
+      if (d <= 60) return 'watch';
+      return 'ok';
+    },
+    // Hợp đồng cần nhắc (mọi tòa hoặc 1 tòa): quá hạn + sắp hết hạn trong `days` ngày
+    expiringContracts(bid, days) {
+      days = days == null ? 30 : days;
+      return contracts.filter(c => {
+        // gồm cả hợp đồng đã quá hạn (status 'expired') vì đây là nhóm cần xử lý gấp nhất
+        if (c.status !== 'active' && c.status !== 'terminating' && c.status !== 'expired') return false;
+        if (bid && c.buildingId !== bid) return false;
+        const d = api.daysToExpiry(c);
+        return d != null && d <= days;
+      }).sort((a, b) => api.daysToExpiry(a) - api.daysToExpiry(b));
+    },
+    // Cập nhật cờ expiringSoon cho toàn bộ hợp đồng (gọi sau khi nạp dữ liệu)
+    refreshExpiryFlags() {
+      let changed = false;
+      contracts.forEach(c => {
+        const lvl = api.expiryLevel(c);
+        const soon = (lvl === 'soon' || lvl === 'urgent');
+        if (c.expiringSoon !== soon) { c.expiringSoon = soon; changed = true; }
+        if (lvl === 'expired' && c.status === 'active') { c.status = 'expired'; changed = true; }
+      });
+      return changed;
+    },
+    // Gia hạn hợp đồng thêm N tháng
+    renewContract(id, months, newRent) {
+      const c = contracts.find(x => x.id === id); if (!c) return null;
+      const base = new Date(c.end) > U.today() ? new Date(c.end) : U.today();
+      c.end = U.addMonths(base, months).toISOString();
+      c.status = 'active';
+      if (newRent) c.rent = newRent;
+      c.renewCount = (c.renewCount || 0) + 1;
+      c.renewedAt = new Date().toISOString();
+      api.refreshExpiryFlags();
+      const room = api.room(c.buildingId, c.roomCode);
+      if (room) room.contractEnd = c.end;
+      api.log('contract.renew', `Gia hạn hợp đồng ${c.roomCode} thêm ${months} tháng → ${U.fmtDate(c.end)}`);
+      persist();
+      return c;
+    },
     addAsset(a) { assets.push(a); persist(); return a; },
     asset: (id) => assets.find(a => a.id === id),
     updateAsset(id, patch) { const a = assets.find(x => x.id === id); if (a) { Object.assign(a, patch); persist(); } return a; },

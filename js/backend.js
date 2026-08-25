@@ -26,20 +26,25 @@ HH.backend = (function () {
     transactions: { date: 'tx_date' },
   };
 
-  /** Nếu lỗi là "thiếu cột", trả về tên cột đó (để bỏ qua và thử lại) */
+  /** Nếu lỗi là "thiếu cột", trả về tên cột đó (để bỏ qua và thử lại).
+      PostgREST: PGRST204 "Could not find the 'X' column of 'Y' in the schema cache" */
   function missingColumn(e) {
     if (!e) return null;
-    const m = ((e.message || '') + ' ' + (e.details || '')).match(/'([a-z0-9_]+)' column|column "([a-z0-9_]+)" of/i);
+    const txt = (e.message || '') + ' ' + (e.details || '') + ' ' + (e.hint || '');
+    const m = txt.match(/'([a-z0-9_]+)'\s+column|column\s+"([a-z0-9_]+)"/i);
     if (m) return m[1] || m[2];
     return null;
   }
 
-  // Bảng chưa được tạo (chưa chạy migration) -> coi như rỗng, không làm hỏng cả luồng
+  /** Bảng chưa được tạo (chưa chạy migration) -> coi như rỗng, không làm hỏng cả luồng.
+      LƯU Ý: phải KHÔNG khớp lỗi thiếu cột (PGRST204) — lỗi đó cũng chứa "schema cache". */
   function isMissingTable(e) {
     if (!e) return false;
-    const s = ((e.message || '') + ' ' + (e.code || '') + ' ' + (e.details || '')).toLowerCase();
-    return e.code === '42p01' || e.code === 'pgrst205' ||
-      s.includes('does not exist') || s.includes('schema cache') || s.includes('could not find the table');
+    if (missingColumn(e)) return false;              // là lỗi thiếu cột, không phải thiếu bảng
+    const code = String(e.code || '').toLowerCase();
+    const s = ((e.message || '') + ' ' + (e.details || '')).toLowerCase();
+    return code === '42p01' || code === 'pgrst205' ||
+      s.includes('could not find the table') || /relation .* does not exist/.test(s);
   }
 
   const toSnake = (s) => s.replace(/([A-Z])/g, (m) => '_' + m.toLowerCase());

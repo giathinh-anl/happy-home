@@ -23,6 +23,7 @@ HH.router = (function () {
     { pat: '/b/:bid/contracts', page: 'contracts' },
     { pat: '/b/:bid/contracts/new', page: 'contractNew' },
     { pat: '/b/:bid/contracts/:cid/terminate', page: 'terminate' },
+    { pat: '/b/:bid/contracts/:cid', page: 'contractDetail' },
     { pat: '/b/:bid/services', page: 'services' },
     { pat: '/b/:bid/readings', page: 'readings' },
     { pat: '/b/:bid/invoices', page: 'invoices' },
@@ -36,6 +37,7 @@ HH.router = (function () {
   ];
 
   function match(path) {
+    path = String(path).split('?')[0];   // bỏ query (?filter=..., ?status=...) trước khi so khớp
     for (const r of routes) {
       const pp = r.pat.split('/'), sp = path.split('/');
       if (pp.length !== sp.length) continue;
