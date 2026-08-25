@@ -468,17 +468,49 @@
         ${list || '<p class="muted center">Chưa thêm người ở nào</p>'}
         ${over ? '<div class="alert alert-warning" style="margin-top:12px"><span class="ic">⚠</span><div>Vượt sức chứa phòng — vẫn có thể tiếp tục.</div></div>' : ''}
       </div></div>
-      <div class="row-gap-2" style="margin-top:12px">
+      <div class="row-gap-2 wrap" style="margin-top:12px">
         <select class="select" id="existTenant" style="max-width:280px"><option value="">+ Thêm khách đã có...</option>
-          ${all.map(t => `<option value="${t.id}">${t.fullName} · ${t.idNumber}</option>`).join('')}</select>
-        <a href="#/b/${ctx.bid}/tenants/new" class="btn btn-outline">Tạo khách mới</a>
+          ${all.filter(t => !w.tenants.find(x => x.id === t.id))
+              .map(t => `<option value="${t.id}">${U.esc(t.fullName)} · ${U.esc(t.idNumber || '')}${t.roomCode ? ' (đang ở ' + t.roomCode + ')' : ''}</option>`).join('')}</select>
+        <button type="button" class="btn btn-outline" id="newTenantBtn">＋ Tạo khách mới</button>
       </div>
       ${navFoot(ctx, { disableNext: w.tenants.length === 0 })}`;
     body.querySelector('#existTenant').onchange = (e) => {
       const t = S.tenantById(e.target.value); if (t && !w.tenants.find(x => x.id === t.id)) { w.tenants.push(t); renderStep(ctx); }
     };
+    // Tạo khách mới NGAY TRONG hộp thoại — không rời trang để khỏi mất dữ liệu đang nhập
+    body.querySelector('#newTenantBtn').onclick = () => newTenantDialog(ctx, (t) => { w.tenants.push(t); renderStep(ctx); });
     body.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { w.tenants.splice(+b.dataset.rm, 1); renderStep(ctx); });
     wireNav(ctx, () => w.tenants.length > 0);
+  }
+
+  // Hộp thoại tạo khách thuê nhanh (dùng trong wizard hợp đồng)
+  function newTenantDialog(ctx, onCreated) {
+    UI.modal({ title: 'Tạo khách thuê mới', size: 'wide', bodyHtml: h`
+      <div class="grid-2">
+        <div class="field"><label>Họ và tên *</label><input class="input" data-n="fullName" placeholder="Nguyễn Văn A"></div>
+        <div class="field"><label>Số điện thoại *</label><input class="input mono" data-n="phone" placeholder="09xxxxxxxx"></div>
+        <div class="field"><label>Số CCCD</label><input class="input mono" data-n="idNumber" placeholder="079xxxxxxxxx"></div>
+        <div class="field"><label>Ngày sinh</label><input class="input" data-n="dob" placeholder="dd/mm/yyyy"></div>
+        <div class="field"><label>Giới tính</label><select class="select" data-n="gender"><option>Nam</option><option>Nữ</option></select></div>
+        <div class="field"><label>Nghề nghiệp</label><input class="input" data-n="occupation" placeholder="VD: Nhân viên văn phòng"></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Địa chỉ thường trú</label><input class="input" data-n="address"></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" data-save>Tạo khách</button>`,
+      onMount(el, close) {
+        el.querySelector('[data-save]').onclick = () => {
+          const g = (k) => ((el.querySelector(`[data-n="${k}"]`) || {}).value || '').trim();
+          if (!g('fullName') || !g('phone')) { UI.toast('Nhập họ tên và số điện thoại', { type: 'error' }); return; }
+          if (S.tenantsOf(ctx.bid).some(t => t.phone === g('phone'))) { UI.toast('Số điện thoại này đã tồn tại', { type: 'error' }); return; }
+          const t = S.addTenant({ id: U.uid('tn'), buildingId: ctx.bid, roomCode: null,
+            fullName: g('fullName'), idNumber: g('idNumber'), dob: g('dob'), gender: g('gender'),
+            hometown: '', phone: g('phone'), occupation: g('occupation'), address: g('address'),
+            cccdIssueDate: '', cccdIssuePlace: 'Cục CSQLHC về TTXH', cccdFront: false, cccdBack: false,
+            vehiclePlate: null, ttlock: false, tamtru: false, occupants: 1, isRep: false });
+          S.log('tenant.create', `Thêm khách thuê ${t.fullName}`);
+          close(); UI.toast('Đã tạo khách thuê', { type: 'ok' }); onCreated(t);
+        };
+      } });
   }
 
   // Bước 3 — Điều khoản
@@ -568,6 +600,12 @@
       <div>${assetRows}</div>
       ${navFoot(ctx, { nextLabel: 'Xem lại & xác nhận →' })}`;
     body.querySelectorAll('[data-asset]').forEach(s => s.onchange = () => w.handover[s.dataset.asset] = s.value);
+    // ghi nhớ chỉ số đầu kỳ để lưu khi ký hợp đồng
+    w.handoverReadings = w.handoverReadings || {};
+    body.querySelectorAll('[data-h]').forEach(i => i.oninput = () => {
+      const n = U.parseNum(i.value); i.value = n != null ? n : '';
+      w.handoverReadings[i.dataset.h] = n;
+    });
     wireNav(ctx);
   }
 
@@ -608,6 +646,15 @@
         S.addContract(c);
         room.status = 'occupied'; room.tenantName = c.tenantName; room.tenantId = c.tenantId;
         room.contractId = c.id; room.contractEnd = c.end;
+        // QUAN TRỌNG: gắn khách thuê vào phòng, người đầu tiên là đại diện hợp đồng
+        w.tenants.forEach((t, i) => S.updateTenant(t.id, { roomCode: room.code, isRep: i === 0 }));
+        // ghi lại chỉ số đầu kỳ nếu có nhập ở bước bàn giao
+        const hd = w.handoverReadings || {};
+        if (hd.elec != null || hd.water != null) {
+          const rd = S.readingFor(ctx.bid, room.code, S.period());
+          if (hd.elec != null) rd.elecPrev = hd.elec;
+          if (hd.water != null) rd.waterPrev = hd.water;
+        }
         S.log('contract.sign', `Ký hợp đồng phòng ${room.code} cho ${c.tenantName}`);
         S.persist();
         UI.toast('Đã ký hợp đồng và bàn giao phòng', { type: 'ok' });
@@ -767,6 +814,9 @@
         const room = S.room(ctx.bid, c.roomCode);
         c.status = 'terminated'; room.status = 'cleaning'; room.tenantName = null; room.tenantId = null;
         room.contractId = null; room.contractEnd = null; room.debt = 0;
+        // gỡ khách thuê khỏi phòng (giữ hồ sơ để tra cứu lịch sử)
+        S.tenantsOf(ctx.bid).filter(t => t.roomCode === c.roomCode)
+          .forEach(t => S.updateTenant(t.id, { roomCode: null, isRep: false }));
         S.log('contract.terminate', `Thanh lý hợp đồng ${c.roomCode}, hoàn ${U.currency(refund)}`);
         S.persist();
         UI.toast('Đã thanh lý hợp đồng', { type: 'ok' });

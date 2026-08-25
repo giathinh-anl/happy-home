@@ -249,7 +249,13 @@
         <div><div class="grid-2">${raw(fieldsHtml)}</div>
           <div class="grid-2" style="margin-top:12px">
             <div class="field"><label>Điện thoại</label><input class="input mono" data-k="phone" placeholder="09xxxxxxxx"></div>
-            <div class="field"><label>Phòng (tùy chọn)</label><input class="input" data-k="roomCode" placeholder="VD: P201"></div>
+            <div class="field"><label>Ở phòng (tùy chọn)</label>
+              <select class="select" data-k="roomCode">
+                <option value="">— Chưa gắn phòng —</option>
+                ${raw(S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code))
+                  .map(r => `<option value="${r.code}">${r.code} · ${U.esc(r.typeLabel)}${r.tenantName ? ' (đang có khách)' : ''}</option>`).join(''))}
+              </select>
+              <span class="hint">Chọn phòng để khách hiện trong danh sách phòng đó</span></div>
           </div>
         </div>
       </div>

@@ -74,7 +74,30 @@
     if (h === '#/repair') return screenRepair();
     if (h === '#/track') return screenTrack();
     if (h === '#/readings') return screenReadings();
+    if (h === '#/room') return screenRoom();
+    if (h === '#/contract') return screenContract();
+    if (h === '#/usage') return screenUsage();
+    if (h === '#/history') return screenPayHistory();
+    if (h === '#/account') return screenAccount();
+    if (h === '#/services') return screenServices();
     return screenHome();
+  }
+
+  /* ---------- thanh tab dưới ---------- */
+  const TABS = [
+    { key: 'home', hash: '#/home', ic: '🏠', label: 'Trang chủ' },
+    { key: 'invoices', hash: '#/invoices', ic: '🧾', label: 'Hóa đơn' },
+    { key: 'room', hash: '#/room', ic: '🚪', label: 'Phòng của tôi' },
+    { key: 'account', hash: '#/account', ic: '👤', label: 'Tài khoản' },
+  ];
+  function tabbar(active) {
+    const unpaid = (state.data.invoices || []).filter(i => (i.total - i.paid) > 0).length;
+    return `<nav class="t-tabbar">${TABS.map(t => `<button class="t-tab ${t.key === active ? 'on' : ''}" data-tab="${t.hash}">
+      ${t.key === 'invoices' && unpaid ? `<span class="dot-badge">${unpaid}</span>` : ''}
+      <span class="ic">${t.ic}</span><span>${t.label}</span></button>`).join('')}</nav>`;
+  }
+  function wireTabs() {
+    document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
   }
 
   /* ---------- màn hình: ĐĂNG NHẬP ---------- */
@@ -174,11 +197,17 @@
     opts = opts || {};
     const header = opts.home
       ? `<div class="t-header"><div class="brand"><span class="mark">H</span> Happy Home</div>
-           <button class="iconbtn" id="logout" title="Đăng xuất">⎋</button></div>`
+           <button class="iconbtn" id="reload" title="Tải lại">⟳</button></div>`
       : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
-    el('tapp').innerHTML = `<div class="t-app">${header}<div class="t-main">${body}</div></div>`;
+    const tabs = opts.tab ? tabbar(opts.tab) : '';
+    el('tapp').innerHTML = `<div class="t-app">${header}<div class="t-main">${body}</div>${tabs}</div>`;
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
-    const lo = el('logout'); if (lo) lo.onclick = () => { try { localStorage.removeItem(PHONE_KEY); } catch (e) {} state.phone = null; state.data = null; go('#/login'); };
+    const rl = el('reload'); if (rl) rl.onclick = async () => {
+      rl.textContent = '⏳';
+      try { state.data = await loadData(state.phone); toast('Đã cập nhật'); } catch (e) { toast('Không tải được'); }
+      render();
+    };
+    if (opts.tab) wireTabs();
   }
 
   function screenLoading() { shell('', `<div class="skeleton-card"></div><div class="skeleton-card"></div>`, { home: true }); }
@@ -202,9 +231,29 @@
         <button class="t-btn" id="payNow">Thanh toán ngay</button></div>`;
     }
     const notis = buildNotifications();
+    // nhắc hạn hợp đồng
+    const c = d.contract;
+    let ctWarn = '';
+    if (c && c.end) {
+      const dl = daysLeft(c.end);
+      if (dl < 0) ctWarn = `<div class="t-err" style="background:var(--danger-bg);border-color:#fecaca"><span>⛔</span>
+        <div><b>Hợp đồng đã hết hạn</b> ${fmtDate(c.end)}. Liên hệ chủ nhà để gia hạn.</div></div>`;
+      else if (dl <= 30) ctWarn = `<div class="t-err" style="background:var(--warning-bg);border-color:#fde68a;color:#92400e"><span>⚠</span>
+        <div><b>Hợp đồng sắp hết hạn</b> — còn ${dl} ngày (${fmtDate(c.end)}).</div></div>`;
+    }
+    // tiêu thụ kỳ gần nhất
+    const usage = latestUsage();
+    const usageCard = usage ? `<div class="t-card">
+      <div class="t-section-head" style="margin-bottom:4px"><h3>Tiêu thụ ${esc(usage.label)}</h3>
+        <a href="#/usage">Xem lịch sử →</a></div>
+      <div class="t-row"><span class="k">⚡ Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
+      <div class="t-row"><span class="k">💧 Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
+    </div>` : '';
+
     shell('', `
       <div class="room-head"><div class="rname">Phòng ${esc(d.room.code || d.tenant.roomCode)}</div>
         <div class="bname">${esc(d.building.name || '')}</div></div>
+      ${ctWarn}
       ${dueCard}
       <div class="section-title">Truy cập nhanh</div>
       <div class="quick-grid">
@@ -212,12 +261,24 @@
         <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">📷</div><div class="qlabel">Ghi chỉ số</div></button>
         <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">🔧</div><div class="qlabel">Báo hỏng</div></button>
       </div>
+      ${usageCard}
       <div class="section-title">Thông báo gần đây</div>
       <div class="t-card">${notis || '<div class="muted" style="color:var(--neutral-400);text-align:center;padding:8px">Chưa có thông báo</div>'}</div>
-    `, { home: true });
+    `, { home: true, tab: 'home' });
     const pn = el('payNow'); if (pn) pn.onclick = () => go('#/pay/' + inv.id);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
+
+  /* ---------- tính tiêu thụ ---------- */
+  function usageList() {
+    return (state.data.readings || []).filter(r => r.elecCurr != null || r.waterCurr != null)
+      .map(r => ({
+        period: r.period, label: vnPeriod(r.period),
+        elec: (r.elecCurr != null && r.elecPrev != null) ? Math.max(0, r.elecCurr - r.elecPrev) : null,
+        water: (r.waterCurr != null && r.waterPrev != null) ? Math.max(0, r.waterCurr - r.waterPrev) : null,
+      })).sort((a, b) => (b.period || '').localeCompare(a.period || ''));
+  }
+  function latestUsage() { const l = usageList(); return l.length ? l[0] : null; }
 
   function buildNotifications() {
     const d = state.data; const items = [];
@@ -240,7 +301,14 @@
           ${remain > 0 ? `<div style="color:var(--danger);font-size:12px;font-weight:600">Còn ${vnd(remain)}</div>` : '<div style="color:var(--success);font-size:12px">Đã trả đủ</div>'}</div>
       </button>`;
     }).join('');
-    shell('Hóa đơn', rows || `<div class="t-empty"><div class="eic">🧾</div><p>Chưa có hóa đơn nào</p></div>`);
+    const inv = state.data.invoices || [];
+    const unpaidTotal = inv.reduce((s, i) => s + Math.max(0, i.total - i.paid), 0);
+    const summary = inv.length ? `<div class="t-card" style="margin-bottom:14px">
+      <div class="t-row"><span class="k">Còn phải thanh toán</span>
+        <span class="v mono" style="color:${unpaidTotal > 0 ? 'var(--danger)' : 'var(--success)'}">${vnd(unpaidTotal)}</span></div>
+      <div class="t-row tap" data-nav="#/history"><span class="k">Lịch sử thanh toán</span><span class="v">›</span></div>
+    </div>` : '';
+    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">🧾</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
   const vnPeriod = (p) => { if (!p) return ''; const [y, m] = p.split('-'); return 'T' + Number(m) + '/' + y; };
@@ -400,6 +468,181 @@
         await rpc('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec || null, p_water: water || null });
         toast('Đã gửi chỉ số, chờ chủ trọ duyệt'); go('#/home');
       } catch (err) { toast(err.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại'); e.currentTarget.classList.remove('loading'); }
+    };
+  }
+
+  /* ---------- màn hình: PHÒNG CỦA TÔI ---------- */
+  function screenRoom() {
+    const d = state.data, r = d.room || {}, c = d.contract;
+    const mates = d.roommates || [];
+    const assets = d.assets || [];
+    const ct = c ? contractCard(c) : '';
+    shell('Phòng của tôi', `
+      <div class="t-card">
+        <div class="t-section-head"><h3>Phòng ${esc(r.code || d.tenant.roomCode)}</h3>
+          ${r.typeLabel ? `<span class="t-badge info"><span class="d"></span>${esc(r.typeLabel)}</span>` : ''}</div>
+        <div class="t-row"><span class="k">Tòa nhà</span><span class="v">${esc(d.building.name || '')}</span></div>
+        <div class="t-row"><span class="k">Địa chỉ</span><span class="v" style="font-weight:500;font-size:13px">${esc(d.building.address || '—')}</span></div>
+        <div class="t-row"><span class="k">Giá thuê</span><span class="v mono">${vnd(r.price)}</span></div>
+        ${r.area ? `<div class="t-row"><span class="k">Diện tích</span><span class="v mono">${r.area} m²</span></div>` : ''}
+        ${r.maxOccupants ? `<div class="t-row"><span class="k">Số người tối đa</span><span class="v">${r.maxOccupants}</span></div>` : ''}
+      </div>
+      ${ct}
+      ${mates.length ? `<div class="t-card"><div class="t-section-head"><h3>Người ở cùng (${mates.length})</h3></div>
+        ${mates.map(m => `<div class="t-row"><span class="k">${esc(m.fullName)}${m.isRep ? ' · <b>đại diện</b>' : ''}</span>
+          <span class="v mono" style="font-size:13px">${esc(m.phone || '')}</span></div>`).join('')}</div>` : ''}
+      ${assets.length ? `<div class="t-card"><div class="t-section-head"><h3>Tài sản trong phòng (${assets.length})</h3></div>
+        <div class="t-chips">${assets.map(a => `<span class="t-chip ${a.condition === 'good' ? '' : esc(a.condition || '')}">
+          ${a.icon || '📦'} ${esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>
+        <p style="color:var(--neutral-500);font-size:12px;margin-top:10px">Vui lòng giữ gìn tài sản. Hư hỏng do lỗi sử dụng sẽ bồi thường theo giá trị còn lại.</p></div>` : ''}
+      <div class="t-card" style="padding:0;overflow:hidden">
+        <button class="t-action" data-nav="#/usage"><span class="aic" style="background:var(--brand-50)">📊</span>Lịch sử điện nước<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/services"><span class="aic" style="background:var(--info-bg)">🛎️</span>Bảng giá dịch vụ<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">🔧</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+      </div>
+    `, { tab: 'room' });
+    document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+  }
+
+  function contractCard(c) {
+    const dl = c.end ? daysLeft(c.end) : null;
+    const cls = dl == null ? '' : (dl < 0 ? 'danger' : (dl <= 30 ? 'warn' : ''));
+    const meta = dl == null ? '' : (dl < 0 ? `Đã hết hạn ${Math.abs(dl)} ngày trước` : `Còn ${dl} ngày`);
+    return `<div class="contract-card ${cls}">
+        <div class="cc-label">Hợp đồng đến ngày</div>
+        <div class="cc-date">${fmtDate(c.end)}</div>
+        <div class="cc-meta">${meta}${c.rent ? ' · ' + vnd(c.rent) + '/tháng' : ''}</div>
+        <button class="t-btn" style="background:rgba(255,255,255,.22);margin-top:12px" data-nav="#/contract">Xem hợp đồng & điều khoản</button>
+      </div>`;
+  }
+
+  /* ---------- màn hình: HỢP ĐỒNG & ĐIỀU KHOẢN ---------- */
+  const DEFAULT_TERMS = [
+    { title: 'Mục đích thuê', body: 'Bên B thuê phòng của Bên A để làm nơi ở. Không sử dụng vào mục đích khác nếu không có sự đồng ý bằng văn bản của Bên A.' },
+    { title: 'Tiền thuê và thanh toán', body: 'Tiền thuê được thanh toán hàng tháng theo kỳ ghi trong hợp đồng. Quá hạn thanh toán {dueDays} ngày, Bên A có quyền nhắc nhở và áp dụng biện pháp theo thỏa thuận.' },
+    { title: 'Tiền đặt cọc', body: 'Bên B đặt cọc {deposit} để bảo đảm thực hiện hợp đồng. Tiền cọc được hoàn trả khi kết thúc hợp đồng sau khi trừ các khoản còn nợ và chi phí hư hỏng (nếu có).' },
+    { title: 'Chi phí dịch vụ', body: 'Tiền điện, nước và các dịch vụ khác được tính theo chỉ số thực tế hoặc đơn giá niêm yết tại thời điểm sử dụng, thanh toán cùng kỳ tiền thuê.' },
+    { title: 'Quyền và nghĩa vụ của Bên A (bên cho thuê)', body: 'Bàn giao phòng đúng hiện trạng thỏa thuận; bảo đảm quyền sử dụng ổn định cho Bên B; sửa chữa hư hỏng do kết cấu công trình hoặc hao mòn tự nhiên.' },
+    { title: 'Quyền và nghĩa vụ của Bên B (bên thuê)', body: 'Thanh toán đầy đủ, đúng hạn; giữ gìn tài sản trong phòng; không tự ý sửa chữa, cải tạo khi chưa được đồng ý; không chuyển nhượng lại phòng cho người khác.' },
+    { title: 'Sử dụng tài sản trong phòng', body: 'Bên B có trách nhiệm bảo quản tài sản đã nhận bàn giao. Hư hỏng do lỗi của Bên B thì Bên B bồi thường theo giá trị còn lại của tài sản.' },
+    { title: 'An ninh, trật tự và phòng cháy chữa cháy', body: 'Bên B tuân thủ nội quy nhà trọ, giữ gìn an ninh trật tự, vệ sinh chung, chấp hành quy định về phòng cháy chữa cháy và đăng ký tạm trú theo quy định pháp luật.' },
+    { title: 'Chấm dứt hợp đồng trước hạn', body: 'Bên muốn chấm dứt hợp đồng trước hạn phải báo trước ít nhất 30 ngày. Trường hợp Bên B tự ý chấm dứt không báo trước, Bên A có quyền khấu trừ tiền cọc theo thỏa thuận.' },
+    { title: 'Điều khoản chung', body: 'Hai bên cam kết thực hiện đúng các điều khoản. Mọi thay đổi phải được lập thành văn bản có chữ ký hai bên. Tranh chấp được giải quyết trên tinh thần thương lượng, nếu không được thì đưa ra cơ quan có thẩm quyền.' },
+  ];
+  function screenContract() {
+    const c = state.data.contract;
+    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">📄</div><p>Chưa có thông tin hợp đồng</p>
+      <p style="font-size:13px">Liên hệ chủ nhà để được cung cấp.</p></div>`); return; }
+    const src = (c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
+    const terms = src.map(t => ({ title: t.title, body: (t.body || '')
+      .replace('{deposit}', vnd(c.deposit)).replace('{rent}', vnd(c.rent)).replace('{dueDays}', c.dueDays || 5) }));
+    shell('Hợp đồng & điều khoản', `
+      ${contractCard(c)}
+      <div class="t-card">
+        <div class="t-section-head"><h3>Thông tin hợp đồng</h3></div>
+        <div class="t-row"><span class="k">Phòng</span><span class="v">${esc(state.data.room.code || '')}</span></div>
+        <div class="t-row"><span class="k">Giá thuê</span><span class="v mono">${vnd(c.rent)}</span></div>
+        <div class="t-row"><span class="k">Tiền cọc</span><span class="v mono">${vnd(c.deposit)}</span></div>
+        <div class="t-row"><span class="k">Ngày bắt đầu</span><span class="v mono">${fmtDate(c.start)}</span></div>
+        <div class="t-row"><span class="k">Ngày kết thúc</span><span class="v mono">${fmtDate(c.end)}</span></div>
+        ${c.billingDay ? `<div class="t-row"><span class="k">Ngày chốt hóa đơn</span><span class="v">Ngày ${c.billingDay}</span></div>` : ''}
+        ${c.dueDays ? `<div class="t-row"><span class="k">Hạn thanh toán</span><span class="v">${c.dueDays} ngày sau chốt</span></div>` : ''}
+      </div>
+      <div class="t-card">
+        <div class="t-section-head"><h3>Điều khoản (${terms.length})</h3></div>
+        ${terms.map((t, i) => `<div class="term-item"><div class="tt">Điều ${i + 1}. ${esc(t.title)}</div>
+          <div class="tb">${esc(t.body)}</div></div>`).join('')}
+      </div>`);
+    document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+  }
+
+  /* ---------- màn hình: LỊCH SỬ ĐIỆN NƯỚC ---------- */
+  function screenUsage() {
+    const list = usageList();
+    if (!list.length) { shell('Lịch sử điện nước', `<div class="t-empty"><div class="eic">📊</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
+    const recent = list.slice(0, 6).reverse();
+    const maxE = Math.max(1, ...recent.map(x => x.elec || 0));
+    const maxW = Math.max(1, ...recent.map(x => x.water || 0));
+    const bars = (key, cls, max) => recent.map(x => `<div class="usage-col">
+      <div class="val">${x[key] != null ? num(x[key]) : ''}</div>
+      <div class="usage-bar ${cls}" style="height:${Math.round(((x[key] || 0) / max) * 78)}%"></div>
+      <div class="cap">${esc(x.label)}</div></div>`).join('');
+    shell('Lịch sử điện nước', `
+      <div class="t-card"><div class="t-section-head"><h3>⚡ Điện (kWh)</h3></div>
+        <div class="usage-chart">${bars('elec', '', maxE)}</div></div>
+      <div class="t-card"><div class="t-section-head"><h3>💧 Nước (m³)</h3></div>
+        <div class="usage-chart">${bars('water', 'water', maxW)}</div></div>
+      <div class="t-card"><div class="t-section-head"><h3>Chi tiết theo kỳ</h3></div>
+        ${list.map(x => `<div class="t-row"><span class="k">${esc(x.label)}</span>
+          <span class="v mono" style="font-size:13px">⚡ ${x.elec != null ? num(x.elec) : '—'} · 💧 ${x.water != null ? num(x.water) : '—'}</span></div>`).join('')}
+      </div>`);
+  }
+
+  /* ---------- màn hình: BẢNG GIÁ DỊCH VỤ ---------- */
+  function screenServices() {
+    const svcs = state.data.services || [];
+    const method = { per_kwh: 'Theo chỉ số điện', per_person: 'Theo số người', flat: 'Cố định theo tháng' };
+    shell('Bảng giá dịch vụ', svcs.length ? `<div class="t-card">
+        <div class="t-row"><span class="k">Tiền phòng</span><span class="v mono">${vnd(state.data.room.price)}/tháng</span></div>
+        ${svcs.map(s => `<div class="t-row"><span class="k">${esc(s.name)}<div style="font-size:11px;color:var(--neutral-400)">${esc(method[s.method] || '')}</div></span>
+          <span class="v mono">${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</span></div>`).join('')}
+      </div>
+      <p style="color:var(--neutral-500);font-size:12px;text-align:center">Đơn giá do chủ nhà niêm yết, áp dụng cho kỳ hiện hành.</p>`
+      : `<div class="t-empty"><div class="eic">🛎️</div><p>Chưa có bảng giá dịch vụ</p></div>`);
+  }
+
+  /* ---------- màn hình: LỊCH SỬ THANH TOÁN ---------- */
+  function screenPayHistory() {
+    const pays = state.data.payments || [];
+    shell('Lịch sử thanh toán', pays.length ? `
+      <div class="t-card"><div class="t-section-head"><h3>Tổng đã thanh toán</h3></div>
+        <div class="mono" style="font-size:26px;font-weight:800;color:var(--success)">${vnd(pays.reduce((s, p) => s + p.amount, 0))}</div>
+        <div style="color:var(--neutral-500);font-size:13px">${pays.length} lần thanh toán</div></div>
+      <div class="t-card">${pays.map(p => `<div class="t-row">
+        <span class="k"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
+          <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div></span>
+        <span class="v mono" style="color:var(--success)">+${vnd(p.amount)}</span></div>`).join('')}</div>`
+      : `<div class="t-empty"><div class="eic">💳</div><p>Chưa có lịch sử thanh toán</p></div>`);
+  }
+
+  /* ---------- màn hình: TÀI KHOẢN ---------- */
+  function screenAccount() {
+    const t = state.data.tenant, b = state.data.building;
+    shell('Tài khoản', `
+      <div class="t-profile">
+        <div class="t-avatar">${esc((t.fullName || '?').trim().split(/\s+/).slice(-1)[0][0] || '?')}</div>
+        <div class="pname">${esc(t.fullName)}</div>
+        <div class="psub">Phòng ${esc(t.roomCode || '')} · ${esc(b.name || '')}</div>
+        ${t.isRep ? '<div style="margin-top:6px"><span class="t-badge success"><span class="d"></span>Đại diện hợp đồng</span></div>' : ''}
+      </div>
+      <div class="t-card">
+        <div class="t-section-head"><h3>Thông tin cá nhân</h3></div>
+        <div class="t-row"><span class="k">Số điện thoại</span><span class="v mono">${esc(t.phone || '')}</span></div>
+        ${t.idNumber ? `<div class="t-row"><span class="k">Số CCCD</span><span class="v mono">${esc(t.idNumber)}</span></div>` : ''}
+        ${t.dob ? `<div class="t-row"><span class="k">Ngày sinh</span><span class="v mono">${esc(t.dob)}</span></div>` : ''}
+        ${t.gender ? `<div class="t-row"><span class="k">Giới tính</span><span class="v">${esc(t.gender)}</span></div>` : ''}
+        ${t.vehiclePlate ? `<div class="t-row"><span class="k">Biển số xe</span><span class="v mono">${esc(t.vehiclePlate)}</span></div>` : ''}
+        <div class="t-row"><span class="k">Tạm trú</span><span class="v">${t.tamtru
+          ? '<span class="t-badge success"><span class="d"></span>Đã đăng ký</span>'
+          : '<span class="t-badge warning"><span class="d"></span>Chưa đăng ký</span>'}</span></div>
+      </div>
+      <div class="t-card" style="padding:0;overflow:hidden">
+        <button class="t-action" data-nav="#/history"><span class="aic" style="background:var(--success-bg)">💳</span>Lịch sử thanh toán<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/contract"><span class="aic" style="background:var(--brand-50)">📄</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">🔧</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" id="helpBtn"><span class="aic" style="background:var(--info-bg)">❓</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
+      </div>
+      <div class="t-card" style="padding:0;overflow:hidden">
+        <button class="t-action danger" id="logoutBtn"><span class="aic" style="background:var(--danger-bg)">⎋</span>Đăng xuất<span class="chev">›</span></button>
+      </div>
+      <p style="text-align:center;color:var(--neutral-400);font-size:12px;margin-top:12px">Happy Home · App khách thuê</p>
+    `, { tab: 'account' });
+    document.querySelectorAll('[data-nav]').forEach(x => x.onclick = () => go(x.dataset.nav));
+    el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Ghi chỉ số: tự gửi số điện/nước cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
+    el('logoutBtn').onclick = () => {
+      if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
+      try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
+      state.phone = null; state.data = null; go('#/login');
     };
   }
 

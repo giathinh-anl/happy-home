@@ -476,6 +476,12 @@ HH.store = (function () {
     addRoom(r) { rooms.push(r); persist(); return r; },
     updateRoom(bid, code, patch) { const r = api.room(bid, code); if (r) { Object.assign(r, patch); persist(); } return r; },
     addTenant(t) { tenants.push(t); persist(); return t; },
+    updateTenant(id, patch) { const t = tenants.find(x => x.id === id); if (t) { Object.assign(t, patch); persist(); } return t; },
+    removeTenant(id) {
+      const i = tenants.findIndex(x => x.id === id);
+      if (i >= 0) { const t = tenants[i]; tenants.splice(i, 1); api.log('tenant.remove', `Xóa khách thuê ${t.fullName}`); persist();
+        if (usingBackend()) HH.backend.deleteOne('tenants', id); }
+    },
     addContract(c) { contracts.push(c); persist(); return c; },
     updateContract(id, patch) { const c = contracts.find(x => x.id === id); if (c) { Object.assign(c, patch); persist(); } return c; },
 
