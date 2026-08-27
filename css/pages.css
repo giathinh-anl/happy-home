@@ -218,6 +218,23 @@ table.dt tr.disabled-row td { color: var(--neutral-400); background: var(--neutr
 .asset-row .a-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asset-row .kebab { flex: 0 0 30px; }
 
+/* ---------- Phân quyền nhân viên ---------- */
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.perm-item {
+  display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px;
+  border: 1px solid var(--neutral-200); border-radius: var(--r-input); cursor: pointer;
+  background: var(--neutral-0); transition: all .12s; font-size: var(--text-sm);
+}
+.perm-item:hover { border-color: var(--brand-200); }
+.perm-item.on { border-color: var(--brand-500); background: var(--brand-50); }
+.perm-item input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--brand-500); flex: 0 0 16px; }
+
+/* Xe */
+.veh-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+  background: var(--neutral-100); border-radius: var(--r-pill); font-size: var(--text-xs); white-space: nowrap;
+}
+
 /* ---------- Hợp đồng: nhắc hạn, đếm ngược, điều khoản ---------- */
 .reminder-box {
   background: var(--neutral-0); border: 1px solid var(--warning); border-left: 4px solid var(--warning);

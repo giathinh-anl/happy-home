@@ -139,7 +139,8 @@ HH.pages = HH.pages || {};
         if (!res.data.session) { unlock(); showErr('Tài khoản đã tạo. Vui lòng kiểm tra email xác nhận rồi đăng nhập.'); return; }
         const outcome = await S.onSignedIn(res.data.user);
         if (outcome === 'error') { unlock(); showErr('Kết nối máy chủ chưa ổn định. Vui lòng bấm lại sau vài giây.'); return; }
-        HH.router.go('/b/' + (S.buildings[0] ? S.buildings[0].id : 'b1') + '/units');
+        if (!S.isOwner()) UI.toast(`Đăng nhập với vai trò nhân viên · ${S.myPermissions().length} quyền`, { type: 'ok' });
+        HH.router.go(HH.router.landingPath());
       } catch (err) { unlock(); showErr(mapErr(err.message)); }
     };
   }

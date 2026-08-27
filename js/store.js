@@ -47,6 +47,7 @@ HH.store = (function () {
   const assets = [];
   const incidents = [];
   const transactions = [];
+  const staff = [];
   const auditLog = [];
 
   const CUR_PERIOD = '2026-08';
@@ -237,7 +238,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, auditLog };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, auditLog };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -323,8 +324,26 @@ HH.store = (function () {
   }
 
   /* ---------- Truy vấn ---------- */
+  /* ---------- Phân quyền ---------- */
+  // Danh sách quyền theo module (dùng cho màn hình phân quyền nhân viên)
+  const PERMISSIONS = [
+    { key: 'rooms', label: 'Quản lý phòng', desc: 'Xem & sửa phòng, đổi trạng thái' },
+    { key: 'tenants', label: 'Khách thuê', desc: 'Hồ sơ khách, xe, tạm trú' },
+    { key: 'contracts', label: 'Hợp đồng', desc: 'Lập, gia hạn, thanh lý hợp đồng' },
+    { key: 'readings', label: 'Ghi chỉ số', desc: 'Nhập & duyệt chỉ số điện nước' },
+    { key: 'invoices', label: 'Hóa đơn', desc: 'Sinh, phát hành, hủy hóa đơn' },
+    { key: 'payments', label: 'Thanh toán & công nợ', desc: 'Ghi nhận thanh toán' },
+    { key: 'services', label: 'Dịch vụ & đơn giá', desc: 'Sửa đơn giá dịch vụ' },
+    { key: 'assets', label: 'Tài sản', desc: 'Quản lý tài sản theo phòng' },
+    { key: 'incidents', label: 'Sự cố', desc: 'Xử lý yêu cầu sửa chữa' },
+    { key: 'expenses', label: 'Thu chi', desc: 'Sổ thu chi tòa nhà', sensitive: true },
+    { key: 'reports', label: 'Báo cáo & tổng quan', desc: 'Xem doanh thu, công nợ', sensitive: true },
+    { key: 'settings', label: 'Cấu hình', desc: 'Cấu hình tòa nhà, công ty', sensitive: true },
+  ];
+  const DEFAULT_STAFF_PERMS = ['rooms', 'tenants', 'readings', 'incidents'];
+
   const api = {
-    ROOM_TYPES, CUR_PERIOD, PREV_PERIOD, DEFAULT_TERMS,
+    ROOM_TYPES, CUR_PERIOD, PREV_PERIOD, DEFAULT_TERMS, PERMISSIONS, DEFAULT_STAFF_PERMS,
     // Điều khoản của 1 hợp đồng (dùng mẫu nếu chưa tùy chỉnh), đã thay biến {deposit},{dueDays}
     termsOf(c) {
       const list = (c && c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
@@ -340,9 +359,32 @@ HH.store = (function () {
     setPref(k, v) { prefs[k] = v; savePrefs(); },
     usingBackend,
     login(role) { prefs.auth = true; prefs.role = role || 'owner';
+      prefs.permissions = role === 'staff' ? DEFAULT_STAFF_PERMS.slice() : null;
       prefs.userName = role === 'staff' ? 'Trần Thị Vận Hành' : 'Nguyễn Văn A'; savePrefs(); },
     logout() { prefs.auth = false; savePrefs(); if (usingBackend()) HH.backend.signOut(); },
     isOwner() { return prefs.role === 'owner'; },
+
+    /* ---------- Nhân viên & quyền ---------- */
+    staff,
+    staffList: () => staff.slice(),
+    staffById: (id) => staff.find(s => s.id === id),
+    addStaff(s) { staff.push(s); persist(); return s; },
+    updateStaff(id, patch) { const s = staff.find(x => x.id === id); if (s) { Object.assign(s, patch); persist(); } return s; },
+    removeStaff(id) {
+      const i = staff.findIndex(x => x.id === id);
+      if (i >= 0) { const s = staff[i]; staff.splice(i, 1); api.log('staff.remove', `Xóa nhân viên ${s.email}`); persist();
+        if (usingBackend()) HH.backend.deleteOne('staff', id); }
+    },
+    // Quyền của người đang đăng nhập: chủ trọ = tất cả; nhân viên = theo cấu hình
+    myPermissions() {
+      if (prefs.role === 'owner') return PERMISSIONS.map(p => p.key);
+      return prefs.permissions || [];
+    },
+    can(key) {
+      if (prefs.role === 'owner') return true;
+      return (prefs.permissions || []).indexOf(key) >= 0;
+    },
+    myStaffRecord() { return prefs.staffId ? staff.find(s => s.id === prefs.staffId) : null; },
 
     // ----- Kỳ (tháng) đang xem -----
     period: () => prefs.period || CUR_PERIOD,
@@ -355,12 +397,24 @@ HH.store = (function () {
 
     // Sau khi Supabase xác thực xong: nạp dữ liệu của người dùng (hoặc đẩy dữ liệu mẫu nếu trống)
     async onSignedIn(user) {
-      prefs.role = 'owner';
-      prefs.userName = (user && (user.user_metadata && user.user_metadata.full_name)) || (user && user.email) || 'Chủ trọ';
+      const email = (user && user.email) || '';
+      // Nếu email này được chủ trọ thêm làm nhân viên -> vào với vai trò & quyền tương ứng
+      let st = null;
+      try { st = await HH.backend.findStaffByEmail(email); } catch (e) {}
+      if (st) {
+        prefs.role = 'staff'; prefs.staffId = st.id; prefs.ownerId = st.ownerId || null;
+        prefs.permissions = Array.isArray(st.permissions) ? st.permissions : DEFAULT_STAFF_PERMS;
+        prefs.userName = st.fullName || email;
+      } else {
+        prefs.role = 'owner'; prefs.staffId = null; prefs.ownerId = null; prefs.permissions = null;
+        prefs.userName = (user && (user.user_metadata && user.user_metadata.full_name)) || email || 'Chủ trọ';
+      }
       const res = await HH.backend.loadAll();
       if (res.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
       const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
       prefs.auth = true; savePrefs();
+      // Nhân viên không tạo dữ liệu mẫu — chỉ dùng dữ liệu của chủ trọ
+      if (total === 0 && st) { replaceAll(res.data); return 'loaded'; }
       if (total === 0) { api.refreshExpiryFlags(); await syncAll(); return 'seeded'; }  // tài khoản mới: đẩy dữ liệu mẫu
       replaceAll(res.data);
       if (api.refreshExpiryFlags()) persist();   // cập nhật cờ sắp hết hạn theo ngày hiện tại
@@ -477,6 +531,47 @@ HH.store = (function () {
     updateRoom(bid, code, patch) { const r = api.room(bid, code); if (r) { Object.assign(r, patch); persist(); } return r; },
     addTenant(t) { tenants.push(t); persist(); return t; },
     updateTenant(id, patch) { const t = tenants.find(x => x.id === id); if (t) { Object.assign(t, patch); persist(); } return t; },
+
+    /* ---------- Xe của khách thuê ---------- */
+    // Trả về mảng xe chuẩn hóa (tương thích dữ liệu cũ chỉ có vehiclePlate)
+    vehiclesOf(t) {
+      if (!t) return [];
+      if (Array.isArray(t.vehicles) && t.vehicles.length) return t.vehicles;
+      if (t.vehiclePlate) return [{ plate: t.vehiclePlate, type: 'Xe máy', brand: '', color: '', note: '' }];
+      return [];
+    },
+    addVehicle(tenantId, v) {
+      const t = api.tenantById(tenantId); if (!t) return null;
+      const list = api.vehiclesOf(t).slice();
+      list.push(Object.assign({ plate: '', type: 'Xe máy', brand: '', color: '', note: '' }, v));
+      t.vehicles = list; t.vehiclePlate = list[0] ? list[0].plate : null;
+      api.log('vehicle.add', `Thêm xe ${v.plate} cho ${t.fullName}`);
+      persist(); return list;
+    },
+    updateVehicle(tenantId, idx, v) {
+      const t = api.tenantById(tenantId); if (!t) return null;
+      const list = api.vehiclesOf(t).slice();
+      if (!list[idx]) return null;
+      list[idx] = Object.assign({}, list[idx], v);
+      t.vehicles = list; t.vehiclePlate = list[0] ? list[0].plate : null;
+      persist(); return list;
+    },
+    removeVehicle(tenantId, idx) {
+      const t = api.tenantById(tenantId); if (!t) return null;
+      const list = api.vehiclesOf(t).slice();
+      const gone = list.splice(idx, 1)[0];
+      t.vehicles = list; t.vehiclePlate = list[0] ? list[0].plate : null;
+      if (gone) api.log('vehicle.remove', `Xóa xe ${gone.plate} của ${t.fullName}`);
+      persist(); return list;
+    },
+    // Tất cả xe trong tòa nhà (để thống kê/tra cứu)
+    vehiclesOfBuilding(bid) {
+      const out = [];
+      tenants.filter(t => t.buildingId === bid).forEach(t =>
+        api.vehiclesOf(t).forEach((v, i) => out.push(Object.assign({}, v, {
+          tenantId: t.id, tenantName: t.fullName, roomCode: t.roomCode, index: i }))));
+      return out;
+    },
     removeTenant(id) {
       const i = tenants.findIndex(x => x.id === id);
       if (i >= 0) { const t = tenants[i]; tenants.splice(i, 1); api.log('tenant.remove', `Xóa khách thuê ${t.fullName}`); persist();

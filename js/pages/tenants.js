@@ -12,6 +12,9 @@
     { key: 'nodocs',   label: 'Khách chưa nộp giấy tờ', tone: 'danger', test: t => !(t.cccdFront && t.cccdBack) },
   ];
 
+  const VEH_TYPES = ['Xe máy', 'Ô tô', 'Xe đạp', 'Xe điện', 'Khác'];
+  const vehIcon = (type) => ({ 'Xe máy': '🏍️', 'Ô tô': '🚗', 'Xe đạp': '🚲', 'Xe điện': '🛵' }[type] || '🚗');
+
   function tenantRow(t) {
     const doc = (ok, label) => ok ? `<span class="tn-doc-ok">✓ ${label}</span>` : `<span class="tn-doc-miss">✗ ${label}</span>`;
     return `<tr>
@@ -31,7 +34,9 @@
         <div class="ln"><span class="k">Ngày cấp:</span><span class="mono">${t.cccdIssueDate}</span></div>
         <div class="ln"><span class="k">Nơi cấp:</span>${t.cccdIssuePlace}</div>
         <div class="ln"><span class="k">Hình:</span>${doc(t.cccdFront, 'Mặt trước')} | ${doc(t.cccdBack, 'Mặt sau')}</div></td>
-      <td>${t.vehiclePlate ? `<b>Biển số:</b> <span class="mono">${t.vehiclePlate}</span>` : '<span class="faint">Chưa có</span>'}</td>
+      <td>${(() => { const vs = S.vehiclesOf(t); return vs.length
+        ? vs.map(v => `<div style="margin-bottom:2px"><span class="veh-chip">${vehIcon(v.type)} <b class="mono">${U.esc(v.plate || '—')}</b></span></div>`).join('')
+        : '<span class="faint">Chưa có</span>'; })()}</td>
       <td class="col-actions"><button class="kebab" data-tn="${t.id}" aria-label="Thao tác">⋯</button></td>
     </tr>`;
   }
@@ -97,7 +102,8 @@
         U.downloadCSV(`khach-thue-${ctx.bid}.csv`,
           ['Phòng', 'Họ tên', 'Đại diện', 'SĐT', 'Ngày sinh', 'Giới tính', 'Nghề nghiệp', 'Địa chỉ', 'Số CCCD', 'Ngày cấp', 'Nơi cấp', 'Biển số xe', 'TTLock', 'Tạm trú'],
           S.tenantsOf(ctx.bid).map(t => [t.roomCode, t.fullName, t.isRep ? 'x' : '', t.phone, t.dob, t.gender,
-            t.occupation, t.address, t.idNumber, t.cccdIssueDate, t.cccdIssuePlace, t.vehiclePlate || '',
+            t.occupation, t.address, t.idNumber, t.cccdIssueDate, t.cccdIssuePlace,
+            S.vehiclesOf(t).map(v => `${v.plate}${v.type ? ' (' + v.type + ')' : ''}`).join('; '),
             t.ttlock ? 'Đã kết nối' : 'Chưa', t.tamtru ? 'Đã ĐK' : 'Chưa']));
         UI.toast('Đã tải file Excel (CSV) khách thuê', { type: 'ok' });
       };
@@ -117,9 +123,55 @@
       const t = S.tenantById(b.dataset.tn);
       UI.openMenu(b, [
         { icon: '👁', label: 'Xem hồ sơ', onClick: () => showTenant(t) },
+        { icon: '🏍️', label: `Quản lý xe (${S.vehiclesOf(t).length})`, onClick: () => vehicleDialog(t) },
         { icon: '🔐', label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
         { icon: '📋', label: t.tamtru ? 'Đã đăng ký tạm trú' : 'Đánh dấu đã đăng ký tạm trú', onClick: () => { t.tamtru = !t.tamtru; S.persist(); UI.toast(t.tamtru ? 'Đã đánh dấu đăng ký tạm trú' : 'Đã bỏ đánh dấu', { type: 'ok' }); HH.router.render(); } },
       ]);
+    });
+  }
+
+  /* ---------------- QUẢN LÝ XE ---------------- */
+  function vehicleDialog(t) {
+    const draw = (el) => {
+      const list = S.vehiclesOf(t);
+      el.querySelector('[data-vlist]').innerHTML = list.length ? list.map((v, i) => `
+        <div class="card" style="box-shadow:none;margin-bottom:10px"><div class="card-pad" style="padding:12px">
+          <div class="between" style="margin-bottom:8px">
+            <b>${vehIcon(v.type)} ${U.esc(v.type || 'Xe')}</b>
+            <button class="kebab" data-delveh="${i}" title="Xóa xe">✕</button></div>
+          <div class="grid-2">
+            <div class="field"><label>Biển số</label><input class="input mono" data-v="${i}" data-f="plate" value="${U.esc(v.plate || '')}" placeholder="59A1-12345"></div>
+            <div class="field"><label>Loại xe</label><select class="select" data-v="${i}" data-f="type">
+              ${VEH_TYPES.map(x => `<option ${v.type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+            <div class="field"><label>Hãng / model</label><input class="input" data-v="${i}" data-f="brand" value="${U.esc(v.brand || '')}" placeholder="VD: Honda Vision"></div>
+            <div class="field"><label>Màu xe</label><input class="input" data-v="${i}" data-f="color" value="${U.esc(v.color || '')}" placeholder="VD: Đen"></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Ghi chú</label><input class="input" data-v="${i}" data-f="note" value="${U.esc(v.note || '')}" placeholder="VD: gửi hầm B1"></div>
+        </div></div>`).join('')
+        : `<div class="empty" style="padding:24px"><div class="ic">🏍️</div><h4>Chưa đăng ký xe nào</h4>
+            <p class="muted">Thêm xe để quản lý chỗ để xe và phí gửi xe.</p></div>`;
+      el.querySelectorAll('[data-delveh]').forEach(b => b.onclick = () => {
+        S.removeVehicle(t.id, +b.dataset.delveh); UI.toast('Đã xóa xe', { type: 'ok' }); draw(el);
+      });
+      el.querySelectorAll('[data-v]').forEach(inp => inp.onchange = () => {
+        S.updateVehicle(t.id, +inp.dataset.v, { [inp.dataset.f]: inp.value.trim() });
+      });
+    };
+    UI.modal({
+      title: `Xe của ${t.fullName}`, size: 'wide',
+      bodyHtml: `<p class="muted" style="margin-bottom:12px">Phòng <b>${U.esc(t.roomCode || '—')}</b> · thay đổi được lưu ngay khi rời ô nhập.</p>
+        <div data-vlist></div>
+        <button class="btn btn-outline" id="addVeh">＋ Thêm xe</button>`,
+      footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Xong</button>`,
+      onMount(el, close) {
+        draw(el);
+        el.querySelector('#addVeh').onclick = () => {
+          S.addVehicle(t.id, { plate: '', type: 'Xe máy' });
+          draw(el);
+          const first = el.querySelector('[data-f="plate"]'); if (first) first.focus();
+        };
+      },
+      onClose() { HH.router.render(); },
     });
   }
 
@@ -140,7 +192,9 @@
         <div class="field"><label>Nghề nghiệp</label><div>${t.occupation}</div></div>
         <div class="field"><label>Phòng</label><div>${t.roomCode || '—'}</div></div>
         <div class="field"><label>Địa chỉ thường trú</label><div>${t.address}</div></div>
-        <div class="field"><label>Biển số xe</label><div class="mono">${t.vehiclePlate || 'Chưa có'}</div></div>
+        <div class="field"><label>Xe đã đăng ký</label><div>${raw(S.vehiclesOf(t).length
+          ? S.vehiclesOf(t).map(v => `<div class="mono">${vehIcon(v.type)} <b>${U.esc(v.plate || '—')}</b>${v.brand ? ' · ' + U.esc(v.brand) : ''}${v.color ? ' · ' + U.esc(v.color) : ''}</div>`).join('')
+          : '<span class="faint">Chưa có</span>')}</div></div>
       </div>
       <div class="grid-2" style="margin-top:12px">
         <div class="ocr-img" style="min-height:140px">${raw(t.cccdFront ? 'Ảnh CCCD mặt trước' : '<span style="color:var(--danger)">Chưa có ảnh mặt trước</span>')}</div>

@@ -11,7 +11,7 @@ HH.app = (function () {
     { key: 'bank',   ic: '💳', label: 'Khách chuyển khoản', path: '/transfers' },
     { key: 'post',   ic: '📢', label: 'Đăng tin',          path: '/post' },
     { key: 'group',  ic: '🧑‍🤝‍🧑', label: 'Công ty/nhóm', path: '/group', owner: true },
-    { key: 'config', ic: '⚙️', label: 'Cài đặt chung',     path: '/config', owner: true },
+    { key: 'config', ic: '⚙️', label: 'Cài đặt chung',     path: '/config' },
     { key: 'noti',   ic: '🔔', label: 'Thông báo',         path: '/noti', pill: '0', pillClass: 'zero' },
     { key: 'acct',   ic: '👤', label: 'Tài khoản',         action: 'account' },
     { key: 'logout', ic: '🚪', label: 'Đăng xuất',         action: 'logout' },
@@ -19,19 +19,20 @@ HH.app = (function () {
 
   // Hàng module (cấp tòa nhà).
   const MODULES = [
-    { ic: '🏠', label: 'Quản lý phòng', seg: 'units' },
-    { ic: '🧾', label: 'Hóa đơn',       seg: 'invoices' },
-    { ic: '🛎️', label: 'Dịch vụ',       seg: 'services' },
-    { ic: '📄', label: 'Hợp đồng',      seg: 'contracts' },
-    { ic: '📦', label: 'Tài sản',       seg: 'assets' },
-    { ic: '👥', label: 'Khách thuê',    seg: 'tenants' },
+    { ic: '🏠', label: 'Quản lý phòng', seg: 'units', perm: 'rooms' },
+    { ic: '🧾', label: 'Hóa đơn',       seg: 'invoices', perm: 'invoices' },
+    { ic: '🛎️', label: 'Dịch vụ',       seg: 'services', perm: 'services' },
+    { ic: '📄', label: 'Hợp đồng',      seg: 'contracts', perm: 'contracts' },
+    { ic: '📦', label: 'Tài sản',       seg: 'assets', perm: 'assets' },
+    { ic: '👥', label: 'Khách thuê',    seg: 'tenants', perm: 'tenants' },
   ];
   const MORE = [
-    { ic: '📉', label: 'Chỉ số điện nước',    seg: 'readings' },
-    { ic: '₫',  label: 'Thanh toán & công nợ', seg: 'payments' },
-    { ic: '📊', label: 'Thu chi',              seg: 'expenses', owner: true },
-    { ic: '🔐', label: 'Khóa thông minh',      seg: 'locks' },
-    { ic: '⚙️', label: 'Cấu hình tòa nhà',     seg: 'config', owner: true },
+    { ic: '📉', label: 'Chỉ số điện nước',    seg: 'readings', perm: 'readings' },
+    { ic: '₫',  label: 'Thanh toán & công nợ', seg: 'payments', perm: 'payments' },
+    { ic: '🧰', label: 'Sự cố phòng',          seg: 'incidents', perm: 'incidents' },
+    { ic: '📊', label: 'Thu chi',              seg: 'expenses', perm: 'expenses' },
+    { ic: '🔐', label: 'Khóa thông minh',      seg: 'locks', perm: 'rooms' },
+    { ic: '⚙️', label: 'Cấu hình tòa nhà',     seg: 'config', perm: 'settings' },
   ];
 
   /* ---------- Thanh trên ---------- */
@@ -63,7 +64,7 @@ HH.app = (function () {
   function modulebar(bid, path) {
     const b = S.building(bid);
     const seg = path.split('/')[3] || 'units';
-    const mods = MODULES.map(m => {
+    const mods = MODULES.filter(m => !m.perm || S.can(m.perm)).map(m => {
       const active = seg === m.seg;
       return `<a class="lz-module ${active ? 'active' : ''}" href="#/b/${bid}/${m.seg}">
         <span class="ic">${m.ic}</span><span>${m.label}</span></a>`;
@@ -141,19 +142,33 @@ HH.app = (function () {
   function UI() { return HH.ui; }
 
   function openMoreMenu(anchor, bid) {
-    const items = MORE.filter(m => !m.owner || S.isOwner()).map(m => ({
+    const items = MORE.filter(m => !m.perm || S.can(m.perm)).map(m => ({
       icon: m.ic, label: m.label, onClick: () => HH.router.go(`/b/${bid}/${m.seg}`),
     }));
+    if (!items.length) items.push({ icon: '🔒', label: 'Không có mục nào được cấp quyền', onClick: () => {} });
     HH.ui.openMenu(anchor, items);
   }
 
   function openUserMenu(anchor) {
-    HH.ui.openMenu(anchor, [
+    const roleLabel = S.isOwner() ? 'Chủ trọ (toàn quyền)'
+      : `Nhân viên · ${S.myPermissions().length} quyền`;
+    const items = [
       { icon: '👤', label: `${S.prefs.userName}`, onClick: () => {} },
+      { icon: S.isOwner() ? '👑' : '🔑', label: roleLabel, onClick: () => HH.router.go('/config') },
       { sep: true },
-      { icon: S.isOwner() ? '●' : '○', label: 'Vai trò: Chủ trọ', onClick: () => switchRole('owner') },
-      { icon: !S.isOwner() ? '●' : '○', label: 'Vai trò: Nhân viên vận hành', onClick: () => switchRole('staff') },
-      { sep: true },
+    ];
+    // Chỉ chế độ demo (không có máy chủ) mới cho đổi vai trò để xem thử
+    if (!S.usingBackend()) items.push(
+      { icon: S.isOwner() ? '●' : '○', label: 'Xem thử: Chủ trọ', onClick: () => switchRole('owner') },
+      { icon: !S.isOwner() ? '●' : '○', label: 'Xem thử: Nhân viên', onClick: () => switchRole('staff') },
+      { sep: true });
+    if (S.isOwner()) items.push({ icon: '🧑‍🤝‍🧑', label: 'Quản lý nhân viên', onClick: () => HH.router.go('/group') }, { sep: true });
+    return HH.ui.openMenu(anchor, items.concat(userMenuTail()));
+  }
+  function userMenuTail() {
+    // Nhân viên không được xóa/khôi phục toàn bộ dữ liệu
+    if (!S.isOwner()) return [{ icon: '🚪', label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } }];
+    return [
       { icon: '↺', label: 'Khôi phục dữ liệu mẫu', onClick: () => {
         HH.ui.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
           footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
@@ -161,7 +176,7 @@ HH.app = (function () {
       } },
       { sep: true },
       { icon: '🚪', label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } },
-    ]);
+    ];
   }
   function switchRole(role) {
     S.login(role);

@@ -398,36 +398,171 @@
     });
   }
 
-  /* ---------------- CÔNG TY / NHÓM ---------------- */
+  /* ---------------- CÔNG TY / NHÓM + NHÂN SỰ ---------------- */
+  const ROLE_LABEL = { manager: 'Quản lý', staff: 'Nhân viên vận hành' };
+
   HH.pages.group = {
     render() {
       const rooms = S.buildings.reduce((s, b) => s + S.roomsOf(b.id).length, 0);
+      const list = S.staffList();
+      const me = S.prefs.userName;
+
+      const staffRows = list.map(s => {
+        const perms = Array.isArray(s.permissions) ? s.permissions : [];
+        const scope = (Array.isArray(s.buildingIds) && s.buildingIds.length)
+          ? s.buildingIds.map(id => (S.building(id) || {}).name || id).join(', ') : 'Tất cả tòa nhà';
+        return `<tr>
+          <td><div class="row-gap-2">
+            <span class="avatar" style="width:32px;height:32px;flex:0 0 32px;font-size:12px">${U.initials(s.fullName || s.email)}</span>
+            <div><b>${U.esc(s.fullName || '(chưa đặt tên)')}</b>
+              <div class="muted text-xs mono">${U.esc(s.email)}</div></div></div></td>
+          <td><span class="badge ${s.role === 'manager' ? 's-purple' : 's-info'}"><span class="dot"></span>${ROLE_LABEL[s.role] || s.role}</span></td>
+          <td><span class="muted text-xs">${U.esc(scope)}</span></td>
+          <td><b class="mono">${perms.length}</b> <span class="muted text-xs">quyền</span></td>
+          <td>${s.status === 'active'
+            ? '<span class="badge s-success"><span class="dot"></span>Đang hoạt động</span>'
+            : '<span class="badge s-neutral"><span class="dot"></span>Đã khóa</span>'}</td>
+          <td class="col-actions"><button class="kebab" data-staffmenu="${s.id}">⋯</button></td>
+        </tr>`;
+      }).join('');
+
       return h`<div class="page-head">
         <div class="row-gap-3"><span class="lz-home-ic">🧑‍🤝‍🧑</span>
-          <div><div class="page-title-lg">Công ty / nhóm</div><div class="page-sub">Thông tin tổ chức & thành viên</div></div></div>
+          <div><div class="page-title-lg">Công ty / nhóm</div><div class="page-sub">Thông tin tổ chức & tài khoản nhân viên</div></div></div>
+        ${raw(S.isOwner() ? '<div class="page-actions"><button class="btn btn-primary" data-primary-new>＋ Thêm nhân viên</button></div>' : '')}
       </div>
-      <div class="grid-2" style="align-items:start">
-        <div class="card"><div class="card-head"><h3>Thông tin công ty</h3></div><div class="card-pad">
-          <div class="field"><label>Tên công ty</label><div class="b">Happy Home</div></div>
-          <div class="field" style="margin-top:12px"><label>Gói dịch vụ</label><div><span class="badge s-info"><span class="dot"></span>Free</span></div></div>
-          <div class="field" style="margin-top:12px"><label>Quy mô</label><div>${S.buildings.length} tòa nhà · ${rooms} phòng</div></div>
-        </div></div>
-        <div class="card"><div class="card-head"><h3>Thành viên</h3></div>
-          <div class="dt-scroll"><table class="dt">
-            <thead><tr><th>Thành viên</th><th>Vai trò</th><th>Trạng thái</th></tr></thead>
-            <tbody>
-              <tr><td><div class="row-gap-2"><span class="avatar" style="width:30px;height:30px;flex:0 0 30px;font-size:12px">${U.initials(S.prefs.userName)}</span><b>${U.esc(S.prefs.userName)}</b></div></td>
-                <td><span class="badge s-purple"><span class="dot"></span>Chủ trọ</span></td><td><span class="badge s-success"><span class="dot"></span>Đang hoạt động</span></td></tr>
-            </tbody></table></div>
-          <div class="card-pad"><button class="btn btn-outline" id="inviteBtn">＋ Mời nhân viên</button></div>
-        </div>
-      </div>`;
+
+      <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin-bottom:16px">
+        ${raw(UI.metricCard({ label: 'Tòa nhà', value: S.buildings.length, format: 'number' }))}
+        ${raw(UI.metricCard({ label: 'Tổng số phòng', value: rooms, format: 'number' }))}
+        ${raw(UI.metricCard({ label: 'Nhân viên', value: list.filter(s => s.status === 'active').length, format: 'number', intent: 'success' }))}
+      </div>
+
+      <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Thành viên (${list.length + 1})</h3></div>
+        <div class="dt-scroll"><table class="dt">
+          <thead><tr><th>Thành viên</th><th>Vai trò</th><th>Phạm vi</th><th>Quyền</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><div class="row-gap-2">
+              <span class="avatar" style="width:32px;height:32px;flex:0 0 32px;font-size:12px">${U.initials(me)}</span>
+              <div><b>${U.esc(me)}</b><div class="muted text-xs">Bạn</div></div></div></td>
+              <td><span class="badge s-purple"><span class="dot"></span>Chủ trọ</span></td>
+              <td><span class="muted text-xs">Tất cả tòa nhà</span></td>
+              <td><b class="mono">Toàn quyền</b></td>
+              <td><span class="badge s-success"><span class="dot"></span>Đang hoạt động</span></td><td></td></tr>
+            ${raw(staffRows)}
+          </tbody></table></div>
+        ${raw(list.length === 0 ? `<div class="card-pad"><div class="empty" style="padding:24px">
+            <div class="ic">🧑‍🤝‍🧑</div><h4>Chưa có nhân viên nào</h4>
+            <p class="muted">Thêm nhân viên và chọn quyền để họ đăng nhập vào hệ thống bằng tài khoản riêng.</p>
+            ${S.isOwner() ? '<div style="margin-top:14px"><button class="btn btn-primary" data-primary-new>＋ Thêm nhân viên</button></div>' : ''}
+          </div></div>` : '')}
+      </div>
+
+      <div class="alert alert-info"><span class="ic">ℹ</span><div>
+        <b>Cách nhân viên đăng nhập:</b> bạn thêm nhân viên bằng <b>email</b> → nhân viên vào trang đăng nhập,
+        bấm <b>Đăng ký</b> bằng <u>đúng email đó</u> và tự đặt mật khẩu → hệ thống tự nhận diện và cấp đúng quyền bạn đã chọn.
+        <div class="text-xs" style="margin-top:4px">Chủ trọ không thấy và không cần biết mật khẩu của nhân viên.</div>
+      </div></div>`;
     },
     mount() {
-      const b = document.getElementById('inviteBtn');
-      if (b) b.onclick = () => UI.toast('Tính năng mời nhân viên sẽ có ở bản kế tiếp', { type: 'ok' });
+      const nb = document.querySelectorAll('[data-primary-new]');
+      nb.forEach(b => b.onclick = () => staffForm(null));
+      document.querySelectorAll('[data-staffmenu]').forEach(b => b.onclick = () => {
+        const s = S.staffById(b.dataset.staffmenu);
+        UI.openMenu(b, [
+          { icon: '✏️', label: 'Sửa quyền & thông tin', onClick: () => staffForm(s) },
+          { icon: s.status === 'active' ? '🔒' : '🔓', label: s.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa',
+            onClick: () => { S.updateStaff(s.id, { status: s.status === 'active' ? 'disabled' : 'active' });
+              UI.toast(s.status === 'active' ? 'Đã khóa tài khoản' : 'Đã mở khóa', { type: 'ok' }); HH.router.render(); } },
+          { sep: true },
+          { icon: '🗑', label: 'Xóa nhân viên', danger: true, onClick: () => {
+            UI.dangerDialog({ title: `Xóa nhân viên "${s.fullName || s.email}"`,
+              description: 'Nhân viên sẽ không còn truy cập được dữ liệu của bạn.',
+              consequences: ['Tài khoản đăng nhập của họ vẫn tồn tại nhưng mất quyền truy cập', 'Thao tác được ghi vào nhật ký'],
+              confirmLabel: 'Xóa nhân viên', reasonLabel: 'Lý do xóa',
+              onConfirm: () => { S.removeStaff(s.id); UI.toast('Đã xóa nhân viên', { type: 'ok' }); HH.router.render(); } });
+          } },
+        ]);
+      });
     },
   };
+
+  function staffForm(existing) {
+    const isNew = !existing;
+    const perms = new Set(existing && Array.isArray(existing.permissions) ? existing.permissions : S.DEFAULT_STAFF_PERMS);
+    const bids = new Set(existing && Array.isArray(existing.buildingIds) ? existing.buildingIds : []);
+    const permHtml = S.PERMISSIONS.map(p => `<label class="perm-item ${perms.has(p.key) ? 'on' : ''}" data-permwrap="${p.key}">
+      <input type="checkbox" data-perm="${p.key}" ${perms.has(p.key) ? 'checked' : ''}>
+      <span><b>${p.label}</b>${p.sensitive ? ' <span class="badge s-warning" style="font-size:10px;padding:1px 6px">Nhạy cảm</span>' : ''}
+        <div class="muted text-xs">${p.desc}</div></span></label>`).join('');
+    const bHtml = S.buildings.map(b => `<label class="check" style="display:block;padding:5px 0">
+      <input type="checkbox" data-bld="${b.id}" ${bids.has(b.id) ? 'checked' : ''}> ${U.esc(b.name)}</label>`).join('');
+
+    UI.modal({
+      title: isNew ? 'Thêm nhân viên' : `Sửa nhân viên — ${existing.fullName || existing.email}`, size: 'xwide',
+      bodyHtml: h`
+        <div class="grid-2">
+          <div class="field"><label>Email đăng nhập *</label>
+            <input class="input" data-s="email" value="${existing ? existing.email : ''}" placeholder="nhanvien@gmail.com" ${raw(isNew ? '' : 'disabled')}>
+            <span class="hint">Nhân viên sẽ đăng ký tài khoản bằng đúng email này</span></div>
+          <div class="field"><label>Họ và tên</label><input class="input" data-s="fullName" value="${existing ? (existing.fullName || '') : ''}" placeholder="Trần Thị B"></div>
+          <div class="field"><label>Số điện thoại</label><input class="input mono" data-s="phone" value="${existing ? (existing.phone || '') : ''}" placeholder="09xxxxxxxx"></div>
+          <div class="field"><label>Vai trò</label><select class="select" data-s="role">
+            <option value="staff" ${existing && existing.role === 'staff' ? 'selected' : ''}>Nhân viên vận hành</option>
+            <option value="manager" ${existing && existing.role === 'manager' ? 'selected' : ''}>Quản lý</option>
+          </select></div>
+        </div>
+        <div class="field" style="margin-top:16px">
+          <label>Phạm vi tòa nhà <span class="hint" style="font-weight:400">· không chọn = tất cả</span></label>
+          <div class="card" style="box-shadow:none"><div class="card-pad" style="padding:10px 12px">${raw(bHtml || '<span class="faint">Chưa có tòa nhà</span>')}</div></div>
+        </div>
+        <div class="field" style="margin-top:16px">
+          <div class="between"><label>Quyền truy cập</label>
+            <div class="row-gap-2"><button type="button" class="btn btn-sm btn-outline" id="permAll">Chọn tất cả</button>
+              <button type="button" class="btn btn-sm btn-outline" id="permNone">Bỏ chọn</button></div></div>
+          <div class="perm-grid">${raw(permHtml)}</div>
+        </div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span>
+        <button class="btn btn-primary" data-save>${isNew ? 'Thêm nhân viên' : 'Lưu thay đổi'}</button>`,
+      onMount(el, close) {
+        const sync = () => el.querySelectorAll('[data-perm]').forEach(c =>
+          el.querySelector(`[data-permwrap="${c.dataset.perm}"]`).classList.toggle('on', c.checked));
+        el.querySelectorAll('[data-perm]').forEach(c => c.onchange = sync);
+        el.querySelector('#permAll').onclick = () => { el.querySelectorAll('[data-perm]').forEach(c => c.checked = true); sync(); };
+        el.querySelector('#permNone').onclick = () => { el.querySelectorAll('[data-perm]').forEach(c => c.checked = false); sync(); };
+        el.querySelector('[data-save]').onclick = (e) => {
+          const g = (k) => ((el.querySelector(`[data-s="${k}"]`) || {}).value || '').trim();
+          const email = (isNew ? g('email') : existing.email).toLowerCase();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { UI.toast('Email không hợp lệ', { type: 'error' }); return; }
+          if (isNew && S.staffList().some(x => (x.email || '').toLowerCase() === email)) {
+            UI.toast('Email này đã được thêm', { type: 'error' }); return; }
+          const permissions = [...el.querySelectorAll('[data-perm]')].filter(c => c.checked).map(c => c.dataset.perm);
+          const buildingIds = [...el.querySelectorAll('[data-bld]')].filter(c => c.checked).map(c => c.dataset.bld);
+          e.currentTarget.classList.add('loading');
+          setTimeout(() => {
+            const patch = { email, fullName: g('fullName'), phone: g('phone'), role: g('role'), permissions, buildingIds };
+            if (isNew) {
+              S.addStaff(Object.assign({ id: U.uid('st'), status: 'active', createdAt: new Date().toISOString() }, patch));
+              S.log('staff.add', `Thêm nhân viên ${email} (${permissions.length} quyền)`);
+            } else { S.updateStaff(existing.id, patch); S.log('staff.update', `Cập nhật quyền nhân viên ${email}`); }
+            close();
+            if (isNew) UI.modal({ title: 'Đã thêm nhân viên', bodyHtml: `
+              <div class="alert alert-success" style="margin-bottom:12px"><span class="ic">✓</span><div>Đã thêm <b>${U.esc(email)}</b> với ${permissions.length} quyền.</div></div>
+              <p class="b" style="margin-bottom:6px">Hướng dẫn cho nhân viên:</p>
+              <ol style="padding-left:20px;line-height:1.9">
+                <li>Mở trang đăng nhập của hệ thống</li>
+                <li>Bấm <b>"Chưa có tài khoản? Đăng ký"</b></li>
+                <li>Đăng ký bằng <b class="mono">${U.esc(email)}</b> và tự đặt mật khẩu (≥6 ký tự)</li>
+                <li>Đăng nhập — hệ thống tự cấp đúng quyền bạn đã chọn</li>
+              </ol>`,
+              footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Đã hiểu</button>` });
+            else UI.toast('Đã lưu nhân viên', { type: 'ok' });
+            HH.router.render();
+          }, 350);
+        };
+      },
+    });
+  }
 
   /* ---------------- CÀI ĐẶT CHUNG ---------------- */
   HH.pages.companyConfig = {
@@ -441,10 +576,17 @@
           <div class="field"><label>Tên hiển thị</label><input class="input" id="cfgName" value="${U.esc(S.prefs.userName)}"></div>
           <div style="margin-top:16px"><button class="btn btn-primary" id="cfgSave">Lưu</button></div>
         </div></div>
-        <div class="card"><div class="card-head"><h3>Dữ liệu & ứng dụng</h3></div><div class="card-pad">
-          <div class="field"><label>Chế độ lưu trữ</label><div>${raw(S.usingBackend() ? '<span class="badge s-success"><span class="dot"></span>Máy chủ Supabase</span>' : '<span class="badge s-warning"><span class="dot"></span>Cục bộ (trình duyệt)</span>')}</div></div>
+        <div class="card"><div class="card-head"><h3>Vai trò & quyền của bạn</h3></div><div class="card-pad">
+          <div class="field"><label>Vai trò</label><div>${raw(S.isOwner()
+            ? '<span class="badge s-purple"><span class="dot"></span>Chủ trọ — toàn quyền</span>'
+            : '<span class="badge s-info"><span class="dot"></span>Nhân viên</span>')}</div></div>
+          ${raw(S.isOwner() ? '' : `<div class="field" style="margin-top:12px"><label>Quyền được cấp (${S.myPermissions().length})</label>
+            <div class="room-assets">${S.PERMISSIONS.filter(p => S.can(p.key))
+              .map(p => `<span class="room-asset-chip">✓ ${U.esc(p.label)}</span>`).join('') || '<span class="faint">Chưa được cấp quyền nào</span>'}</div>
+            <span class="hint" style="margin-top:6px;display:block">Liên hệ chủ trọ nếu cần thêm quyền.</span></div>`)}
+          <div class="field" style="margin-top:12px"><label>Chế độ lưu trữ</label><div>${raw(S.usingBackend() ? '<span class="badge s-success"><span class="dot"></span>Máy chủ Supabase</span>' : '<span class="badge s-warning"><span class="dot"></span>Cục bộ (trình duyệt)</span>')}</div></div>
           <div class="field" style="margin-top:12px"><label>Phiên bản</label><div class="mono">Happy Home v1.0</div></div>
-          <div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">↺ Khôi phục dữ liệu mẫu</button></div>
+          ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">↺ Khôi phục dữ liệu mẫu</button></div>' : '')}
         </div></div>
       </div>`;
     },
@@ -453,7 +595,8 @@
         const name = document.getElementById('cfgName').value.trim();
         if (name) { S.setPref('userName', name); UI.toast('Đã lưu', { type: 'ok' }); HH.router.render(); }
       };
-      document.getElementById('cfgReset').onclick = () => {
+      const rst = document.getElementById('cfgReset');
+      if (rst) rst.onclick = () => {
         UI.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
           footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
           onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });

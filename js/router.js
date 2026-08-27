@@ -10,30 +10,30 @@ HH.router = (function () {
     { pat: '/reports', page: 'stub', meta: { title: 'Báo cáo', owner: true } },
     { pat: '/accounting', page: 'stub', meta: { title: 'Sổ kế toán', owner: true } },
     { pat: '/hr', page: 'stub', meta: { title: 'Nhân sự & phân quyền', owner: true } },
-    { pat: '/config', page: 'companyConfig', meta: { title: 'Cài đặt chung', owner: true } },
+    { pat: '/config', page: 'companyConfig', meta: { title: 'Cài đặt chung' } },
     { pat: '/logs', page: 'logs', meta: { title: 'Nhật ký hệ thống', owner: true } },
-    { pat: '/transfers', page: 'transfers' },
-    { pat: '/post', page: 'post' },
+    { pat: '/transfers', page: 'transfers', meta: { perm: 'payments' } },
+    { pat: '/post', page: 'post', meta: { perm: 'rooms' } },
     { pat: '/group', page: 'group', meta: { title: 'Công ty / nhóm', owner: true } },
     { pat: '/noti', page: 'noti' },
     // Tầng tòa nhà
-    { pat: '/b/:bid/units', page: 'units' },
-    { pat: '/b/:bid/tenants', page: 'tenants' },
-    { pat: '/b/:bid/tenants/new', page: 'tenantNew' },
-    { pat: '/b/:bid/contracts', page: 'contracts' },
-    { pat: '/b/:bid/contracts/new', page: 'contractNew' },
-    { pat: '/b/:bid/contracts/:cid/terminate', page: 'terminate' },
-    { pat: '/b/:bid/contracts/:cid', page: 'contractDetail' },
-    { pat: '/b/:bid/services', page: 'services' },
-    { pat: '/b/:bid/readings', page: 'readings' },
-    { pat: '/b/:bid/invoices', page: 'invoices' },
-    { pat: '/b/:bid/invoices/:iid', page: 'invoiceDetail' },
-    { pat: '/b/:bid/payments', page: 'payments' },
-    { pat: '/b/:bid/expenses', page: 'expenses', meta: { title: 'Thu chi', owner: true } },
-    { pat: '/b/:bid/assets', page: 'assets' },
-    { pat: '/b/:bid/incidents', page: 'incidents' },
-    { pat: '/b/:bid/locks', page: 'locks' },
-    { pat: '/b/:bid/config', page: 'buildingConfig', meta: { title: 'Cấu hình tòa nhà', owner: true } },
+    { pat: '/b/:bid/units', page: 'units', meta: { perm: 'rooms' } },
+    { pat: '/b/:bid/tenants', page: 'tenants', meta: { perm: 'tenants' } },
+    { pat: '/b/:bid/tenants/new', page: 'tenantNew', meta: { perm: 'tenants' } },
+    { pat: '/b/:bid/contracts', page: 'contracts', meta: { perm: 'contracts' } },
+    { pat: '/b/:bid/contracts/new', page: 'contractNew', meta: { perm: 'contracts' } },
+    { pat: '/b/:bid/contracts/:cid/terminate', page: 'terminate', meta: { perm: 'contracts' } },
+    { pat: '/b/:bid/contracts/:cid', page: 'contractDetail', meta: { perm: 'contracts' } },
+    { pat: '/b/:bid/services', page: 'services', meta: { perm: 'services' } },
+    { pat: '/b/:bid/readings', page: 'readings', meta: { perm: 'readings' } },
+    { pat: '/b/:bid/invoices', page: 'invoices', meta: { perm: 'invoices' } },
+    { pat: '/b/:bid/invoices/:iid', page: 'invoiceDetail', meta: { perm: 'invoices' } },
+    { pat: '/b/:bid/payments', page: 'payments', meta: { perm: 'payments' } },
+    { pat: '/b/:bid/expenses', page: 'expenses', meta: { title: 'Thu chi', perm: 'expenses' } },
+    { pat: '/b/:bid/assets', page: 'assets', meta: { perm: 'assets' } },
+    { pat: '/b/:bid/incidents', page: 'incidents', meta: { perm: 'incidents' } },
+    { pat: '/b/:bid/locks', page: 'locks', meta: { perm: 'rooms' } },
+    { pat: '/b/:bid/config', page: 'buildingConfig', meta: { title: 'Cấu hình tòa nhà', perm: 'settings' } },
   ];
 
   function match(path) {
@@ -51,9 +51,21 @@ HH.router = (function () {
     return null;
   }
 
+  // Trang mặc định sau đăng nhập: mục đầu tiên mà người dùng có quyền
+  function landingPath() {
+    const S = HH.store;
+    const b = S.buildings[0];
+    if (!b) return '/buildings';
+    const order = [['rooms', 'units'], ['tenants', 'tenants'], ['contracts', 'contracts'],
+      ['invoices', 'invoices'], ['readings', 'readings'], ['payments', 'payments'],
+      ['assets', 'assets'], ['incidents', 'incidents']];
+    for (const [perm, seg] of order) if (S.can(perm)) return `/b/${b.id}/${seg}`;
+    return '/noti';
+  }
+
   function current() {
     let path = location.hash.replace(/^#/, '') || '/';
-    if (path === '/') path = HH.store.prefs.auth ? ('/b/' + HH.store.buildings[0].id + '/units') : '/login';
+    if (path === '/') path = HH.store.prefs.auth ? landingPath() : '/login';
     return path;
   }
 
@@ -74,8 +86,9 @@ HH.router = (function () {
 
     if (!m) { HH.app.renderShell('notfound', {}, { page: 'notfound' }); return; }
 
-    // Chặn theo vai trò (menu sinh theo vai trò — §1.5)
-    if (m.route.meta && m.route.meta.owner && !HH.store.isOwner()) {
+    // Chặn theo vai trò & quyền được cấp
+    const meta = m.route.meta || {};
+    if ((meta.owner && !HH.store.isOwner()) || (meta.perm && !HH.store.can(meta.perm))) {
       HH.app.renderShell('forbidden', m.params, m.route); return;
     }
 
@@ -88,5 +101,5 @@ HH.router = (function () {
     render();
   }
 
-  return { go, render, start, current, match };
+  return { go, render, start, current, match, landingPath };
 })();

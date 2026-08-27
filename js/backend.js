@@ -17,7 +17,7 @@ HH.backend = (function () {
   const KINDS = {
     buildings: 'buildings', rooms: 'rooms', tenants: 'tenants', contracts: 'contracts',
     services: 'services', readings: 'readings', invoices: 'invoices', payments: 'payments',
-    assets: 'assets', incidents: 'incidents', transactions: 'transactions', auditLog: 'audit_log',
+    assets: 'assets', incidents: 'incidents', transactions: 'transactions', staff: 'staff', auditLog: 'audit_log',
   };
   // field JS lệch quy tắc -> cột DB
   const ALIAS = {
@@ -99,6 +99,15 @@ HH.backend = (function () {
   }
   function currentUserId() { return ownerId; }
 
+  /** Tìm bản ghi nhân viên theo email đang đăng nhập (nếu người này được chủ trọ thêm vào) */
+  async function findStaffByEmail(email) {
+    if (!enabled || !email) return null;
+    const { data, error } = await client.from('staff').select('*')
+      .ilike('email', email).eq('status', 'active').limit(1);
+    if (error) { if (!isMissingTable(error)) console.info('[staff lookup]', error.message); return null; }
+    return (data && data[0]) ? rowToJs('staff', data[0]) : null;
+  }
+
   /* ---------- Dữ liệu ---------- */
   // Trả về { data } khi thành công, hoặc { error } nếu tải lỗi (đã thử lại vài lần).
   // Không bao giờ trả dữ liệu trống một phần -> tránh nhầm "tài khoản rỗng" rồi tạo trùng.
@@ -164,6 +173,6 @@ HH.backend = (function () {
     if (error) console.error('[delByBuilding buildings]', error.message);
   }
 
-  return { enabled, init, signUp, signIn, signOut, getSession, currentUserId,
+  return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
     loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, KINDS };
 })();
