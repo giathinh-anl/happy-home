@@ -189,13 +189,28 @@
         actions: i => invoiceActions(ctx, i),
       });
       ctx._dt = dt;
+      const drafts = list.filter(i => i.status === 'draft');
+      const unpaid = list.filter(i => i.status !== 'paid' && i.status !== 'cancelled' && i.status !== 'draft');
+      const draftBanner = drafts.length ? `<div class="reminder-box" style="border-color:var(--info);border-left-color:var(--info)">
+        <div class="rem-head"><span>📤</span><b>Có ${drafts.length} hóa đơn nháp chờ phát hành</b></div>
+        <div class="rem-line"><span class="rem-ic" style="background:var(--info-bg)">🧾</span>
+          <div class="grow">Rà soát rồi phát hành để gửi tới khách thuê. Sau khi phát hành mới thu tiền được.
+            <div class="muted text-xs">${drafts.slice(0, 8).map(i => i.roomCode).join(' · ')}${drafts.length > 8 ? ' …' : ''}</div></div>
+          <button class="btn btn-primary btn-sm" id="issueAll">📤 Phát hành tất cả</button></div>
+      </div>` : '';
+      const collectBanner = (!drafts.length && unpaid.length) ? `<div class="alert alert-warning" style="margin-bottom:16px">
+        <span class="ic">₫</span><div><b>${unpaid.length} hóa đơn chưa thu đủ</b> — vào
+        <a href="#/b/${ctx.bid}/payments">Thanh toán & công nợ</a> để thu tiền và in phiếu thu.</div></div>` : '';
+
       return h`<div class="page-head">
-        <div><div class="page-title">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
+        <div class="row-gap-3"><span class="lz-home-ic">🧾</span>
+          <div><div class="page-title-lg">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div></div>
         <div class="page-actions"><button class="btn btn-primary" data-primary-new id="genInv2">+ Sinh hóa đơn</button></div>
       </div>
       <div id="periodSel" style="margin-bottom:16px"></div>
       ${raw(cards)}
-      <div style="margin-top:16px">${raw(dt.render())}</div>`;
+      <div style="margin-top:16px">${raw(draftBanner)}${raw(collectBanner)}</div>
+      <div>${raw(dt.render())}</div>`;
     },
     mount(ctx) {
       mountPeriodSelector();
@@ -208,6 +223,11 @@
       document.getElementById('genInv2').onclick = gen;
       const ie = document.getElementById('invExport');
       if (ie) ie.onclick = () => exportInvoices(ctx, S.invoicesOf(ctx.bid, S.period()));
+      const ia = document.getElementById('issueAll');
+      if (ia) ia.onclick = () => {
+        const ids = S.invoicesOf(ctx.bid, S.period()).filter(i => i.status === 'draft').map(i => i.id);
+        issueFlow(ctx, ids, null);
+      };
     },
   };
 
@@ -259,8 +279,10 @@
       { icon: '👁', label: 'Xem chi tiết', onClick: () => HH.router.go(`/b/${ctx.bid}/invoices/${i.id}`) },
       { icon: '🖨', label: 'In hóa đơn', onClick: () => printInvoice(ctx, i) },
     ];
-    if (i.status !== 'paid' && i.status !== 'cancelled')
-      items.push({ icon: '₫', label: 'Ghi nhận thanh toán', onClick: () => paymentDialog(ctx, i) });
+    if (i.status === 'draft')
+      items.push({ icon: '📤', label: 'Phát hành hóa đơn này', onClick: () => issueFlow(ctx, [i.id], null) });
+    if (i.status !== 'paid' && i.status !== 'cancelled' && i.status !== 'draft')
+      items.push({ icon: '₫', label: 'Thu tiền / ghi nhận thanh toán', onClick: () => paymentDialog(ctx, i) });
     if (S.isOwner() && i.status !== 'cancelled' && i.status !== 'draft')
       items.push({ sep: true }, { icon: '✕', label: 'Hủy hóa đơn', danger: true, onClick: () => cancelInvoice(ctx, i) });
     return items;
@@ -334,8 +356,10 @@
         <div class="l-amt">${U.currency(l.amount)}</div></div>`).join('');
       const pays = S.paymentsOf(inv.id);
       const payRows = pays.length ? pays.map(p => `<div class="between" style="padding:10px 0;border-bottom:1px solid var(--neutral-100)">
-        <div class="mono">${U.fmtDate(p.date)} · ${p.method}</div>
-        <div class="row-gap-3"><span class="mono b">${U.currency(p.amount)}</span><a href="#" class="text-xs">chứng từ</a></div></div>`).join('')
+        <div><span class="mono b">${U.esc(p.receiptNo || '')}</span>
+          <div class="muted text-xs mono">${U.fmtDate(p.date)} · ${U.esc(p.method || '')}${p.createdBy ? ' · ' + U.esc(p.createdBy) : ''}</div></div>
+        <div class="row-gap-3"><span class="mono b" style="color:var(--success)">${U.currency(p.amount)}</span>
+          <button class="btn btn-sm btn-outline" data-printrc="${p.id}">🖨 Phiếu thu</button></div></div>`).join('')
         : '<p class="muted center" style="padding:12px">Chưa có thanh toán nào</p>';
       const remaining = inv.total - inv.paid;
       const editedBanner = inv.edited ? `<div class="alert alert-purple" style="margin-bottom:16px"><span class="ic">✎</span>
@@ -344,8 +368,15 @@
       return h`<div class="inv-doc" style="margin:0 auto">
         <div class="page-head"><div><a class="back-link" href="#/b/${ctx.bid}/invoices">← Hóa đơn</a>
           <div class="page-title mono">${inv.id}</div></div>
-          <div class="page-actions"><button class="kebab" id="invMenu" style="border:1px solid var(--neutral-200)">⋯</button></div></div>
+          <div class="page-actions">
+            ${raw(inv.status === 'draft' ? '<button class="btn btn-primary" id="invIssue">📤 Phát hành</button>' : '')}
+            ${raw(remaining > 0 && inv.status !== 'draft' && inv.status !== 'cancelled'
+              ? `<button class="btn btn-primary" id="invCollect">₫ Thu tiền</button>` : '')}
+            <button class="btn btn-outline" id="invPrint">🖨 In</button>
+            <button class="kebab" id="invMenu" style="border:1px solid var(--neutral-200)">⋯</button></div></div>
         ${raw(editedBanner)}
+        ${raw(inv.status === 'draft' ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">ℹ</span>
+          <div><b>Hóa đơn đang ở trạng thái nháp.</b> Hãy rà soát rồi bấm <b>Phát hành</b> — sau khi phát hành mới gửi khách & thu tiền được.</div></div>` : '')}
         <div class="card inv-header-card">
           <div style="margin-bottom:12px">${raw(UI.statusBadge(inv.status, 'invoice'))}</div>
           <div class="b text-lg">Phòng ${inv.roomCode} · ${inv.tenantName}</div>
@@ -371,6 +402,13 @@
         ...(inv.status !== 'paid' && inv.status !== 'cancelled' ? [{ icon: '₫', label: 'Ghi nhận thanh toán', onClick: () => paymentDialog(ctx, inv) }] : []),
         ...(S.isOwner() && inv.status !== 'cancelled' ? [{ sep: true }, { icon: '✕', label: 'Hủy hóa đơn', danger: true, onClick: () => cancelInvoice(ctx, inv) }] : []),
       ]);
+      const ip = document.getElementById('invPrint'); if (ip) ip.onclick = () => printInvoice(ctx, inv);
+      const ii = document.getElementById('invIssue'); if (ii) ii.onclick = () => issueFlow(ctx, [inv.id], null);
+      const ic = document.getElementById('invCollect'); if (ic) ic.onclick = () => paymentDialog(ctx, inv);
+      document.querySelectorAll('[data-printrc]').forEach(b => b.onclick = () => {
+        const p = S.payment(b.dataset.printrc); if (!p) return;
+        printReceipt(ctx, receiptGroup(ctx, p));
+      });
       const meter = document.querySelector('[data-meter]');
       if (meter) meter.onclick = (e) => { e.preventDefault();
         UI.modal({ title: 'Ảnh đồng hồ điện', bodyHtml: `<div class="ocr-img" style="min-height:280px">🔌 Chưa có ảnh đồng hồ cho kỳ này</div>`,
@@ -432,48 +470,244 @@
           const date = new Date(el.querySelector('#payDate').value).toISOString();
           const note = el.querySelector('#payNote').value;
           setTimeout(() => {
+            const receiptNo = S.nextReceiptNo(date);   // 1 lần thu = 1 phiếu thu chung
+            const made = [];
             debts.forEach(i => { const need = i.total - i.paid; const applied = Math.min(need, amt);
-              if (applied > 0) { S.recordPayment(i.id, applied, method, date, note); amt -= applied; } });
-            close(); UI.toast('Đã ghi nhận thanh toán', { type: 'ok' }); HH.router.render();
+              if (applied > 0) { made.push(S.recordPayment(i.id, applied, method, date, note, receiptNo)); amt -= applied; } });
+            close();
+            UI.toast(`Đã thu ${U.currency(made.reduce((s, p) => s + p.amount, 0))} · phiếu ${receiptNo}`, { type: 'ok' });
+            if (made.length) receiptDialog(ctx, made, amt);   // amt còn dư = tiền thừa
+            HH.router.render();
           }, 500);
         };
       },
     });
   }
 
+  /* ================= PHIẾU THU ================= */
+  function receiptDialog(ctx, pays, credit) {
+    const total = pays.reduce((s, p) => s + p.amount, 0);
+    const p0 = pays[0];
+    const lines = pays.map(p => { const inv = S.invoice(p.invoiceId);
+      return `<div class="alloc-row"><span>${p.invoiceId}${inv ? ' · ' + S.periodLabel(inv.period) : ''}</span>
+        <span class="a-amt">${U.currency(p.amount)}</span></div>`; }).join('');
+    UI.modal({
+      title: 'Đã thu tiền', size: '',
+      bodyHtml: h`
+        <div class="alert alert-success" style="margin-bottom:14px"><span class="ic">✓</span>
+          <div>Đã ghi nhận <b>${U.currency(total)}</b> · Phiếu thu <b class="mono">${p0.receiptNo}</b></div></div>
+        <div class="grid-2">
+          <div class="field"><label>Phòng</label><div class="b">${p0.roomCode || ''}</div></div>
+          <div class="field"><label>Khách thuê</label><div class="b">${p0.tenantName || ''}</div></div>
+          <div class="field"><label>Hình thức</label><div>${p0.method}</div></div>
+          <div class="field"><label>Ngày thu</label><div class="mono">${U.fmtDate(p0.date)}</div></div>
+        </div>
+        <h4 style="margin:14px 0 6px">Phân bổ vào hóa đơn</h4>
+        <div class="alloc-box">${raw(lines)}
+          ${raw(credit > 0 ? `<div class="alloc-row" style="border-top:2px solid var(--neutral-200)">
+            <b>Tiền thừa (ghi nhận cho kỳ sau)</b><b class="a-amt" style="color:var(--info)">${U.currency(credit)}</b></div>` : '')}
+        </div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
+        <button class="btn btn-primary" id="printReceipt">🖨 In phiếu thu</button>`,
+      onMount(el) { el.querySelector('#printReceipt').onclick = () => printReceipt(ctx, pays); },
+    });
+  }
+
+  // Gom các khoản cùng 1 phiếu thu (dữ liệu cũ chưa có số phiếu -> chỉ lấy chính nó)
+  function receiptGroup(ctx, p) {
+    if (!p.receiptNo) return [p];
+    return S.paymentsOfBuilding(ctx.bid).filter(x => x.receiptNo === p.receiptNo);
+  }
+
+  function printReceipt(ctx, pays) {
+    if (!pays || !pays.length) { UI.toast('Không tìm thấy phiếu thu', { type: 'error' }); return; }
+    const b = S.building(ctx.bid) || {};
+    // bổ sung thông tin còn thiếu ở dữ liệu cũ
+    pays = pays.map(p => {
+      const inv = S.invoice(p.invoiceId) || {};
+      return Object.assign({}, p, {
+        receiptNo: p.receiptNo || ('PT-' + String(p.id || '').slice(-6).toUpperCase()),
+        roomCode: p.roomCode || inv.roomCode || '',
+        tenantName: p.tenantName || inv.tenantName || '',
+        createdBy: p.createdBy || S.prefs.userName,
+      });
+    });
+    const p0 = pays[0];
+    const total = pays.reduce((s, p) => s + p.amount, 0);
+    const rows = pays.map(p => { const inv = S.invoice(p.invoiceId);
+      return `<tr><td>${U.esc(p.invoiceId)}</td><td>${inv ? S.periodLabel(inv.period) : ''}</td>
+        <td class="r">${U.currency(p.amount)}</td></tr>`; }).join('');
+    const win = window.open('', '_blank', 'width=800,height=760');
+    if (!win) { UI.toast('Trình duyệt chặn cửa sổ in. Hãy cho phép popup.', { type: 'error' }); return; }
+    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${U.esc(p0.receiptNo)}</title>
+      <style>body{font-family:'Times New Roman',serif;font-size:14px;color:#000;max-width:640px;margin:26px auto;padding:0 18px;line-height:1.6}
+      .head{text-align:center;margin-bottom:16px}.brand{font-weight:700;font-size:15px}
+      h1{font-size:21px;margin:10px 0 2px;letter-spacing:1px}.no{color:#555;font-family:monospace}
+      table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #333;padding:6px 9px;font-size:13px}
+      .r{text-align:right}.tot{display:flex;justify-content:space-between;font-weight:700;font-size:16px;border-top:2px solid #000;padding-top:8px;margin-top:6px}
+      .info td{border:none;padding:3px 0}.words{font-style:italic;margin-top:6px}
+      .sign{display:flex;justify-content:space-around;margin-top:40px;text-align:center}.sign div{width:45%}
+      .sign i{font-size:12px;color:#555}@media print{body{margin:0}}</style></head><body>
+      <div class="head"><div class="brand">${U.esc(b.name || 'HAPPY HOME')}</div>
+        <div style="font-size:12px;color:#555">${U.esc(b.address || '')}</div>
+        <h1>PHIẾU THU</h1><div class="no">Số: ${U.esc(p0.receiptNo)}</div></div>
+      <table class="info">
+        <tr><td style="width:34%">Họ tên người nộp</td><td><b>${U.esc(p0.tenantName || '')}</b></td></tr>
+        <tr><td>Phòng</td><td><b>${U.esc(p0.roomCode || '')}</b></td></tr>
+        <tr><td>Hình thức thanh toán</td><td>${U.esc(p0.method || '')}</td></tr>
+        <tr><td>Ngày thu</td><td>${U.fmtDate(p0.date)}</td></tr>
+        <tr><td>Lý do nộp</td><td>${U.esc(p0.note || 'Thanh toán tiền phòng và dịch vụ')}</td></tr>
+      </table>
+      <table><thead><tr><th>Mã hóa đơn</th><th>Kỳ</th><th class="r">Số tiền</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="tot"><span>TỔNG CỘNG</span><span>${U.currency(total)}</span></div>
+      <div class="words">Bằng chữ: ${U.esc(docSo(total))}</div>
+      <div class="sign">
+        <div><b>NGƯỜI NỘP TIỀN</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(p0.tenantName || '')}</div>
+        <div><b>NGƯỜI THU TIỀN</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(p0.createdBy || '')}</div>
+      </div>
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    win.document.close();
+  }
+
+  // Đọc số tiền thành chữ (tiếng Việt)
+  function docSo(n) {
+    if (!n) return 'Không đồng';
+    const d = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+    const doc3 = (num, full) => {
+      const tr = Math.floor(num / 100), ch = Math.floor((num % 100) / 10), dv = num % 10;
+      let s = '';
+      if (full || tr > 0) s += d[tr] + ' trăm';
+      if (ch === 0) { if (dv > 0) s += (s ? ' lẻ ' : '') + d[dv]; }
+      else if (ch === 1) { s += (s ? ' ' : '') + 'mười'; if (dv === 1) s += ' một'; else if (dv === 5) s += ' lăm'; else if (dv > 0) s += ' ' + d[dv]; }
+      else { s += (s ? ' ' : '') + d[ch] + ' mươi'; if (dv === 1) s += ' mốt'; else if (dv === 5) s += ' lăm'; else if (dv > 0) s += ' ' + d[dv]; }
+      return s.trim();
+    };
+    const units = ['', ' nghìn', ' triệu', ' tỷ'];
+    const groups = []; let x = Math.round(n);
+    while (x > 0) { groups.push(x % 1000); x = Math.floor(x / 1000); }
+    let out = '';
+    for (let i = groups.length - 1; i >= 0; i--) {
+      if (groups[i] === 0) continue;
+      out += (out ? ' ' : '') + doc3(groups[i], i < groups.length - 1) + units[i];
+    }
+    out = out.trim();
+    return out.charAt(0).toUpperCase() + out.slice(1) + ' đồng';
+  }
+
   /* ================= THANH TOÁN & CÔNG NỢ ================= */
   HH.pages.payments = {
     render(ctx) {
-      const contracts = S.contractsOf(ctx.bid).filter(c => c.status === 'active' || c.status === 'terminating');
+      ctx._ptab = ctx._ptab || 'debt';
+      const contracts = S.contractsOf(ctx.bid).filter(c => c.status === 'active' || c.status === 'terminating' || c.status === 'expired');
       const rows = contracts.map(c => {
-        const debt = S.invoicesForContract(c.id).filter(i => i.status !== 'paid' && i.status !== 'cancelled')
-          .reduce((s, i) => s + (i.total - i.paid), 0);
-        return { c, debt };
+        const list = S.invoicesForContract(c.id).filter(i => i.status !== 'paid' && i.status !== 'cancelled');
+        const debt = list.reduce((s, i) => s + (i.total - i.paid), 0);
+        const oldest = list.sort((a, b) => (a.period || '').localeCompare(b.period || ''))[0];
+        const overdue = list.some(i => S.isOverdue(i));
+        return { c, debt, count: list.length, oldest, overdue };
       }).filter(x => x.debt > 0).sort((a, b) => b.debt - a.debt);
       const total = rows.reduce((s, x) => s + x.debt, 0);
-      const dt = UI.DataTable({
-        rows, rowId: x => x.c.id, searchKeys: [],
-        searchPlaceholder: 'Tìm phòng, khách...',
-        emptyTitle: 'Không có công nợ', emptyIcon: '✓', emptyDesc: 'Tất cả hóa đơn đã được thanh toán.',
-        columns: [
-          { key: 'room', label: 'Phòng', render: x => `<b>${x.c.roomCode}</b>` },
-          { key: 'tenant', label: 'Khách thuê', render: x => x.c.tenantName },
-          { key: 'debt', label: 'Công nợ', align: 'right', sortable: true, sortVal: x => x.debt, render: x => `<span style="color:var(--danger);font-weight:600">${U.currency(x.debt)}</span>` },
-        ],
-        actions: x => [{ icon: '₫', label: 'Ghi nhận thanh toán', onClick: () => {
-          const inv = S.invoicesForContract(x.c.id).find(i => i.status !== 'paid' && i.status !== 'cancelled');
-          if (inv) paymentDialog(ctx, inv);
-        } }],
-      });
-      ctx._dt = dt;
+      const overdueTotal = rows.filter(x => x.overdue).reduce((s, x) => s + x.debt, 0);
+
+      // ----- Phiếu thu kỳ đang chọn -----
+      const per = S.period();
+      const pays = S.paymentsOfBuilding(ctx.bid, per).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const collected = pays.reduce((s, p) => s + p.amount, 0);
+
+      const cards = `<div class="metric-grid">
+        ${UI.metricCard({ label: 'Tổng công nợ', value: total, format: 'currency', intent: 'warning', sub: rows.length + ' khách còn nợ' })}
+        ${UI.metricCard({ label: 'Trong đó quá hạn', value: overdueTotal, format: 'currency', intent: 'danger' })}
+        ${UI.metricCard({ label: `Đã thu ${S.periodLabel(per)}`, value: collected, format: 'currency', intent: 'success', sub: pays.length + ' phiếu thu' })}
+        ${UI.metricCard({ label: 'Số phiếu thu', value: pays.length, format: 'number' })}
+      </div>`;
+
+      let body;
+      if (ctx._ptab === 'debt') {
+        const dt = UI.DataTable({
+          rows, rowId: x => x.c.id, searchKeys: [],
+          searchable: false,
+          emptyTitle: 'Không có công nợ', emptyIcon: '✓', emptyDesc: 'Tất cả hóa đơn đã được thanh toán.',
+          columns: [
+            { key: 'room', label: 'Phòng', render: x => `<b>${x.c.roomCode}</b>` },
+            { key: 'tenant', label: 'Khách thuê', render: x => U.esc(x.c.tenantName) },
+            { key: 'count', label: 'Số HĐ nợ', align: 'right', render: x => x.count },
+            { key: 'oldest', label: 'Kỳ nợ cũ nhất', render: x => x.oldest ? S.periodLabel(x.oldest.period) : '—' },
+            { key: 'debt', label: 'Công nợ', align: 'right', sortable: true, sortVal: x => x.debt,
+              render: x => `<span style="color:var(--danger);font-weight:700">${U.currency(x.debt)}</span>` },
+            { key: 'st', label: '', render: x => x.overdue ? '<span class="badge s-danger"><span class="dot"></span>Quá hạn</span>' : '' },
+            { key: 'act', label: '', render: x => `<button class="btn btn-sm btn-primary" data-collect="${x.c.id}">₫ Thu tiền</button>` },
+          ],
+          rowClass: x => x.overdue ? 'row-expired' : '',
+        });
+        ctx._dt = dt;
+        body = dt.render();
+      } else {
+        const dt = UI.DataTable({
+          rows: pays, rowId: p => p.id, searchKeys: ['receiptNo', 'roomCode', 'tenantName', 'invoiceId'],
+          searchPlaceholder: 'Tìm số phiếu, phòng, khách...',
+          emptyTitle: 'Chưa có phiếu thu nào trong kỳ', emptyIcon: '🧾',
+          toolbarRight: `<button class="btn btn-success" id="payExport">📊 Xuất excel</button>`,
+          columns: [
+            { key: 'receiptNo', label: 'Số phiếu', mono: true, render: p => `<b class="mono">${U.esc(p.receiptNo || p.id)}</b>` },
+            { key: 'date', label: 'Ngày thu', sortable: true, sortVal: p => p.date, render: p => `<span class="mono">${U.fmtDate(p.date)}</span>` },
+            { key: 'roomCode', label: 'Phòng', render: p => p.roomCode || '—' },
+            { key: 'tenantName', label: 'Khách thuê', render: p => U.esc(p.tenantName || '') },
+            { key: 'invoiceId', label: 'Hóa đơn', mono: true },
+            { key: 'method', label: 'Hình thức' },
+            { key: 'amount', label: 'Số tiền', align: 'right', sortable: true, render: p => `<b class="mono" style="color:var(--success)">${U.currency(p.amount)}</b>` },
+          ],
+          actions: p => [
+            { icon: '🖨', label: 'In phiếu thu', onClick: () => printReceipt(ctx, receiptGroup(ctx, p)) },
+            ...(S.isOwner() ? [{ sep: true }, { icon: '↩', label: 'Hủy phiếu thu', danger: true, onClick: () => cancelReceipt(ctx, p) }] : []),
+          ],
+        });
+        ctx._dt = dt;
+        body = dt.render();
+      }
+
       return h`<div class="page-head">
-        <div><div class="page-title">Thanh toán & công nợ</div><div class="page-sub">${ctx.building.name}</div></div></div>
-        <div class="metric-grid" style="grid-template-columns:repeat(2,1fr);max-width:520px;margin-bottom:16px">
-          ${raw(UI.metricCard({ label: 'Tổng công nợ', value: total, format: 'currency', intent: 'warning' }))}
-          ${raw(UI.metricCard({ label: 'Số khách còn nợ', value: rows.length, format: 'number' }))}
-        </div>
-        ${raw(dt.render())}`;
+        <div class="row-gap-3"><span class="lz-home-ic">₫</span>
+          <div><div class="page-title-lg">Thanh toán & công nợ</div>
+          <div class="page-sub">${ctx.building.name} · kỳ ${S.periodLabel(per)}</div></div></div>
+      </div>
+      <div id="periodSel" style="margin-bottom:16px"></div>
+      ${raw(cards)}
+      <div class="tabs" style="margin:16px 0">
+        <button class="tab ${raw(ctx._ptab === 'debt' ? 'active' : '')}" data-ptab="debt">📌 Công nợ cần thu (${rows.length})</button>
+        <button class="tab ${raw(ctx._ptab === 'receipt' ? 'active' : '')}" data-ptab="receipt">🧾 Phiếu thu (${pays.length})</button>
+      </div>
+      ${raw(body)}`;
     },
-    mount(ctx) { ctx._dt.attach(document); },
+    mount(ctx) {
+      mountPeriodSelector();
+      ctx._dt.attach(document);
+      document.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { ctx._ptab = b.dataset.ptab; HH.router.render(); });
+      document.querySelectorAll('[data-collect]').forEach(b => b.onclick = (e) => {
+        e.stopPropagation();
+        const inv = S.invoicesForContract(b.dataset.collect)
+          .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
+          .sort((x, y) => (x.period || '').localeCompare(y.period || ''))[0];
+        if (inv) paymentDialog(ctx, inv); else UI.toast('Không còn hóa đơn cần thu', { type: 'ok' });
+      });
+      const ex = document.getElementById('payExport');
+      if (ex) ex.onclick = () => {
+        const pays = S.paymentsOfBuilding(ctx.bid, S.period());
+        U.downloadCSV(`phieu-thu-${ctx.bid}-${S.period()}.csv`,
+          ['Số phiếu', 'Ngày thu', 'Phòng', 'Khách thuê', 'Mã HĐ', 'Hình thức', 'Số tiền', 'Người thu'],
+          pays.map(p => [p.receiptNo || p.id, U.fmtDate(p.date), p.roomCode || '', p.tenantName || '',
+            p.invoiceId || '', p.method || '', p.amount, p.createdBy || '']));
+        UI.toast('Đã tải file Excel (CSV) phiếu thu', { type: 'ok' });
+      };
+    },
   };
+
+  function cancelReceipt(ctx, p) {
+    UI.dangerDialog({
+      title: `Hủy phiếu thu ${p.receiptNo || p.id}`,
+      description: `Số tiền <b>${U.currency(p.amount)}</b> sẽ được trả lại thành công nợ của hóa đơn ${p.invoiceId}.`,
+      consequences: ['Công nợ của khách tăng trở lại', 'Phiếu thu bị xóa khỏi sổ', 'Thao tác được ghi vào nhật ký'],
+      confirmLabel: 'Hủy phiếu thu', reasonLabel: 'Lý do hủy',
+      onConfirm: (reason) => { S.deletePayment(p.id, reason); UI.toast('Đã hủy phiếu thu', { type: 'ok' }); HH.router.render(); },
+    });
+  }
 })();

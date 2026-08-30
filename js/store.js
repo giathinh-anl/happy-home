@@ -417,7 +417,9 @@ HH.store = (function () {
       if (total === 0 && st) { replaceAll(res.data); return 'loaded'; }
       if (total === 0) { api.refreshExpiryFlags(); await syncAll(); return 'seeded'; }  // tài khoản mới: đẩy dữ liệu mẫu
       replaceAll(res.data);
-      if (api.refreshExpiryFlags()) persist();   // cập nhật cờ sắp hết hạn theo ngày hiện tại
+      // cập nhật cờ sắp hết hạn & trạng thái quá hạn theo ngày hiện tại
+      const c1 = api.refreshExpiryFlags(), c2 = api.refreshInvoiceStatus();
+      if (c1 || c2) persist();
       return 'loaded';
     },
 
@@ -706,19 +708,67 @@ HH.store = (function () {
       api.log('invoice.cancel', `Hủy hóa đơn ${id}`, reason);
       persist();
     },
-    recordPayment(invId, amount, method, date, note) {
-      const inv = api.invoice(invId); if (!inv) return;
+    /* ---------- THU TIỀN ---------- */
+    // Sinh số phiếu thu: PT-YYMM-NNN
+    nextReceiptNo(date) {
+      const d = date ? new Date(date) : new Date();
+      const pre = `PT-${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const n = payments.filter(p => (p.receiptNo || '').startsWith(pre)).length + 1;
+      return `${pre}-${String(n).padStart(3, '0')}`;
+    },
+    // Ghi nhận 1 khoản thu cho 1 hóa đơn; trả về phiếu thu vừa tạo
+    recordPayment(invId, amount, method, date, note, receiptNo) {
+      const inv = api.invoice(invId); if (!inv) return null;
+      const before = inv.paid;
       inv.paid = Math.min(inv.total, inv.paid + amount);
       inv.status = inv.paid >= inv.total ? 'paid' : 'partial';
-      payments.push({ id: U.uid('pm'), invoiceId: invId, buildingId: inv.buildingId,
-        contractId: inv.contractId, date, method, amount, note });
-      api.log('payment.record', `Ghi nhận thanh toán ${U.currency(amount)} cho ${invId}`);
+      const p = { id: U.uid('pm'), receiptNo: receiptNo || api.nextReceiptNo(date),
+        invoiceId: invId, buildingId: inv.buildingId, contractId: inv.contractId,
+        roomCode: inv.roomCode, tenantName: inv.tenantName,
+        date, method, amount: inv.paid - before, note, createdBy: prefs.userName,
+        createdAt: new Date().toISOString() };
+      payments.push(p);
+      api.log('payment.record', `Thu ${U.currency(p.amount)} cho ${invId} (${p.receiptNo})`);
       persist();
+      return p;
     },
-    issueInvoices(ids) {
-      ids.forEach(id => { const i = api.invoice(id); if (i && i.status === 'draft') i.status = 'issued'; });
-      api.log('invoice.issue', `Phát hành ${ids.length} hóa đơn`);
+    // Hoàn tác phiếu thu (ghi nhầm) — trả lại công nợ cho hóa đơn
+    deletePayment(payId, reason) {
+      const i = payments.findIndex(p => p.id === payId); if (i < 0) return;
+      const p = payments[i];
+      const inv = api.invoice(p.invoiceId);
+      if (inv) {
+        inv.paid = Math.max(0, inv.paid - p.amount);
+        inv.status = inv.paid <= 0 ? (api.isOverdue(inv) ? 'overdue' : 'issued')
+          : (inv.paid >= inv.total ? 'paid' : 'partial');
+      }
+      payments.splice(i, 1);
+      api.log('payment.delete', `Hủy phiếu thu ${p.receiptNo || p.id} (${U.currency(p.amount)})`, reason);
       persist();
+      if (usingBackend()) HH.backend.deleteOne('payments', payId);
+    },
+    isOverdue(inv) { return inv && inv.dueDate && U.daysBetween(U.today(), inv.dueDate) < 0 && (inv.total - inv.paid) > 0; },
+    // Cập nhật trạng thái quá hạn theo ngày hiện tại
+    refreshInvoiceStatus() {
+      let changed = false;
+      invoices.forEach(i => {
+        if (i.status === 'cancelled' || i.status === 'draft' || i.status === 'paid') return;
+        const should = api.isOverdue(i) ? 'overdue' : (i.paid > 0 ? 'partial' : 'issued');
+        if (i.status !== should) { i.status = should; changed = true; }
+      });
+      return changed;
+    },
+    paymentsOfBuilding: (bid, period) => payments.filter(p =>
+      p.buildingId === bid && (!period || (p.date || '').slice(0, 7) === period)),
+    payment: (id) => payments.find(p => p.id === id),
+
+    issueInvoices(ids) {
+      let n = 0;
+      ids.forEach(id => { const i = api.invoice(id);
+        if (i && (i.status === 'draft')) { i.status = api.isOverdue(i) ? 'overdue' : 'issued'; n++; } });
+      api.log('invoice.issue', `Phát hành ${n} hóa đơn`);
+      persist();
+      return n;
     },
     log(action, message, reason) {
       auditLog.unshift({ id: U.uid('lg'), at: new Date().toISOString(),
