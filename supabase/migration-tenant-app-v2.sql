@@ -24,7 +24,9 @@ begin
                   'roomCode', v_t.room_code, 'idNumber', v_t.id_number, 'dob', v_t.dob,
                   'gender', v_t.gender, 'isRep', v_t.is_rep, 'tamtru', v_t.tamtru,
                   'vehiclePlate', v_t.vehicle_plate),
-    'building', jsonb_build_object('id', v_b.id, 'name', v_b.name, 'address', v_b.address),
+    'building', jsonb_build_object('id', v_b.id, 'name', v_b.name, 'address', v_b.address,
+                  'contactName', to_jsonb(v_b) ->> 'contact_name',
+                  'contactPhone', to_jsonb(v_b) ->> 'contact_phone'),
     'room',     jsonb_build_object('code', v_r.code, 'price', v_r.price, 'status', v_r.status,
                   'typeLabel', v_r.type_label, 'area', v_r.area, 'maxOccupants', v_r.max_occupants),
     'contract', case when v_c.id is null then null else jsonb_build_object(

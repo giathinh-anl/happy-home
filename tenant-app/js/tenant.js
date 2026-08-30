@@ -80,6 +80,7 @@
     if (h === '#/history') return screenPayHistory();
     if (h === '#/account') return screenAccount();
     if (h === '#/services') return screenServices();
+    if (h === '#/chat') return screenChat();
     return screenHome();
   }
 
@@ -200,7 +201,10 @@
            <button class="iconbtn" id="reload" title="Tải lại">⟳</button></div>`
       : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
-    el('tapp').innerHTML = `<div class="t-app">${header}<div class="t-main">${body}</div>${tabs}</div>`;
+    // Nút trợ lý ảo nổi — hiện ở các màn hình chính
+    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">💬</button>` : '';
+    el('tapp').innerHTML = `<div class="t-app">${header}<div class="t-main">${body}</div>${fab}${tabs}</div>`;
+    const fb = el('chatFab'); if (fb) fb.onclick = () => go('#/chat');
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
     const rl = el('reload'); if (rl) rl.onclick = async () => {
       rl.textContent = '⏳';
@@ -256,10 +260,11 @@
       ${ctWarn}
       ${dueCard}
       <div class="section-title">Truy cập nhanh</div>
-      <div class="quick-grid">
+      <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
         <button class="quick-item" data-nav="#/invoices"><div class="qic" style="background:var(--info-bg)">🧾</div><div class="qlabel">Hóa đơn</div></button>
         <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">📷</div><div class="qlabel">Ghi chỉ số</div></button>
         <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">🔧</div><div class="qlabel">Báo hỏng</div></button>
+        <button class="quick-item" data-nav="#/chat"><div class="qic" style="background:var(--purple-bg)">💬</div><div class="qlabel">Trợ lý ảo</div></button>
       </div>
       ${usageCard}
       <div class="section-title">Thông báo gần đây</div>
@@ -630,6 +635,7 @@
         <button class="t-action" data-nav="#/history"><span class="aic" style="background:var(--success-bg)">💳</span>Lịch sử thanh toán<span class="chev">›</span></button>
         <button class="t-action" data-nav="#/contract"><span class="aic" style="background:var(--brand-50)">📄</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
         <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">🔧</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/chat"><span class="aic" style="background:var(--purple-bg)">💬</span>Trợ lý ảo<span class="chev">›</span></button>
         <button class="t-action" id="helpBtn"><span class="aic" style="background:var(--info-bg)">❓</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
@@ -644,6 +650,264 @@
       try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
       state.phone = null; state.data = null; go('#/login');
     };
+  }
+
+  /* ============================================================
+     TRỢ LÝ ẢO (Phần V)
+     Ràng buộc an toàn:
+     - Danh tính lấy từ phiên đăng nhập (state.phone đã được máy chủ xác thực),
+       KHÔNG lấy từ nội dung tin nhắn.
+     - Trợ lý CHỈ đọc dữ liệu; không sửa hóa đơn/thanh toán.
+     - Không đoán khi không có dữ liệu — trả lời trung thực và chuyển tiếp.
+     ============================================================ */
+  const chat = { msgs: [], busy: false };
+
+  const SUGGESTIONS = [
+    'Tháng này tôi đóng bao nhiêu?',
+    'Hạn đóng tiền khi nào?',
+    'Tiền điện nước tháng này',
+    'Hợp đồng của tôi',
+    'Báo hỏng thiết bị',
+    'Thông tin chuyển khoản',
+  ];
+
+  const norm = (s) => (s || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+  const hasAny = (t, arr) => arr.some(k => t.includes(k));
+
+  function pushMsg(who, html, actions) {
+    chat.msgs.push({ who, html, actions: actions || [] });
+  }
+
+  /** Bộ hiểu ý định — trả lời DỰA TRÊN dữ liệu thật của khách đang đăng nhập */
+  function answer(text) {
+    const t = norm(text);
+    const d = state.data;
+    const inv = currentUnpaid();
+    const c = d.contract;
+
+    // 1) Chào hỏi
+    if (hasAny(t, ['xin chao', 'chao ', 'hello', 'hi ', 'alo']) && t.length < 20)
+      return { html: `Chào anh/chị <b>${esc(d.tenant.fullName)}</b>! Em có thể giúp gì cho phòng <b>${esc(d.tenant.roomCode || '')}</b> ạ?`,
+        actions: [{ label: 'Tiền tháng này', send: 'Tháng này tôi đóng bao nhiêu?' },
+                  { label: 'Báo hỏng', go: '#/repair' }] };
+
+    // 2) Số tiền phải đóng / hóa đơn — kèm BẢNG PHÂN TÍCH
+    if (hasAny(t, ['bao nhieu', 'tien phong', 'hoa don', 'phai dong', 'phai tra', 'thanh toan bao nhieu', 'no bao nhieu', 'cong no'])) {
+      if (!inv) return { html: `Hiện anh/chị <b>không còn khoản nào phải thanh toán</b>. Cảm ơn anh/chị đã đóng đầy đủ ạ! ✓`,
+        actions: [{ label: 'Xem lịch sử hóa đơn', go: '#/invoices' }] };
+      const remain = inv.total - inv.paid;
+      const rows = (inv.lines || []).map(l => `<tr><td>${esc(l.label)}</td><td>${vnd(l.amount)}</td></tr>`).join('');
+      const dl = daysLeft(inv.dueDate);
+      return {
+        html: `<div class="b-title">Hóa đơn ${vnPeriod(inv.period)}</div>
+          <table>${rows}<tr class="sum"><td>Tổng cộng</td><td>${vnd(inv.total)}</td></tr>
+          ${inv.paid > 0 ? `<tr><td>Đã thanh toán</td><td>−${vnd(inv.paid)}</td></tr>
+            <tr class="sum"><td>Còn phải đóng</td><td>${vnd(remain)}</td></tr>` : ''}</table>
+          <div class="b-note">Hạn: <b>${fmtDate(inv.dueDate)}</b> · ${dl < 0
+            ? `<span class="b-warn">đã quá hạn ${Math.abs(dl)} ngày</span>` : `còn ${dl} ngày`}</div>`,
+        actions: [{ label: 'Xem chi tiết', go: '#/invoice/' + inv.id },
+                  { label: 'Thanh toán', go: '#/pay/' + inv.id, solid: true }] };
+    }
+
+    // 3) Hạn đóng tiền
+    if (hasAny(t, ['han dong', 'khi nao', 'han thanh toan', 'bao gio', 'deadline', 'han cuoi'])) {
+      if (!inv) return { html: 'Hiện chưa có hóa đơn nào đang chờ thanh toán ạ.', actions: [{ label: 'Xem hóa đơn', go: '#/invoices' }] };
+      const dl = daysLeft(inv.dueDate);
+      return { html: `Hóa đơn <b>${vnPeriod(inv.period)}</b> có hạn thanh toán ngày <b>${fmtDate(inv.dueDate)}</b>.<br>
+        ${dl < 0 ? `<span class="b-warn">Đã quá hạn ${Math.abs(dl)} ngày</span> — anh/chị vui lòng thanh toán sớm giúp em ạ.`
+                 : `Còn <b>${dl} ngày</b> nữa ạ.`}`,
+        actions: [{ label: 'Thanh toán ngay', go: '#/pay/' + inv.id, solid: true }] };
+    }
+
+    // 4) Điện nước / tiêu thụ
+    if (hasAny(t, ['dien nuoc', 'tien dien', 'tien nuoc', 'chi so', 'tieu thu', 'so dien', 'so nuoc', 'kwh'])) {
+      const u = latestUsage();
+      if (!u) return { html: 'Em chưa thấy dữ liệu chỉ số điện nước của phòng mình. Anh/chị có thể tự gửi chỉ số để chủ nhà duyệt ạ.',
+        actions: [{ label: 'Gửi chỉ số', go: '#/readings', solid: true }] };
+      const eLine = (inv && (inv.lines || []).find(l => l.type === 'elec' || /điện/i.test(l.label)));
+      const wLine = (inv && (inv.lines || []).find(l => /nước/i.test(l.label)));
+      return { html: `<div class="b-title">Tiêu thụ ${esc(u.label)}</div>
+        <table>
+          <tr><td>⚡ Điện</td><td>${u.elec != null ? num(u.elec) + ' kWh' : '—'}</td></tr>
+          ${eLine ? `<tr><td>Tiền điện</td><td>${vnd(eLine.amount)}</td></tr>` : ''}
+          <tr><td>💧 Nước</td><td>${u.water != null ? num(u.water) + ' m³' : '—'}</td></tr>
+          ${wLine ? `<tr><td>Tiền nước</td><td>${vnd(wLine.amount)}</td></tr>` : ''}
+        </table>
+        <div class="b-note">Số liệu lấy từ chỉ số chủ nhà đã ghi.</div>`,
+        actions: [{ label: 'Lịch sử điện nước', go: '#/usage' }, { label: 'Bảng giá', go: '#/services' }] };
+    }
+
+    // 5) Hợp đồng
+    if (hasAny(t, ['hop dong', 'het han', 'gia han', 'dieu khoan', 'thoi han thue'])) {
+      if (!c) return { html: 'Em chưa thấy thông tin hợp đồng của phòng mình trên hệ thống. Anh/chị vui lòng liên hệ chủ nhà ạ.',
+        actions: [{ label: 'Liên hệ chủ nhà', act: 'contact' }] };
+      const dl = c.end ? daysLeft(c.end) : null;
+      return { html: `<div class="b-title">Hợp đồng phòng ${esc(d.tenant.roomCode || '')}</div>
+        <table>
+          <tr><td>Giá thuê</td><td>${vnd(c.rent)}</td></tr>
+          <tr><td>Tiền cọc</td><td>${vnd(c.deposit)}</td></tr>
+          <tr><td>Từ ngày</td><td>${fmtDate(c.start)}</td></tr>
+          <tr><td>Đến ngày</td><td>${fmtDate(c.end)}</td></tr>
+        </table>
+        ${dl != null ? `<div class="b-note">${dl < 0
+          ? `<span class="b-warn">Hợp đồng đã hết hạn ${Math.abs(dl)} ngày</span> — vui lòng liên hệ chủ nhà để gia hạn.`
+          : (dl <= 30 ? `<span class="b-warn">Sắp hết hạn — còn ${dl} ngày.</span>` : `Còn <b>${dl} ngày</b>.`)}</div>` : ''}`,
+        actions: [{ label: 'Xem điều khoản', go: '#/contract' }] };
+    }
+
+    // 6) Báo hỏng -> THẺ XÁC NHẬN trước khi tạo phiếu
+    if (hasAny(t, ['bao hong', 'hu ', 'hong ', 'sua chua', 'sua giup', 'khong len', 'khong chay', 'ro ri', 'chap dien', 'mat dien', 'mat nuoc', 'tac ', 'bi hu'])) {
+      // Ưu tiên thiết bị cụ thể trước (VD "máy lạnh chảy nước" phải là Máy lạnh, không phải Nước)
+      const cat = hasAny(t, ['may lanh', 'dieu hoa', 'khong mat']) ? 'Máy lạnh'
+        : hasAny(t, ['chap dien', 'o cam', 'bong den', 'mat dien', 'cup dien', 'aptomat', 'dien']) ? 'Điện'
+        : hasAny(t, ['nuoc', 'voi ', 'ro ri', 'bon cau', 'tac ', 'nghet']) ? 'Nước'
+        : 'Khác';
+      const title = text.trim().replace(/^(cho|giup|toi|minh|em|anh|chi)\s+/i, '');
+      return { html: `Em sẽ tạo <b>yêu cầu sửa chữa</b> với nội dung:<br>
+        <div style="background:var(--neutral-100);padding:10px 12px;border-radius:10px;margin:8px 0">
+          <b>${esc(cat)}</b><br>"${esc(title)}"</div>
+        Anh/chị xác nhận giúp em ạ?`,
+        actions: [{ label: 'Xác nhận gửi', act: 'mkincident', data: { cat, title }, solid: true },
+                  { label: 'Sửa lại', go: '#/repair' }] };
+    }
+
+    // 7) Thanh toán / chuyển khoản
+    if (hasAny(t, ['chuyen khoan', 'ngan hang', 'stk', 'so tai khoan', 'qr', 'tra tien', 'dong tien o dau', 'thanh toan the nao'])) {
+      return { html: `Anh/chị có thể thanh toán bằng <b>mã QR</b> hoặc <b>chuyển khoản</b>:
+        <table>
+          <tr><td>Ngân hàng</td><td>${esc(BANK.name)}</td></tr>
+          <tr><td>Số tài khoản</td><td>${esc(BANK.account)}</td></tr>
+          <tr><td>Chủ tài khoản</td><td>${esc(BANK.holder)}</td></tr>
+        </table>
+        <div class="b-note">Nội dung ghi: <b>${esc(d.tenant.roomCode || '')} ${inv ? vnPeriod(inv.period) : ''}</b></div>`,
+        actions: inv ? [{ label: 'Mở trang thanh toán', go: '#/pay/' + inv.id, solid: true }] : [] };
+    }
+
+    // 8) Bảng giá dịch vụ
+    if (hasAny(t, ['gia dich vu', 'don gia', 'bang gia', 'gia dien', 'gia nuoc', 'phi rac', 'internet bao nhieu'])) {
+      const svcs = d.services || [];
+      if (!svcs.length) return { html: 'Em chưa có bảng giá dịch vụ trên hệ thống. Anh/chị vui lòng hỏi chủ nhà ạ.',
+        actions: [{ label: 'Liên hệ chủ nhà', act: 'contact' }] };
+      return { html: `<div class="b-title">Bảng giá dịch vụ</div><table>
+        <tr><td>Tiền phòng</td><td>${vnd(d.room.price)}</td></tr>
+        ${svcs.map(s => `<tr><td>${esc(s.name)}</td><td>${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</td></tr>`).join('')}
+        </table>`, actions: [{ label: 'Xem đầy đủ', go: '#/services' }] };
+    }
+
+    // 9) Tài sản trong phòng
+    if (hasAny(t, ['tai san', 'do dac', 'thiet bi', 'trong phong co gi', 'noi that'])) {
+      const a = d.assets || [];
+      if (!a.length) return { html: 'Phòng mình chưa có danh sách tài sản trên hệ thống ạ.' };
+      return { html: `Phòng <b>${esc(d.tenant.roomCode)}</b> có <b>${a.length}</b> tài sản:<br>
+        ${a.map(x => `• ${esc(x.name)}${(x.quantity || 1) > 1 ? ' ×' + x.quantity : ''}`).join('<br>')}
+        <div class="b-note">Vui lòng giữ gìn giúp em ạ.</div>`,
+        actions: [{ label: 'Xem phòng của tôi', go: '#/room' }] };
+    }
+
+    // 10) Liên hệ chủ nhà
+    if (hasAny(t, ['lien he', 'so dien thoai chu', 'goi chu', 'chu nha', 'chu tro', 'gap ai'])) {
+      return { html: 'Em kết nối anh/chị với chủ nhà nhé.', actions: [{ label: 'Liên hệ chủ nhà', act: 'contact', solid: true }] };
+    }
+
+    // 11) Lịch sử thanh toán
+    if (hasAny(t, ['da dong', 'lich su', 'bien lai', 'phieu thu', 'da tra'])) {
+      const p = d.payments || [];
+      if (!p.length) return { html: 'Em chưa thấy lịch sử thanh toán nào ạ.' };
+      const total = p.reduce((s, x) => s + x.amount, 0);
+      return { html: `Anh/chị đã thanh toán <b>${vnd(total)}</b> qua <b>${p.length}</b> lần.<br>
+        Gần nhất: <b>${vnd(p[0].amount)}</b> ngày ${fmtDate(p[0].date)}.`,
+        actions: [{ label: 'Xem lịch sử', go: '#/history' }] };
+    }
+
+    // 12) Không hiểu -> trả lời trung thực + chuyển tiếp cho quản lý (đúng đặc tả)
+    return { html: null, forward: text };
+  }
+
+  /* ---------- màn hình chat ---------- */
+  function screenChat() {
+    if (!chat.msgs.length) {
+      pushMsg('bot', `Chào anh/chị <b>${esc(state.data.tenant.fullName)}</b>! Em là trợ lý của Happy Home.<br>
+        Em có thể tra cứu <b>tiền phòng, hạn đóng, điện nước, hợp đồng</b> và <b>tạo yêu cầu sửa chữa</b> giúp anh/chị.`);
+    }
+    const body = chat.msgs.map((m, i) => `
+      <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
+        <div class="bubble">${m.html}
+          ${m.actions.length ? `<div class="b-actions">${m.actions.map((a, j) =>
+            `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
+        </div></div>`).join('');
+
+    el('tapp').innerHTML = `<div class="chat-wrap">
+      <div class="t-header plain"><button class="back" id="back">←</button>
+        <div class="htitle">Trợ lý Happy Home</div></div>
+      <div class="chat-body" id="chatBody">${body}${chat.busy ? '<div class="chat-typing"><i></i><i></i><i></i></div>' : ''}</div>
+      <div class="chat-sugg">${SUGGESTIONS.map(s => `<button data-sugg="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      <div class="chat-input">
+        <textarea id="chatIn" rows="1" placeholder="Nhập câu hỏi..."></textarea>
+        <button class="chat-send" id="chatSend" aria-label="Gửi">➤</button>
+      </div></div>`;
+
+    el('back').onclick = () => go('#/home');
+    const bodyEl = el('chatBody'); bodyEl.scrollTop = bodyEl.scrollHeight;
+    const inp = el('chatIn');
+    const send = () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; inp.style.height = 'auto'; ask(v); };
+    el('chatSend').onclick = send;
+    inp.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
+    inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(96, inp.scrollHeight) + 'px'; };
+    document.querySelectorAll('[data-sugg]').forEach(b => b.onclick = () => ask(b.dataset.sugg));
+    document.querySelectorAll('[data-mi]').forEach(b => b.onclick = () => {
+      const a = chat.msgs[+b.dataset.mi].actions[+b.dataset.ai];
+      if (a.go) return go(a.go);
+      if (a.send) return ask(a.send);
+      if (a.act === 'contact') return contactLandlord();
+      if (a.act === 'mkincident') return doCreateIncident(a.data);
+    });
+  }
+
+  function ask(text) {
+    pushMsg('me', esc(text));
+    chat.busy = true; screenChat();
+    setTimeout(() => {
+      const res = answer(text);
+      chat.busy = false;
+      if (res.html) pushMsg('bot', res.html, res.actions);
+      else forwardToLandlord(res.forward);
+      screenChat();
+    }, 420);
+  }
+
+  // Không xử lý được -> trả lời trung thực + gửi câu hỏi cho chủ nhà (đúng đặc tả §5.1)
+  async function forwardToLandlord(text) {
+    pushMsg('bot', `Việc này em chưa hỗ trợ được ạ. Em đã <b>chuyển câu hỏi cho bộ phận quản lý</b>,
+      anh/chị sẽ được liên hệ lại trong giờ làm việc.`, [{ label: 'Liên hệ ngay', act: 'contact' }]);
+    screenChat();
+    try {
+      await rpc('tenant_create_incident', { p_phone: state.phone, p_category: 'Khác', p_title: '[Câu hỏi] ' + text });
+      state.data = await loadData(state.phone);
+    } catch (e) { /* không chặn hội thoại nếu gửi lỗi */ }
+  }
+
+  async function doCreateIncident(data) {
+    pushMsg('bot', 'Em đang gửi yêu cầu...'); screenChat();
+    try {
+      await rpc('tenant_create_incident', { p_phone: state.phone, p_category: data.cat, p_title: data.title });
+      state.data = await loadData(state.phone);
+      chat.msgs.pop();
+      pushMsg('bot', `Đã gửi yêu cầu <b>${esc(data.cat)}</b> tới chủ nhà ✓<br>Anh/chị theo dõi tiến độ trong mục Yêu cầu sửa chữa nhé.`,
+        [{ label: 'Theo dõi yêu cầu', go: '#/track', solid: true }]);
+    } catch (e) {
+      chat.msgs.pop();
+      pushMsg('bot', e.message === 'NOT_ACTIVATED'
+        ? 'Chức năng gửi yêu cầu chưa được kích hoạt trên hệ thống ạ.'
+        : 'Em gửi chưa được, anh/chị thử lại giúp em ạ.', [{ label: 'Thử lại', go: '#/repair' }]);
+    }
+    screenChat();
+  }
+
+  function contactLandlord() {
+    const phone = (state.data.building && state.data.building.contactPhone) || '';
+    if (!phone) { toast('Chưa có số liên hệ của chủ nhà'); return; }
+    location.href = 'tel:' + phone;
   }
 
   /* ---------- khởi động ---------- */
