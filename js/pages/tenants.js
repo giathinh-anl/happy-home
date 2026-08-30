@@ -18,7 +18,7 @@
   function tenantRow(t) {
     const doc = (ok, label) => ok ? `<span class="tn-doc-ok">✓ ${label}</span>` : `<span class="tn-doc-miss">✗ ${label}</span>`;
     return `<tr>
-      <td><div class="row-gap-2">
+      <td><div class="row-gap-2 tn-name">
         <span class="avatar" style="width:32px;height:32px;flex:0 0 32px;font-size:12px">${U.initials(t.fullName)}</span>
         <div><b>${t.fullName}</b><div class="muted text-xs mono">${t.roomCode}</div>
           <div class="tn-badges">${t.isRep ? '<span class="tn-tag rep">Đại diện hợp đồng</span>' : ''}
@@ -27,9 +27,9 @@
       <td class="mono b">${t.phone}</td>
       <td class="mono">${t.dob}</td>
       <td>${t.gender}</td>
-      <td class="tn-cell-lines"><div class="ln"><span class="k">📍 Địa chỉ:</span>${U.esc(t.address)}</div>
-        <div class="ln"><span class="k">💼 Nghề nghiệp:</span>${U.esc(t.occupation)}</div></td>
-      <td class="tn-cell-lines">
+      <td class="tn-cell-lines tn-cell-addr"><div class="ln"><span class="k">Địa chỉ:</span>${U.esc(t.address)}</div>
+        <div class="ln"><span class="k">Nghề nghiệp:</span>${U.esc(t.occupation)}</div></td>
+      <td class="tn-cell-lines tn-cell-cccd">
         <div class="ln"><span class="k">Số CCCD:</span><b class="mono">${t.idNumber}</b></div>
         <div class="ln"><span class="k">Ngày cấp:</span><span class="mono">${t.cccdIssueDate}</span></div>
         <div class="ln"><span class="k">Nơi cấp:</span>${t.cccdIssuePlace}</div>
@@ -41,19 +41,28 @@
     </tr>`;
   }
 
-  function renderGroups(ctx) {
+  const tnPage = { page: 1, size: 8 };   // phân trang theo PHÒNG (mỗi trang N phòng)
+
+  function filteredTenants(ctx) {
     let list = S.tenantsOf(ctx.bid);
     const f = TN_FILTERS.find(x => x.key === tnFilter);
     if (f) list = list.filter(f.test);
     if (tnSearch) { const q = tnSearch.toLowerCase();
-      list = list.filter(t => t.fullName.toLowerCase().includes(q) || t.phone.includes(q)); }
-    if (list.length === 0) return `<tr><td colspan="9"><div class="empty"><div class="ic">👤</div><h4>Không có khách thuê phù hợp</h4></div></td></tr>`;
-    const rooms = [...new Set(list.map(t => t.roomCode))].sort();
-    return rooms.map(rc => {
-      const grp = list.filter(t => t.roomCode === rc);
-      return `<tr class="tenant-group-head"><td colspan="9">▾ ${rc} <span class="cnt">(${grp.length}) khách thuê</span></td></tr>`
+      list = list.filter(t => (t.fullName || '').toLowerCase().includes(q) || (t.phone || '').includes(q)); }
+    return list;
+  }
+
+  function renderGroups(ctx) {
+    const list = filteredTenants(ctx);
+    if (list.length === 0) return { body: `<tr><td colspan="9"><div class="empty"><div class="ic">👤</div><h4>Không có khách thuê phù hợp</h4><p class="muted">Thử đổi từ khóa hoặc bộ lọc.</p></div></td></tr>`, pg: null };
+    const rooms = [...new Set(list.map(t => t.roomCode || '(chưa gắn phòng)'))].sort();
+    const pg = UI.paginate(rooms, tnPage, { unit: 'phòng', sizes: [8, 16, 32] });
+    const body = pg.items.map(rc => {
+      const grp = list.filter(t => (t.roomCode || '(chưa gắn phòng)') === rc);
+      return `<tr class="tenant-group-head"><td colspan="9">${U.esc(rc)} <span class="cnt">(${grp.length}) khách thuê</span></td></tr>`
         + grp.map(tenantRow).join('');
     }).join('');
+    return { body, pg };
   }
 
   function tnChips(ctx) {
@@ -70,22 +79,23 @@
   HH.pages.tenants = {
     render(ctx) {
       const total = S.tenantsOf(ctx.bid).length;
+      const noTamtru = S.tenantsOf(ctx.bid).filter(t => !t.tamtru).length;
+      const g = renderGroups(ctx); ctx._g = g;
       return h`
         <div class="page-head">
-          <div><div class="page-title-lg">Quản lý danh sách khách thuê</div>
-            <div class="page-sub">Tất cả khách thuê trong ${ctx.building.name} · ${total} người</div></div>
+          <div><div class="page-title-lg">Khách thuê</div>
+            <div class="page-sub">${ctx.building.name} · ${total} người đang ở</div></div>
           <div class="page-actions">
-            <button class="btn btn-primary" data-primary-new title="Thêm khách thuê" style="width:42px;font-size:20px">＋</button>
-            <button class="btn" style="background:#f59e0b;color:#fff">🕘 Hết tạm trú/Visa <span class="cnt-badge" style="background:#fff;color:#f59e0b">1</span></button>
-            <button class="btn btn-success" id="tnExport">📊 Xuất excel</button>
-            <button class="btn" style="background:var(--brand-600);color:#fff">🔎 Tra cứu khách cũ</button>
-            <button class="btn" style="background:#f59e0b;color:#fff">📋 Mẫu tạm trú</button>
+            <button class="btn btn-outline" id="tnTamtru">${raw(HH.icon('clock', 16))} Hết tạm trú/Visa
+              ${raw(noTamtru ? `<span class="cnt-badge">${noTamtru}</span>` : '')}</button>
+            <button class="btn btn-outline" id="tnExport">${raw(HH.icon('sheet', 16))} Xuất Excel</button>
+            <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Thêm khách thuê</button>
           </div>
         </div>
         <div class="between wrap" style="gap:12px;margin-bottom:16px">
-          <div class="lz-chips" style="margin-bottom:0"><span class="lz-chips-ic">▽</span>${raw(tnChips(ctx))}</div>
-          <div class="dt-search" style="max-width:280px"><span class="ic">🔍</span>
-            <input class="input" id="tnSearch" placeholder="Tìm tên hoặc SĐT..." value="${tnSearch}"></div>
+          <div class="lz-chips" style="margin-bottom:0">${raw(HH.icon('filter', 16))}${raw(tnChips(ctx))}</div>
+          <div class="dt-search" style="max-width:290px"><span class="ic">${raw(HH.icon('search', 16))}</span>
+            <input class="input" id="tnSearch" placeholder="Tìm tên hoặc số điện thoại..." value="${tnSearch}"></div>
         </div>
         <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
           <thead><tr>
@@ -93,10 +103,13 @@
             <th>Ngày sinh</th><th>Giới tính</th><th>Địa chỉ & Nghề nghiệp</th>
             <th>Thông tin CCCD</th><th>Xe</th><th></th>
           </tr></thead>
-          <tbody id="tnBody">${raw(renderGroups(ctx))}</tbody>
-        </table></div></div>`;
+          <tbody id="tnBody">${raw(g.body)}</tbody>
+        </table></div></div>
+        <div id="tnPg">${raw(g.pg ? g.pg.html : '')}</div>`;
     },
     mount(ctx) {
+      const wirePg = () => { const g = ctx._g; if (g && g.pg) g.pg.attach(document, () => { HH.router.render(); }); };
+      wirePg();
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/tenants/new`);
       document.getElementById('tnExport').onclick = () => {
         U.downloadCSV(`khach-thue-${ctx.bid}.csv`,
@@ -107,9 +120,17 @@
             t.ttlock ? 'Đã kết nối' : 'Chưa', t.tamtru ? 'Đã ĐK' : 'Chưa']));
         UI.toast('Đã tải file Excel (CSV) khách thuê', { type: 'ok' });
       };
-      const refresh = () => { document.getElementById('tnBody').innerHTML = renderGroups(ctx); wireRows(ctx); };
+      const tt = document.getElementById('tnTamtru');
+      if (tt) tt.onclick = () => { tnFilter = tnFilter === 'notamtru' ? null : 'notamtru'; tnPage.page = 1; HH.router.render(); };
+      const refresh = () => {
+        tnPage.page = 1;
+        const g = renderGroups(ctx); ctx._g = g;
+        document.getElementById('tnBody').innerHTML = g.body;
+        document.getElementById('tnPg').innerHTML = g.pg ? g.pg.html : '';
+        wireRows(ctx); wirePg();
+      };
       document.querySelectorAll('[data-tnfilter]').forEach(b => b.onclick = () => {
-        tnFilter = (tnFilter === b.dataset.tnfilter) ? null : b.dataset.tnfilter; HH.router.render();
+        tnFilter = (tnFilter === b.dataset.tnfilter) ? null : b.dataset.tnfilter; tnPage.page = 1; HH.router.render();
       });
       const s = document.getElementById('tnSearch');
       s.addEventListener('input', U.debounce(() => { tnSearch = s.value; refresh(); }, 180));

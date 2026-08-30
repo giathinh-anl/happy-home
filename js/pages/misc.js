@@ -95,6 +95,7 @@
   /* ---------------- TÀI SẢN (gắn theo phòng) ---------------- */
   let assetView = 'room';   // 'room' = nhóm theo phòng | 'list' = bảng
   let assetRoomFilter = null;
+  const assetPage = { page: 1, size: 9 };
 
   function withResidual(a) {
     const months = Math.min(a.lifeMonths || 60, (U.daysBetween(a.buyDate, U.today()) / 30) | 0);
@@ -159,7 +160,9 @@
       groups.unshift({ key: '__stock__', title: 'Kho chung', sub: 'Chưa gắn vào phòng nào',
         badge: '<span class="badge s-neutral"><span class="dot"></span>Kho</span>', items: stockItems });
 
-      const cards = groups.map(g => {
+      const apg = UI.paginate(groups, assetPage, { unit: 'phòng', sizes: [9, 18, 36] });
+      ctx._apg = apg;
+      const cards = apg.items.map(g => {
         const value = g.items.reduce((s, a) => s + (a.residual || 0) * (a.quantity || 1), 0);
         const list = g.items.length ? g.items.map(a => `<div class="asset-row" data-amenu="${a.id}">
             <span class="a-ic">${a.icon || '📦'}</span>
@@ -185,10 +188,11 @@
           </div></div>`;
       }).join('');
 
-      return head + `<div class="asset-grid">${cards}</div>`;
+      return head + `<div class="asset-grid">${cards}</div>` + apg.html;
     },
     mount(ctx) {
       if (ctx._dt) ctx._dt.attach(document);
+      if (ctx._apg) ctx._apg.attach(document, () => HH.router.render());
       document.querySelectorAll('[data-aview]').forEach(b => b.onclick = () => { assetView = b.dataset.aview; HH.router.render(); });
       const nb = document.querySelector('[data-primary-new]');
       if (nb) nb.onclick = () => assetForm(ctx, null);

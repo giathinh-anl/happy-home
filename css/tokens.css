@@ -12,11 +12,12 @@
   --brand-600: #16a34a;   /* hover */
   --brand-700: #15803d;   /* active, tiêu đề nhấn */
 
-  /* Thanh điều hướng LOZIDO */
-  --nav-bg:      #1eaa4e;   /* nền thanh nav xanh */
-  --nav-bg-2:    #17953f;   /* gradient đậm hơn */
-  --nav-hover:   rgba(255,255,255,.14);
-  --nav-active:  rgba(255,255,255,.22);
+  /* Thanh điều hướng — xanh đậm sang trọng */
+  --nav-bg:      #0f5132;   /* nền thanh nav (deep green) */
+  --nav-bg-2:    #0b3f27;   /* gradient đậm hơn */
+  --nav-hover:   rgba(255,255,255,.10);
+  --nav-active:  rgba(255,255,255,.16);
+  --nav-accent:  #4ade80;   /* gạch chân mục đang chọn */
 
   /* Trung tính */
   --neutral-0:   #ffffff;
@@ -66,15 +67,18 @@
   --sp-12: 48px;
   --sp-16: 64px;
 
-  /* Bo góc */
-  --r-card:  8px;
-  --r-input: 6px;
+  /* Bo góc — mềm mại, hiện đại */
+  --r-card:  12px;
+  --r-input: 8px;
+  --r-lg:    16px;
   --r-pill:  9999px;
 
-  /* Bóng — chỉ ở thẻ nổi, menu, hộp thoại */
-  --shadow-card:   0 1px 3px rgba(28,25,23,.08), 0 1px 2px rgba(28,25,23,.04);
-  --shadow-pop:    0 4px 12px rgba(28,25,23,.12), 0 2px 4px rgba(28,25,23,.06);
-  --shadow-dialog: 0 20px 48px rgba(28,25,23,.22), 0 4px 12px rgba(28,25,23,.12);
+  /* Bóng — nhiều lớp, rất nhẹ (cảm giác cao cấp) */
+  --shadow-xs:     0 1px 2px rgba(16,24,40,.05);
+  --shadow-card:   0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+  --shadow-pop:    0 8px 24px rgba(16,24,40,.10), 0 2px 6px rgba(16,24,40,.05);
+  --shadow-dialog: 0 24px 56px rgba(16,24,40,.18), 0 6px 16px rgba(16,24,40,.10);
+  --ring:          0 0 0 4px rgba(34,197,94,.12);
 
   --sidebar-w: 240px;
   --content-max: 1440px;

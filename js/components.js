@@ -398,6 +398,54 @@ HH.ui = (function () {
 
   function clearBulkBars() { document.querySelectorAll('.bulkbar').forEach(b => b.remove()); }
 
+  /* ---------- Phân trang dùng chung (cho lưới/nhóm không dùng DataTable) ---------- */
+  // state: { page, size } — trả về { items, html, attach }
+  function paginate(all, state, opts) {
+    opts = opts || {};
+    const size = state.size || opts.size || 12;
+    const total = all.length;
+    const pages = Math.max(1, Math.ceil(total / size));
+    if (state.page > pages) state.page = pages;
+    if (!state.page || state.page < 1) state.page = 1;
+    const start = (state.page - 1) * size;
+    const items = all.slice(start, start + size);
+
+    let btns = `<button data-pg="prev" ${state.page === 1 ? 'disabled' : ''} aria-label="Trang trước">‹</button>`;
+    for (let p = 1; p <= pages; p++) {
+      if (pages > 7 && Math.abs(p - state.page) > 2 && p !== 1 && p !== pages) {
+        if (p === 2 || p === pages - 1) btns += `<span style="padding:0 4px;color:var(--neutral-400)">…</span>`;
+        continue;
+      }
+      btns += `<button data-pg="${p}" class="${p === state.page ? 'active' : ''}">${p}</button>`;
+    }
+    btns += `<button data-pg="next" ${state.page >= pages ? 'disabled' : ''} aria-label="Trang sau">›</button>`;
+
+    const sizeSel = (opts.sizes || [12, 24, 48]).map(n =>
+      `<option value="${n}" ${n === size ? 'selected' : ''}>${n} / trang</option>`).join('');
+
+    const html = (total <= (opts.sizes ? opts.sizes[0] : 12) && pages === 1) ? '' : `
+      <div class="pg-bar">
+        <span class="muted text-sm">Hiển thị <b class="mono">${total ? start + 1 : 0}–${Math.min(total, start + size)}</b> trong <b class="mono">${total}</b> ${opts.unit || 'mục'}</span>
+        <div class="row-gap-2">
+          <select class="select pg-size" style="width:auto;padding:6px 26px 6px 10px">${sizeSel}</select>
+          <div class="pager">${btns}</div>
+        </div>
+      </div>`;
+
+    function attach(root, onChange) {
+      (root || document).querySelectorAll('.pg-bar [data-pg]').forEach(b => b.onclick = () => {
+        const v = b.dataset.pg;
+        if (v === 'prev') state.page = Math.max(1, state.page - 1);
+        else if (v === 'next') state.page = Math.min(pages, state.page + 1);
+        else state.page = +v;
+        onChange();
+      });
+      const sel = (root || document).querySelector('.pg-bar .pg-size');
+      if (sel) sel.onchange = () => { state.size = +sel.value; state.page = 1; onChange(); };
+    }
+    return { items, html, attach, pages, total };
+  }
+
   return { STATUS, statusBadge, metricCard, toast, modal, closeTopModal, dangerDialog,
-    openMenu, closeMenus, periodSelector, attachPeriod, DataTable, clearBulkBars };
+    openMenu, closeMenus, periodSelector, attachPeriod, DataTable, clearBulkBars, paginate };
 })();

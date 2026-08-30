@@ -57,12 +57,22 @@
     </div>`;
   }
 
+  const mapPage = { page: 1, size: 2 };   // phân trang theo TẦNG (mỗi trang N tầng)
+
   function mapView(ctx, rooms) {
     const floors = [...new Set(rooms.map(r => r.floor))].sort((a, b) => b - a);
-    return floors.map(f => h`<div class="floor-block">
-      <div class="floor-label">Tầng ${f}</div>
-      <div class="room-grid">${rooms.filter(r => r.floor === f).map(roomCell)}</div>
-    </div>`).join('');
+    const pg = UI.paginate(floors, mapPage, { unit: 'tầng', sizes: [2, 4, 8] });
+    ctx._mapPg = pg;
+    const blocks = pg.items.map(f => {
+      const list = rooms.filter(r => r.floor === f);
+      const occ = list.filter(r => r.status === 'occupied' || r.status === 'notice').length;
+      return `<div class="floor-block">
+        <div class="floor-label"><span>Tầng ${f}</span>
+          <span class="floor-meta">${list.length} phòng · ${occ} đang thuê</span></div>
+        <div class="room-grid">${list.map(roomCell).join('')}</div>
+      </div>`;
+    }).join('');
+    return blocks + pg.html;
   }
 
   function tableView(ctx, rooms) {
@@ -302,20 +312,20 @@
   /* ---- 4 thẻ tổng hợp (kiểu LOZIDO) ---- */
   function summaryCards(ctx) {
     const s = S.roomSummary(ctx.bid);
-    const card = (icon, iconBg, label, value, filter) =>
+    const card = (iconName, tone, label, value, filter) =>
       `<div class="lz-sum" ${filter ? `data-sumfilter="${filter}"` : ''}>
-        <span class="lz-sum-ic" style="background:${iconBg}">${icon}</span>
+        <span class="lz-sum-ic ${tone}">${HH.icon(iconName, 20)}</span>
         <div class="lz-sum-body"><div class="lz-sum-label">${label}</div>
           <div class="lz-sum-val">${U.currency(value).replace(' ₫','')}<span class="lz-sum-cur">${typeof value==='number'?'đ':''}</span></div></div>
-        <span class="lz-sum-go">→</span></div>`;
+        <span class="lz-sum-go">${HH.icon('chevron', 16)}</span></div>`;
     return `<div class="lz-sum-grid">
-      ${card('🧾', 'var(--danger-bg)', 'Tổng số tiền khách nợ', s.debt, 'debt')}
-      ${card('💵', 'var(--success-bg)', 'Tổng số tiền cọc', s.deposit, null)}
-      ${card('📦', 'var(--warning-bg)', 'Tổng tiền cọc giữ chỗ phòng', s.holding, 'reserved')}
-      <div class="lz-sum" data-sumfilter="incident"><span class="lz-sum-ic" style="background:#fff7ed">🧰</span>
+      ${card('receipt', 'tone-danger', 'Tổng tiền khách nợ', s.debt, 'debt')}
+      ${card('wallet', 'tone-success', 'Tổng tiền cọc', s.deposit, null)}
+      ${card('box', 'tone-warning', 'Cọc giữ chỗ phòng', s.holding, 'reserved')}
+      <div class="lz-sum" data-sumfilter="incident"><span class="lz-sum-ic tone-info">${HH.icon('wrench', 20)}</span>
         <div class="lz-sum-body"><div class="lz-sum-label">Sự cố phòng</div>
-          <div class="lz-sum-val">${s.incident} <span class="lz-sum-cur">Vấn đề</span></div></div>
-        <span class="lz-sum-go">→</span></div>
+          <div class="lz-sum-val">${s.incident} <span class="lz-sum-cur">vấn đề</span></div></div>
+        <span class="lz-sum-go">${HH.icon('chevron', 16)}</span></div>
     </div>`;
   }
 
@@ -351,17 +361,17 @@
       return h`
         ${raw(summaryCards(ctx))}
         <div class="page-head">
-          <div class="row-gap-3"><span class="lz-home-ic">🏠</span>
-            <div><div class="page-title-lg">Quản lý danh sách phòng</div>
-            <div class="page-sub">${ctx.building.name}</div></div></div>
+          <div><div class="page-title-lg">Danh sách phòng</div>
+            <div class="page-sub">${ctx.building.name} · ${rooms.length} phòng</div></div>
           <div class="page-actions">
             <div class="view-toggle">
-              <button class="${raw(view === 'map' ? 'active' : '')}" data-view="map">▦ Sơ đồ</button>
-              <button class="${raw(view === 'table' ? 'active' : '')}" data-view="table">☰ Bảng</button>
+              <button class="${raw(view === 'map' ? 'active' : '')}" data-view="map">${raw(HH.icon('grid', 15))} Sơ đồ</button>
+              <button class="${raw(view === 'table' ? 'active' : '')}" data-view="table">${raw(HH.icon('list', 15))} Bảng</button>
             </div>
-            <button class="btn btn-dark" id="colToggle">🗂 Ẩn/Hiện cột <span class="cnt-badge">${roomColumns(ctx).length - hiddenCols.size}</span></button>
-            <button class="btn btn-success" id="exportXls">📊 Xuất excel</button>
-            <button class="btn btn-primary" data-primary-new>+ Tạo phòng</button>
+            ${raw(view === 'table' ? `<button class="btn btn-outline" id="colToggle">${HH.icon('columns', 16)} Ẩn/Hiện cột
+              <span class="cnt-badge">${roomColumns(ctx).length - hiddenCols.size}</span></button>` : '')}
+            <button class="btn btn-outline" id="exportXls">${raw(HH.icon('sheet', 16))} Xuất Excel</button>
+            <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Tạo phòng</button>
           </div>
         </div>
         ${raw(filterChips(allRooms))}
@@ -392,6 +402,7 @@
         UI.toast('Đã tải file Excel (CSV) danh sách phòng', { type: 'ok' });
       };
       if (ctx._dt) ctx._dt.attach(document);
+      if (ctx._mapPg) ctx._mapPg.attach(document, () => HH.router.render());
       document.querySelectorAll('[data-kebab]').forEach(b => b.onclick = (e) => {
         e.stopPropagation();
         const r = S.room(ctx.bid, b.dataset.kebab);

@@ -5,34 +5,36 @@ HH.app = (function () {
   const U = HH.util, S = HH.store, h = U.html, raw = U.raw;
 
   // Thanh nav xanh trên cùng (cấp công ty). owner=true -> chỉ chủ trọ.
+  const ic = (n, s) => HH.icon(n, { size: s || 18 });
+
   const TOP_TILES = [
-    { key: 'home',   ic: '🏘️', label: 'Quản lý nhà',      path: '/buildings' },
-    { key: 'report', ic: '📊', label: 'Tổng báo cáo',     path: '/dashboard', pill: 'Mới', pillClass: 'new' },
-    { key: 'bank',   ic: '💳', label: 'Khách chuyển khoản', path: '/transfers' },
-    { key: 'post',   ic: '📢', label: 'Đăng tin',          path: '/post' },
-    { key: 'group',  ic: '🧑‍🤝‍🧑', label: 'Công ty/nhóm', path: '/group', owner: true },
-    { key: 'config', ic: '⚙️', label: 'Cài đặt chung',     path: '/config' },
-    { key: 'noti',   ic: '🔔', label: 'Thông báo',         path: '/noti', pill: '0', pillClass: 'zero' },
-    { key: 'acct',   ic: '👤', label: 'Tài khoản',         action: 'account' },
-    { key: 'logout', ic: '🚪', label: 'Đăng xuất',         action: 'logout' },
+    { key: 'home',   ic: 'building', label: 'Quản lý nhà',        path: '/buildings' },
+    { key: 'report', ic: 'chart',    label: 'Tổng báo cáo',       path: '/dashboard', pill: 'Mới', pillClass: 'new' },
+    { key: 'bank',   ic: 'card',     label: 'Khách chuyển khoản', path: '/transfers' },
+    { key: 'post',   ic: 'megaphone',label: 'Đăng tin',           path: '/post' },
+    { key: 'group',  ic: 'users',    label: 'Công ty/nhóm',       path: '/group', owner: true },
+    { key: 'config', ic: 'settings', label: 'Cài đặt',            path: '/config' },
+    { key: 'noti',   ic: 'bell',     label: 'Thông báo',          path: '/noti', pill: '0', pillClass: 'zero' },
+    { key: 'acct',   ic: 'user',     label: 'Tài khoản',          action: 'account' },
+    { key: 'logout', ic: 'logout',   label: 'Đăng xuất',          action: 'logout' },
   ];
 
   // Hàng module (cấp tòa nhà).
   const MODULES = [
-    { ic: '🏠', label: 'Quản lý phòng', seg: 'units', perm: 'rooms' },
-    { ic: '🧾', label: 'Hóa đơn',       seg: 'invoices', perm: 'invoices' },
-    { ic: '🛎️', label: 'Dịch vụ',       seg: 'services', perm: 'services' },
-    { ic: '📄', label: 'Hợp đồng',      seg: 'contracts', perm: 'contracts' },
-    { ic: '📦', label: 'Tài sản',       seg: 'assets', perm: 'assets' },
-    { ic: '👥', label: 'Khách thuê',    seg: 'tenants', perm: 'tenants' },
+    { ic: 'door',      label: 'Phòng',      seg: 'units', perm: 'rooms' },
+    { ic: 'receipt',   label: 'Hóa đơn',    seg: 'invoices', perm: 'invoices' },
+    { ic: 'concierge', label: 'Dịch vụ',    seg: 'services', perm: 'services' },
+    { ic: 'file',      label: 'Hợp đồng',   seg: 'contracts', perm: 'contracts' },
+    { ic: 'box',       label: 'Tài sản',    seg: 'assets', perm: 'assets' },
+    { ic: 'users',     label: 'Khách thuê', seg: 'tenants', perm: 'tenants' },
   ];
   const MORE = [
-    { ic: '📉', label: 'Chỉ số điện nước',    seg: 'readings', perm: 'readings' },
-    { ic: '₫',  label: 'Thanh toán & công nợ', seg: 'payments', perm: 'payments' },
-    { ic: '🧰', label: 'Sự cố phòng',          seg: 'incidents', perm: 'incidents' },
-    { ic: '📊', label: 'Thu chi',              seg: 'expenses', perm: 'expenses' },
-    { ic: '🔐', label: 'Khóa thông minh',      seg: 'locks', perm: 'rooms' },
-    { ic: '⚙️', label: 'Cấu hình tòa nhà',     seg: 'config', perm: 'settings' },
+    { ic: 'gauge',    label: 'Chỉ số điện nước',     seg: 'readings', perm: 'readings' },
+    { ic: 'wallet',   label: 'Thanh toán & công nợ', seg: 'payments', perm: 'payments' },
+    { ic: 'wrench',   label: 'Sự cố phòng',          seg: 'incidents', perm: 'incidents' },
+    { ic: 'chart',    label: 'Thu chi',              seg: 'expenses', perm: 'expenses' },
+    { ic: 'lock',     label: 'Khóa thông minh',      seg: 'locks', perm: 'rooms' },
+    { ic: 'settings', label: 'Cấu hình tòa nhà',     seg: 'config', perm: 'settings' },
   ];
 
   /* ---------- Thanh trên ---------- */
@@ -48,13 +50,13 @@ HH.app = (function () {
       const pill = pillText ? `<span class="pill ${pillClass || ''}">${pillText}</span>` : '';
       const attr = t.action ? `data-act="${t.action}"` : `href="#${t.path}"`;
       const tag = t.action ? 'button' : 'a';
-      return `<${tag} class="lz-tile ${active ? 'active' : ''}" ${attr}>
-        ${pill}<span class="ic">${t.ic}</span><span class="lbl">${t.label}</span></${tag}>`;
+      return `<${tag} class="lz-tile ${active ? 'active' : ''}" ${attr} title="${t.label}">
+        ${ic(t.ic)}<span class="lbl">${t.label}</span>${pill}</${tag}>`;
     }).join('');
     return h`<header class="lz-topbar"><div class="lz-topbar-inner">
       <a class="lz-logo" href="#/buildings">
         <span class="mark">HH</span>
-        <span class="word"><b>Happy Home</b><small>QUẢN LÝ NHÀ CHO THUÊ</small></span>
+        <span class="word"><b>Happy Home</b><small>Quản lý nhà cho thuê</small></span>
       </a>
       <nav class="lz-topnav">${raw(tiles)}</nav>
     </div></header>`;
@@ -66,19 +68,19 @@ HH.app = (function () {
     const seg = path.split('/')[3] || 'units';
     const mods = MODULES.filter(m => !m.perm || S.can(m.perm)).map(m => {
       const active = seg === m.seg;
-      return `<a class="lz-module ${active ? 'active' : ''}" href="#/b/${bid}/${m.seg}">
-        <span class="ic">${m.ic}</span><span>${m.label}</span></a>`;
+      return `<a class="lz-module ${active ? 'active' : ''}" href="#/b/${bid}/${m.seg}" title="${m.label}">
+        ${ic(m.ic)}<span>${m.label}</span></a>`;
     }).join('');
     const moreActive = MORE.some(m => m.seg === seg);
     return h`<div class="lz-modulebar"><div class="lz-modulebar-inner">
       <div class="lz-building-card" id="bCard">
-        <span class="home">🏠<span class="cnt">${S.buildings.length}</span></span>
+        <span class="home">${raw(ic('building', 19))}<span class="cnt">${S.buildings.length}</span></span>
         <span class="b-info"><span class="k">Đang quản lý</span><span class="n">${b ? b.name : '—'}</span></span>
-        <span class="add" id="bAdd" title="Thêm tòa nhà">+</span>
+        <button class="add" id="bAdd" title="Thêm tòa nhà">${raw(ic('plus', 16))}</button>
       </div>
       <div class="lz-modules">
         ${raw(mods)}
-        <button class="lz-module ${raw(moreActive ? 'active' : '')}" id="moreBtn"><span class="ic">⋯</span><span>Thêm</span></button>
+        <button class="lz-module ${raw(moreActive ? 'active' : '')}" id="moreBtn" title="Thêm">${raw(ic('dots'))}<span>Thêm</span></button>
       </div>
     </div></div>`;
   }
@@ -135,7 +137,10 @@ HH.app = (function () {
       else if (a === 'account') openUserMenu(b);
     });
     const card = document.getElementById('bCard');
-    if (card) card.onclick = (e) => { if (e.target.id === 'bAdd') { addBuildingDialog(); return; } openBuildingMenu(card, params.bid); };
+    if (card) card.onclick = (e) => {
+      if (e.target.closest('#bAdd')) { e.stopPropagation(); addBuildingDialog(); return; }
+      openBuildingMenu(card, params.bid);
+    };
     const more = document.getElementById('moreBtn');
     if (more) more.onclick = () => openMoreMenu(more, params.bid);
   }
@@ -143,7 +148,7 @@ HH.app = (function () {
 
   function openMoreMenu(anchor, bid) {
     const items = MORE.filter(m => !m.perm || S.can(m.perm)).map(m => ({
-      icon: m.ic, label: m.label, onClick: () => HH.router.go(`/b/${bid}/${m.seg}`),
+      icon: ic(m.ic, 17), label: m.label, onClick: () => HH.router.go(`/b/${bid}/${m.seg}`),
     }));
     if (!items.length) items.push({ icon: '🔒', label: 'Không có mục nào được cấp quyền', onClick: () => {} });
     HH.ui.openMenu(anchor, items);

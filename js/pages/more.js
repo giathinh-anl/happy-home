@@ -258,6 +258,7 @@
 
   /* ---------------- ĐĂNG TIN ---------------- */
   const AMENITIES = ['Máy lạnh', 'Nóng lạnh', 'Ban công', 'Cửa sổ', 'Tủ lạnh', 'Máy giặt', 'Giường', 'Tủ quần áo', 'Bếp', 'Wifi', 'Giữ xe', 'Tự do giờ giấc'];
+  const postPage = { page: 1, size: 9 };
 
   function listingText(b, r) {
     const am = (r.amenities && r.amenities.length) ? r.amenities
@@ -284,7 +285,9 @@
       });
       const withPhoto = items.filter(x => (x.r.photos || []).length).length;
 
-      const cards = items.map(({ b, r }) => {
+      const ppg = UI.paginate(items, postPage, { unit: 'tin', sizes: [9, 18, 36] });
+      HH.pages.post._pg = ppg;
+      const cards = ppg.items.map(({ b, r }) => {
         const photos = r.photos || [];
         const cover = photos.length
           ? `<div class="listing-cover"><img src="${photos[0]}" alt="${U.esc(r.code)}">
@@ -316,10 +319,11 @@
       </div>
       ${raw(items.length && withPhoto < items.length ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">💡</span>
         <div>Tin có ảnh thu hút gấp nhiều lần. Thêm ảnh tại <b>Quản lý phòng → bấm vào phòng → Ảnh phòng</b>.</div></div>` : '')}
-      ${raw(items.length ? `<div class="listing-grid">${cards}</div>`
+      ${raw(items.length ? `<div class="listing-grid">${cards}</div>` + ppg.html
         : `<div class="card"><div class="empty"><div class="ic">📢</div><h4>Không có phòng trống</h4><p class="muted">Tất cả phòng đang được thuê hoặc giữ chỗ.</p></div></div>`)}`;
     },
     mount() {
+      if (HH.pages.post._pg) HH.pages.post._pg.attach(document, () => HH.router.render());
       const find = (key) => { const [bid, code] = key.split('|'); return { b: S.building(bid), r: S.room(bid, code) }; };
       document.querySelectorAll('[data-quickcopy]').forEach(btn => btn.onclick = () => {
         const { b, r } = find(btn.dataset.quickcopy);
