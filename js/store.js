@@ -305,9 +305,12 @@ HH.store = (function () {
     const occ = Math.max(1, roomTenants.length);
     const lines = [{ label: 'Tiền phòng', amount: contract.rent, meta: `Trọn kỳ, ${periodEnd.getDate()}/${periodEnd.getDate()} ngày` }];
     if (elec && reading.elecCurr != null) {
-      const use = Math.max(0, reading.elecCurr - (reading.elecPrev || 0));
+      const use = api.consumptionOf(reading, 'elec') || 0;
+      const extra = reading.elecExtra || 0;
       lines.push({ label: 'Tiền điện', amount: use * elec.unit, type: 'elec',
-        meta: `Chỉ số ${U.number(reading.elecPrev)} → ${U.number(reading.elecCurr)} · ${U.number(use)} kWh × ${U.number(elec.unit)} ₫` });
+        meta: `Chỉ số ${U.number(reading.elecPrev)} → ${U.number(reading.elecCurr)}`
+          + (extra ? ` (+${U.number(extra)} bù đồng hồ)` : '')
+          + ` · ${U.number(use)} kWh × ${U.number(elec.unit)} ₫` });
     }
     if (water) lines.push({ label: 'Tiền nước', amount: occ * water.unit, meta: `${occ} người × ${U.number(water.unit)} ₫/người` });
     flats.forEach(f => lines.push({ label: f.name, amount: f.unit, meta: 'Cố định theo tháng' }));
@@ -653,6 +656,14 @@ HH.store = (function () {
       api.log('building.remove', `Xóa tòa nhà ${b.name}`);
       if (usingBackend()) await HH.backend.deleteByBuilding(id);
       persist();
+    },
+
+    // Tiêu thụ thực tế của 1 kỳ: (chỉ số này - chỉ số trước) + phần bù (quay vòng / thay đồng hồ)
+    consumptionOf(rd, kind) {
+      if (!rd) return null;
+      const curr = rd[kind + 'Curr'], prev = rd[kind + 'Prev'];
+      if (curr == null || prev == null) return null;
+      return Math.max(0, curr - prev) + (rd[kind + 'Extra'] || 0);
     },
 
     // ----- Ghi chỉ số theo kỳ: lấy hoặc tạo bản ghi cho (phòng, kỳ) -----

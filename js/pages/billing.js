@@ -55,7 +55,8 @@
       };
       const prev = tab === 'elec' ? prevOf('elec') : prevOf('water');
       const curr = tab === 'elec' ? rd.elecCurr : rd.waterCurr;
-      const use = (curr != null && prev != null) ? curr - prev : null;
+      const use = (curr != null && prev != null)
+        ? Math.max(0, curr - prev) + (rd[tab + 'Extra'] || 0) : null;
       const avg = tab === 'elec' ? (rd.elecAvg || 190) : 4;
       const abnormal = use != null && use > avg * 3;
       const isTenant = rd.source === 'tenant' && !rd.approved;
@@ -77,31 +78,64 @@
   function wireReadingInputs(ctx) {
     const inputs = Array.from(document.querySelectorAll('[data-read]'));
     const savePersist = U.debounce(() => S.persist(), 400);
+    const kind = ctx._tab; // 'elec' | 'water'
+    // Vẽ lại ô Tiêu thụ + cảnh báo cho 1 dòng
+    function refreshRow(inp, rd, code) {
+      const useEl = document.querySelector(`[data-use="${code}"]`);
+      const tr = inp.closest('tr');
+      const nt = tr.querySelector('[data-note]'); if (nt) nt.remove();
+      const curr = rd[kind + 'Curr'], prev = rd[kind + 'Prev'];
+      if (curr == null) { useEl.textContent = ''; useEl.style.color = ''; tr.classList.remove('warn-row'); return; }
+      if (curr < prev) {   // chỉ nhắc nhẹ khi đang gõ, KHÔNG mở hộp thoại
+        useEl.textContent = '—'; useEl.style.color = 'var(--danger)';
+        const note = document.createElement('div');
+        note.className = 'reading-note'; note.dataset.note = code;
+        note.style.color = 'var(--danger)'; note.textContent = 'Nhỏ hơn kỳ trước';
+        useEl.after(note); tr.classList.remove('warn-row');
+        return;
+      }
+      const use = S.consumptionOf(rd, kind);
+      useEl.textContent = U.number(use);
+      const avg = kind === 'elec' ? (rd.elecAvg || 190) : 4;
+      if (use > avg * 3) {
+        tr.classList.add('warn-row'); useEl.style.color = 'var(--warning)';
+        const note = document.createElement('div');
+        note.className = 'reading-note'; note.dataset.note = code;
+        note.textContent = `Cao gấp ${(use / avg).toFixed(1)} lần`;
+        useEl.after(note);
+      } else { tr.classList.remove('warn-row'); useEl.style.color = ''; }
+    }
+
     inputs.forEach((inp) => {
+      const code = inp.dataset.code;
       inp.oninput = () => {
         const n = U.parseNum(inp.value); inp.value = n != null ? n : '';
-        const code = inp.dataset.code;
         const rd = S.readingFor(ctx.bid, code, S.period()); // tạo bản ghi nếu chưa có
         if (!rd) return;
-        const prev = ctx._tab === 'elec' ? rd.elecPrev : rd.waterPrev;
-        if (ctx._tab === 'elec') rd.elecCurr = n; else rd.waterCurr = n;
+        rd[kind + 'Curr'] = n;
         savePersist();
-        const useEl = document.querySelector(`[data-use="${code}"]`);
-        if (n == null) { useEl.textContent = ''; return; }
-        // chỉ số mới nhỏ hơn cũ -> hỏi nguyên nhân
-        if (n < prev) { promptRollover(ctx, code, prev, n, inp); return; }
-        const use = n - prev; useEl.textContent = U.number(use);
-        const avg = ctx._tab === 'elec' ? (rd.elecAvg || 190) : 4;
-        const tr = inp.closest('tr');
-        if (use > avg * 3) { tr.classList.add('warn-row'); useEl.style.color = 'var(--warning)';
-          if (!tr.querySelector('[data-note]')) { const note = document.createElement('div'); note.className = 'reading-note'; note.dataset.note = code; note.textContent = `Cao gấp ${(use / avg).toFixed(1)} lần`; useEl.after(note); } }
-        else { tr.classList.remove('warn-row'); useEl.style.color = ''; const nt = tr.querySelector('[data-note]'); if (nt) nt.remove(); }
+        refreshRow(inp, rd, code);   // chỉ cập nhật hiển thị, không chặn nhập
+      };
+      // Chỉ hỏi nguyên nhân KHI ĐÃ NHẬP XONG (rời ô) — tránh bật hộp thoại lúc mới gõ 1 số
+      inp.onblur = () => {
+        const rd = S.reading(ctx.bid, code, S.period());
+        if (!rd) return;
+        const curr = rd[kind + 'Curr'], prev = rd[kind + 'Prev'];
+        if (curr != null && prev != null && curr < prev && !inp.dataset.asking) {
+          inp.dataset.asking = '1';
+          promptRollover(ctx, code, prev, curr, inp, kind, () => {
+            delete inp.dataset.asking;
+            refreshRow(inp, S.reading(ctx.bid, code, S.period()), code);
+          });
+        }
       };
       inp.onkeydown = (e) => {
         if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
           e.preventDefault();
           const i = inputs.indexOf(inp);
-          const next = inputs[i + 1]; if (next) { next.focus(); next.select(); }
+          const next = inputs[i + 1];
+          inp.blur();                       // kích hoạt kiểm tra khi rời ô
+          if (next) { next.focus(); next.select(); }
         }
       };
     });
@@ -112,22 +146,75 @@
     });
   }
 
-  function promptRollover(ctx, code, prev, curr, inp) {
-    UI.modal({ title: `Chỉ số mới nhỏ hơn chỉ số cũ — ${code}`, bodyHtml: h`
-      <p class="muted" style="margin-bottom:12px">Kỳ trước <b class="mono">${U.number(prev)}</b>, kỳ này <b class="mono">${U.number(curr)}</b>. Nguyên nhân?</p>
-      <div class="col" style="gap:8px">
-        <label class="check"><input type="radio" name="rollover" value="wrap" checked> Đồng hồ quay hết vòng</label>
-        <label class="check"><input type="radio" name="rollover" value="replace"> Đã thay đồng hồ mới</label>
-      </div>`,
+  function promptRollover(ctx, code, prev, curr, inp, kind, done) {
+    const digits = String(Math.floor(prev)).length;   // số chữ số của đồng hồ
+    const maxVal = Math.pow(10, digits);              // VD 5 chữ số -> 100000
+    const wrapUse = (maxVal - prev) + curr;
+    let handled = false;
+    UI.modal({
+      title: `Chỉ số mới nhỏ hơn chỉ số cũ — ${code}`,
+      bodyHtml: h`
+        <p class="muted" style="margin-bottom:12px">Kỳ trước <b class="mono">${U.number(prev)}</b>, kỳ này <b class="mono">${U.number(curr)}</b>. Nguyên nhân?</p>
+        <div class="col" style="gap:10px">
+          <label class="check"><input type="radio" name="rollover" value="wrap" checked>
+            <span>Đồng hồ quay hết vòng (${digits} chữ số)
+              <div class="muted text-xs">Tiêu thụ = (${U.number(maxVal)} − ${U.number(prev)}) + ${U.number(curr)} = <b>${U.number(wrapUse)}</b></div></span></label>
+          <label class="check"><input type="radio" name="rollover" value="replace">
+            <span>Đã thay đồng hồ mới
+              <div class="muted text-xs">Khai chỉ số cuối của đồng hồ cũ và chỉ số đầu của đồng hồ mới</div></span></label>
+          <label class="check"><input type="radio" name="rollover" value="fix">
+            <span>Nhập nhầm — để tôi sửa lại
+              <div class="muted text-xs">Xóa giá trị vừa nhập để gõ lại</div></span></label>
+        </div>
+        <div id="replaceBox" class="hidden" style="margin-top:14px">
+          <div class="grid-2">
+            <div class="field"><label>Chỉ số cuối đồng hồ cũ</label><input class="input mono" id="oldFinal" value="${prev}"></div>
+            <div class="field"><label>Chỉ số đầu đồng hồ mới</label><input class="input mono" id="newStart" value="0"></div>
+          </div>
+          <p class="hint" id="repPreview" style="margin-top:8px"></p>
+        </div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" data-ok>Xác nhận</button>`,
       onMount(el, close) {
+        const box = el.querySelector('#replaceBox');
+        const oldF = el.querySelector('#oldFinal'), newS = el.querySelector('#newStart');
+        const prevw = el.querySelector('#repPreview');
+        const calcRep = () => {
+          const of = U.parseNum(oldF.value) || 0, ns = U.parseNum(newS.value) || 0;
+          const use = Math.max(0, of - prev) + Math.max(0, curr - ns);
+          prevw.innerHTML = `→ Tiêu thụ kỳ này: <b class="mono">${U.number(use)}</b>`;
+          return { of, ns, use };
+        };
+        el.querySelectorAll('input[name=rollover]').forEach(r => r.onchange = () => {
+          box.classList.toggle('hidden', r.value !== 'replace' || !r.checked);
+          if (el.querySelector('input[name=rollover]:checked').value === 'replace') calcRep();
+        });
+        oldF.oninput = calcRep; newS.oninput = calcRep;
+
         el.querySelector('[data-ok]').onclick = () => {
           const v = el.querySelector('input[name=rollover]:checked').value;
+          const rd = S.readingFor(ctx.bid, code, S.period());
+          if (v === 'wrap') {
+            rd[kind + 'Extra'] = maxVal - prev;   // phần đồng hồ chạy hết vòng
+            rd[kind + 'Prev'] = 0;                // mốc mới từ 0
+            UI.toast(`Đã tính bù quay vòng · tiêu thụ ${U.number(wrapUse)}`, { type: 'ok' });
+          } else if (v === 'replace') {
+            const { of, ns } = calcRep();
+            rd[kind + 'Extra'] = Math.max(0, of - prev);  // phần dùng trên đồng hồ cũ
+            rd[kind + 'Prev'] = ns;                        // đồng hồ mới bắt đầu từ đây
+            rd[kind + 'MeterChanged'] = true;
+            UI.toast('Đã ghi nhận thay đồng hồ mới', { type: 'ok' });
+          } else {                                 // nhập nhầm -> xóa để gõ lại
+            rd[kind + 'Curr'] = null; inp.value = '';
+            UI.toast('Đã xóa, mời nhập lại', { type: 'ok' });
+          }
+          S.persist();
+          handled = true;
           close();
-          UI.toast(v === 'wrap' ? 'Đã tính bù theo số vòng đồng hồ' : 'Đã ghi nhận thay đồng hồ mới', { type: 'ok' });
+          if (done) done();
+          if (v === 'fix') setTimeout(() => inp.focus(), 50);
         };
       },
-      onClose() { inp.value = ''; },
+      onClose() { if (!handled && done) done(); },   // bấm Hủy: giữ nguyên, không xóa số đã gõ
     });
   }
 
