@@ -297,7 +297,7 @@
     const missing = pending.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, period); return !(rd && rd.elecCurr != null); });
     const already = contracts.length - pending.length;
     UI.modal({ title: `Sinh hóa đơn kỳ ${S.periodLabel(period)}`, bodyHtml: h`
-      <p class="muted" style="margin-bottom:12px">Có <b>${contracts.length}</b> hợp đồng đang hiệu lực${already ? ` · <b>${already}</b> phòng đã có hóa đơn kỳ này` : ''}.</p>
+      <p class="muted" style="margin-bottom:12px">Có <b>${contracts.length}</b> hợp đồng đang hiệu lực${raw(already ? ` · <b>${already}</b> phòng đã có hóa đơn kỳ này` : '')}.</p>
       <div class="alert alert-success" style="margin-bottom:10px"><span class="ic">✓</span><div><b>${withReading.length}</b> phòng đủ chỉ số, sẽ được sinh hóa đơn</div></div>
       ${raw(missing.length ? `<div class="alert alert-warning"><span class="ic">⚠</span><div><b>${missing.length}</b> phòng thiếu chỉ số: ${missing.map(c => c.roomCode).join(', ')}<br>
         <span class="text-sm">Các phòng thiếu chỉ số sẽ được bỏ qua. Bạn có thể bổ sung và sinh lại sau.</span></div></div>` : '')}
