@@ -807,8 +807,8 @@
     .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
   const hasAny = (t, arr) => arr.some(k => t.includes(k));
 
-  function pushMsg(who, html, actions) {
-    chat.msgs.push({ who, html, actions: actions || [] });
+  function pushMsg(who, html, actions, byAi) {
+    chat.msgs.push({ who, html, actions: actions || [], ai: !!byAi });
   }
 
   /** Bộ hiểu ý định — trả lời DỰA TRÊN dữ liệu thật của khách đang đăng nhập */
@@ -952,8 +952,127 @@
         actions: [{ label: 'Xem lịch sử', go: '#/history' }] };
     }
 
-    // 12) Không hiểu -> trả lời trung thực + chuyển tiếp cho quản lý (đúng đặc tả)
+    // 12) Không hiểu -> để tầng AI xử lý (nếu có), sau đó mới chuyển cho quản lý
     return { html: null, forward: text };
+  }
+
+  /* ============================================================
+     TẦNG 2 — GEMINI FLASH (chỉ chạy khi luật từ khóa ở trên không nhận ra ý định)
+     Mô hình CHỈ làm 2 việc: (a) phân loại ý định, (b) soạn lời văn từ số thật.
+     Số liệu luôn do code lấy từ dữ liệu của CHÍNH khách đang đăng nhập
+     (state.data — máy chủ trả về theo state.phone đã xác thực), không phải do mô hình nghĩ ra.
+     ============================================================ */
+  const T_INTENTS = [
+    { key: 'invoice', desc: 'Số tiền phải đóng, chi tiết hóa đơn, còn nợ bao nhiêu' },
+    { key: 'due', desc: 'Hạn đóng tiền, còn bao nhiêu ngày, đóng trễ thì sao' },
+    { key: 'utilities', desc: 'Điện nước: số kWh, số khối, tiền điện tiền nước' },
+    { key: 'contract', desc: 'Hợp đồng: giá thuê, tiền cọc, ngày bắt đầu/kết thúc, gia hạn' },
+    { key: 'terms', desc: 'Điều khoản, nội quy, quy định của hợp đồng' },
+    { key: 'payinfo', desc: 'Cách thanh toán, số tài khoản ngân hàng, mã QR' },
+    { key: 'history', desc: 'Lịch sử đã thanh toán, biên lai, phiếu thu' },
+    { key: 'prices', desc: 'Bảng giá dịch vụ: giá điện, giá nước, phí rác, internet' },
+    { key: 'assets', desc: 'Tài sản, đồ đạc, thiết bị có trong phòng' },
+    { key: 'room', desc: 'Thông tin phòng: diện tích, giá, tầng, người ở cùng' },
+    { key: 'repair', desc: 'Báo hỏng, yêu cầu sửa chữa, theo dõi tiến độ sửa' },
+    { key: 'contact', desc: 'Liên hệ chủ nhà, số điện thoại quản lý' },
+  ];
+
+  /* Lấy SỐ THẬT cho từng ý định — đây là dữ liệu duy nhất mô hình được dùng */
+  function tenantFacts(key) {
+    const d = state.data, inv = currentUnpaid(), c = d.contract, u = latestUsage();
+    const base = { họ_tên: d.tenant.fullName, phòng: d.tenant.roomCode || '' };
+    switch (key) {
+      case 'invoice':
+        if (!inv) return { ...base, còn_phải_đóng: '0 ₫', ghi_chú: 'Khách đã thanh toán đầy đủ, không còn khoản nào' };
+        return { ...base, kỳ: vnPeriod(inv.period), tổng_hóa_đơn: vnd(inv.total),
+          đã_thanh_toán: vnd(inv.paid), còn_phải_đóng: vnd(inv.total - inv.paid),
+          hạn_thanh_toán: fmtDate(inv.dueDate), còn_lại_ngày: daysLeft(inv.dueDate),
+          các_khoản: (inv.lines || []).map(l => ({ khoản: l.label, tiền: vnd(l.amount), mô_tả: l.meta || null })) };
+      case 'due':
+        if (!inv) return { ...base, ghi_chú: 'Không có hóa đơn nào đang chờ thanh toán' };
+        return { ...base, kỳ: vnPeriod(inv.period), hạn_thanh_toán: fmtDate(inv.dueDate),
+          còn_lại_ngày: daysLeft(inv.dueDate), số_tiền: vnd(inv.total - inv.paid) };
+      case 'utilities':
+        if (!u) return { ...base, ghi_chú: 'Chưa có chỉ số điện nước nào được ghi cho phòng này' };
+        return { ...base, kỳ: u.label, điện_kWh: u.elec, nước_m3: u.water,
+          tiền_điện: inv ? (((inv.lines || []).find(l => l.type === 'elec' || /điện/i.test(l.label)) || {}).amount != null
+            ? vnd((inv.lines.find(l => l.type === 'elec' || /điện/i.test(l.label))).amount) : null) : null,
+          tiền_nước: inv ? (((inv.lines || []).find(l => /nước/i.test(l.label)) || {}).amount != null
+            ? vnd((inv.lines.find(l => /nước/i.test(l.label))).amount) : null) : null };
+      case 'contract':
+      case 'terms':
+        if (!c) return { ...base, ghi_chú: 'Chưa có thông tin hợp đồng trên hệ thống' };
+        return { ...base, giá_thuê: vnd(c.rent), tiền_cọc: vnd(c.deposit),
+          từ_ngày: fmtDate(c.start), đến_ngày: fmtDate(c.end),
+          còn_lại_ngày: c.end ? daysLeft(c.end) : null,
+          điều_khoản: key === 'terms' ? (c.terms && c.terms.length ? c.terms : DEFAULT_TERMS) : undefined };
+      case 'payinfo':
+        return { ...base, ngân_hàng: BANK.name, số_tài_khoản: BANK.account, chủ_tài_khoản: BANK.holder,
+          nội_dung_chuyển_khoản: `${d.tenant.roomCode || ''} ${inv ? vnPeriod(inv.period) : ''}`.trim(),
+          số_tiền_cần_chuyển: inv ? vnd(inv.total - inv.paid) : '0 ₫' };
+      case 'history': {
+        const p = d.payments || [];
+        return { ...base, số_lần_đã_đóng: p.length, tổng_đã_đóng: vnd(p.reduce((s, x) => s + x.amount, 0)),
+          gần_nhất: p.length ? { số_tiền: vnd(p[0].amount), ngày: fmtDate(p[0].date) } : null };
+      }
+      case 'prices':
+        return { ...base, tiền_phòng: vnd(d.room && d.room.price),
+          dịch_vụ: (d.services || []).map(s => ({ tên: s.name, đơn_giá: num(s.unit) + ' ' + (s.unitLabel || '') })) };
+      case 'assets':
+        return { ...base, số_tài_sản: (d.assets || []).length,
+          danh_sách: (d.assets || []).map(a => a.name + ((a.quantity || 1) > 1 ? ' ×' + a.quantity : '')) };
+      case 'room':
+        return { ...base, diện_tích: d.room && d.room.area ? d.room.area + ' m²' : null,
+          tầng: d.room && d.room.floor, giá_thuê: vnd(d.room && d.room.price),
+          người_ở_cùng: (d.roommates || []).map(r => r.fullName) };
+      case 'repair': {
+        const inc = d.incidents || [];
+        return { ...base, số_yêu_cầu_đã_gửi: inc.length,
+          đang_xử_lý: inc.filter(x => x.status !== 'done').length,
+          danh_sách: inc.slice(0, 5).map(x => ({ nội_dung: x.title, trạng_thái: x.status, ngày: fmtDate(x.createdAt) })) };
+      }
+      case 'contact':
+        return { ...base, tên_tòa_nhà: d.building && d.building.name,
+          số_điện_thoại_quản_lý: (d.building && d.building.contactPhone) || null };
+      default:
+        return base;
+    }
+  }
+
+  const T_ACTIONS = {
+    invoice: (inv) => inv ? [{ label: 'Xem chi tiết', go: '#/invoice/' + inv.id }, { label: 'Thanh toán', go: '#/pay/' + inv.id, solid: true }] : [],
+    due: (inv) => inv ? [{ label: 'Thanh toán ngay', go: '#/pay/' + inv.id, solid: true }] : [],
+    utilities: () => [{ label: 'Lịch sử điện nước', go: '#/usage' }],
+    contract: () => [{ label: 'Xem hợp đồng', go: '#/contract' }],
+    terms: () => [{ label: 'Xem điều khoản', go: '#/contract' }],
+    payinfo: (inv) => inv ? [{ label: 'Mở trang thanh toán', go: '#/pay/' + inv.id, solid: true }] : [],
+    history: () => [{ label: 'Xem lịch sử', go: '#/history' }],
+    prices: () => [{ label: 'Bảng giá đầy đủ', go: '#/services' }],
+    assets: () => [{ label: 'Phòng của tôi', go: '#/room' }],
+    room: () => [{ label: 'Phòng của tôi', go: '#/room' }],
+    repair: () => [{ label: 'Báo hỏng', go: '#/repair', solid: true }, { label: 'Theo dõi', go: '#/track' }],
+    contact: () => [{ label: 'Liên hệ chủ nhà', act: 'contact', solid: true }],
+  };
+
+  /** Trả lời bằng Gemini. Trả về null nếu không dùng được -> chuyển cho quản lý. */
+  async function aiAnswer(text) {
+    const G = window.HHGemini;
+    if (!G || !G.configured()) return null;
+    try {
+      const ck = 't|' + norm(text);
+      const cls = G.cacheGet(ck) || await G.classify(text, T_INTENTS);
+      G.cacheSet(ck, cls);
+      if (cls.intent === 'unknown' || cls.confidence < 0.35 || !T_INTENTS.some(i => i.key === cls.intent)) return null;
+
+      const facts = tenantFacts(cls.intent);          // <- số thật, code tự lấy
+      const composed = await G.compose(text, facts,
+        'Xưng "em", gọi khách là "anh/chị". Người hỏi là khách đang thuê phòng. Thân thiện, ngắn gọn.');
+      const inv = currentUnpaid();
+      return { html: composed.replace(/```[a-z]*|```/g, '').trim(),
+        actions: (T_ACTIONS[cls.intent] ? T_ACTIONS[cls.intent](inv) : []), ai: true };
+    } catch (e) {
+      return null;   // hết lượt / lỗi mạng -> quay về luồng chuyển cho quản lý
+    }
   }
 
   /* ---------- màn hình chat ---------- */
@@ -965,6 +1084,7 @@
     const body = chat.msgs.map((m, i) => `
       <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
         <div class="bubble">${m.html}
+          ${m.ai ? '<span class="b-ai">✦ soạn bởi Gemini · số liệu lấy từ hệ thống</span>' : ''}
           ${m.actions.length ? `<div class="b-actions">${m.actions.map((a, j) =>
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
         </div></div>`).join('');
@@ -1000,16 +1120,27 @@
     });
   }
 
-  function ask(text) {
+  async function ask(text) {
     pushMsg('me', esc(text));
     chat.busy = true; screenChat();
-    setTimeout(() => {
-      const res = answer(text);
+
+    // Tầng 1 — luật từ khóa (miễn phí, tức thì)
+    await new Promise(r => setTimeout(r, 380));
+    const res = answer(text);
+    if (res.html) {
       chat.busy = false;
-      if (res.html) pushMsg('bot', res.html, res.actions);
-      else forwardToLandlord(res.forward);
-      screenChat();
-    }, 420);
+      pushMsg('bot', res.html, res.actions);
+      screenChat(); return;
+    }
+
+    // Tầng 2 — Gemini Flash (chỉ khi luật không nhận ra)
+    const ai = await aiAnswer(text);
+    chat.busy = false;
+    if (ai) { pushMsg('bot', ai.html, ai.actions, true); screenChat(); return; }
+
+    // Tầng 3 — trả lời trung thực + chuyển cho quản lý
+    forwardToLandlord(res.forward);
+    screenChat();
   }
 
   // Không xử lý được -> trả lời trung thực + gửi câu hỏi cho chủ nhà (đúng đặc tả §5.1)

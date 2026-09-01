@@ -615,6 +615,43 @@
   }
 
   /* ---------------- CÀI ĐẶT CHUNG ---------------- */
+  /* Bảng trạng thái trợ lý ảo — giải thích rõ tầng nào đang chạy */
+  function aiStatusHtml() {
+    const G = window.HHGemini;
+    const on = !!(G && G.configured());
+    const mode = on ? (G.viaProxy() ? 'Qua máy chủ trung gian (an toàn)' : 'Gọi thẳng từ trình duyệt') : '—';
+    const left = on ? (G.quotaLimit - G.quotaUsed()) : 0;
+    const nIntent = (HH.ai && HH.ai.INTENT_LIST.length) || 0;
+    return `<div class="grid-2" style="align-items:start;gap:20px">
+      <div>
+        <div class="field"><label>Tầng 1 — Tra cứu bằng luật từ khóa</label>
+          <div><span class="badge s-success"><span class="dot"></span>Luôn bật · miễn phí</span></div>
+          <span class="hint" style="display:block;margin-top:6px">
+            ${nIntent} nhóm câu hỏi thường gặp được nhận diện bằng từ khóa. Số liệu lấy trực tiếp
+            từ cơ sở dữ liệu rồi ghép vào câu mẫu — không gọi mạng, không tốn phí, không sai số.</span></div>
+        <div class="field" style="margin-top:14px"><label>Tầng 2 — Gemini Flash</label>
+          <div>${on ? '<span class="badge s-purple"><span class="dot"></span>Đã bật</span>'
+                    : '<span class="badge s-neutral"><span class="dot"></span>Chưa cấu hình</span>'}</div>
+          <span class="hint" style="display:block;margin-top:6px">
+            Chỉ chạy khi Tầng 1 không nhận ra ý định. Mô hình <b>chỉ phân loại ý định</b> rồi
+            <b>soạn lời văn từ số liệu code đã lấy</b> — không bao giờ tự nghĩ ra con số.</span></div>
+      </div>
+      <div>
+        ${on ? `<div class="field"><label>Cách kết nối</label><div class="mono">${U.esc(mode)}</div></div>
+          <div class="field" style="margin-top:12px"><label>Mô hình</label><div class="mono">${U.esc(G.model())}</div></div>
+          <div class="field" style="margin-top:12px"><label>Lượt còn lại hôm nay</label>
+            <div class="mono b">${left} / ${G.quotaLimit}</div>
+            <span class="hint" style="display:block;margin-top:4px">Bộ đếm nội bộ để không vượt hạn mức miễn phí của Google.</span></div>`
+        : `<div class="alert alert-info"><span class="ic">i</span><div>
+            Trợ lý vẫn hoạt động bình thường với các câu hỏi thường gặp.<br>
+            Muốn bật Gemini cho câu hỏi phức tạp: lấy khóa miễn phí tại
+            <b>aistudio.google.com/apikey</b> rồi thêm <span class="mono">geminiApiKey</span>
+            (hoặc <span class="mono">aiProxyUrl</span>) vào <span class="mono">js/config.js</span>.
+            Xem hướng dẫn trong <span class="mono">js/config.example.js</span>.</div></div>`}
+      </div>
+    </div>`;
+  }
+
   HH.pages.companyConfig = {
     render() {
       return h`<div class="page-head">
@@ -637,6 +674,8 @@
           <div class="field" style="margin-top:12px"><label>Phiên bản</label><div class="mono">Happy Home v1.0</div></div>
           ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">↺ Khôi phục dữ liệu mẫu</button></div>' : '')}
         </div></div>
+        <div class="card" style="grid-column:1/-1"><div class="card-head"><h3>Trợ lý ảo (AI)</h3></div>
+          <div class="card-pad">${raw(aiStatusHtml())}</div></div>
       </div>`;
     },
     mount() {

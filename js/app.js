@@ -122,12 +122,14 @@ HH.app = (function () {
     wireShell(params);
     try { if (page && page.mount && pageKey !== 'stub') page.mount(ctx);
           else if (pageKey === 'stub' && HH.pages.stub.mount) HH.pages.stub.mount(ctx); } catch (e) { console.error(e); }
+    if (HH.assistant) HH.assistant.mount();   // khung chat trợ lý (nằm ngoài #app nên không bị vẽ lại)
     window.scrollTo(0, 0);
   }
 
   function renderBare(pageKey, params, route) {
     const page = HH.pages[pageKey];
     const ctx = pageCtx(pageKey, params, route);
+    if (HH.assistant) HH.assistant.unmount();  // màn hình đăng nhập không hiện trợ lý
     document.getElementById('app').innerHTML = page.render(ctx);
     if (page.mount) page.mount(ctx);
   }

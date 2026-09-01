@@ -14,4 +14,20 @@
 window.HH_CONFIG = {
   supabaseUrl: 'https://YOUR-PROJECT-REF.supabase.co',
   supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY',
+
+  /* ---------- Trợ lý AI (tùy chọn) ----------
+     Không điền gì cũng được: trợ lý vẫn trả lời các câu hỏi thường gặp
+     bằng luật từ khóa + dữ liệu thật (miễn phí, không gọi mạng).
+
+     CÁCH AN TOÀN (khuyến nghị khi đưa web cho người khác dùng):
+       Triển khai supabase/functions/ai rồi điền:
+         aiProxyUrl: 'https://YOUR-PROJECT-REF.supabase.co/functions/v1/ai',
+
+     CÁCH NHANH (chỉ nên dùng khi chạy thử ở máy cá nhân):
+       Lấy khóa miễn phí tại https://aistudio.google.com/apikey rồi điền:
+         geminiApiKey: 'AIza...',
+       Lưu ý: khóa đặt ở đây AI MỞ TRÌNH DUYỆT CŨNG ĐỌC ĐƯỢC.
+
+     geminiModel: 'gemini-2.0-flash',   // mặc định, có thể bỏ trống
+  */
 };

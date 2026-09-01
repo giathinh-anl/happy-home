@@ -38,7 +38,7 @@ Rồi mở `http://localhost:8777/index.html`.
 | Nhóm | Màn hình |
 |---|---|
 | Xác thực | Đăng nhập (kiểm tra email khi rời ô, trạng thái chờ, dải lỗi) |
-| Công ty | Tổng quan (thẻ chỉ số, biểu đồ doanh thu, "Cần xử lý", bảng tòa nhà) · Tòa nhà · Nhật ký hệ thống |
+| Công ty | **Tổng quan** (4 thẻ KPI có xu hướng, dòng tiền 6 kỳ, vòng cung tiến độ thu, 3 biểu đồ tròn, tiêu thụ điện nước, hiệu suất từng tòa, chi phí theo hạng mục, phiếu thu gần đây, top công nợ, việc cần xử lý) · Tòa nhà · Nhật ký hệ thống |
 | Phòng | Sơ đồ theo tầng + chế độ bảng · tooltip · **tạo phòng hàng loạt** (2 bước, phát hiện trùng mã) · **đổi trạng thái** (DangerDialog, máy trạng thái) |
 | Khách thuê | Danh sách · **thêm bằng nhận diện CCCD** (mô phỏng OCR, chỉ báo độ tin cậy, phát hiện trùng, lối nhập thủ công) |
 | Hợp đồng | Danh sách · **lập hợp đồng 5 bước** (Phòng → Khách → Điều khoản → Dịch vụ → Bàn giao → xác nhận) · lưu nháp · **trả phòng & thanh lý** (kiểm kê tài sản, quyết toán cọc) |
@@ -46,6 +46,7 @@ Rồi mở `http://localhost:8777/index.html`.
 | Hóa đơn | Danh sách + 4 thẻ chỉ số + chọn kỳ · **sinh hóa đơn hàng loạt** (kiểm tra điều kiện) · **phát hành** (tiến trình từng bước) · **chi tiết hóa đơn** (căn cứ tính từng dòng, lịch sử thanh toán, dải "đã chỉnh sửa") · **hủy hóa đơn** (DangerDialog) |
 | Thanh toán | **Ghi nhận thanh toán** với **phân bổ tự động** (trả trước kỳ cũ nhất) · trang công nợ |
 | Khác | Dịch vụ & đơn giá · Tài sản (khấu hao, giá trị còn lại) |
+| Trợ lý ảo | **Chat AI** ở cả web quản trị và app khách thuê — luật từ khóa trả lời miễn phí, Gemini Flash chỉ dùng cho câu hỏi phức tạp |
 
 ### Thành phần dùng chung (theo Phần II đặc tả)
 `MetricCard`, `StatusBadge` (bảng quy ước màu §1.2), `DataTable` (tìm/lọc/sắp xếp/phân trang/chọn hàng loạt/trạng thái rỗng/skeleton), `PeriodSelector`, `DangerDialog` (bắt buộc nhập lý do ≥10 ký tự), toast, modal, menu.
@@ -56,6 +57,27 @@ Rồi mở `http://localhost:8777/index.html`.
 - Phím tắt: `/` tìm kiếm · `n` tạo mới · `Esc` đóng · `?` bảng phím tắt.
 - Phân quyền sinh menu theo vai trò; chặn truy cập route ngoài phạm vi.
 - Responsive: thanh bên thành ngăn kéo trên màn hình hẹp.
+
+## Trợ lý ảo (AI)
+
+Trợ lý chạy theo **3 tầng**, thiết kế để **không bao giờ để mô hình tự nghĩ ra số liệu**:
+
+| Tầng | Chạy khi nào | Chi phí | Cách hoạt động |
+|---|---|---|---|
+| 1. Luật từ khóa | Luôn luôn, ưu tiên đầu | 0 đ | Nhận diện ý định bằng từ khóa, code truy vấn dữ liệu thật rồi ghép vào câu mẫu |
+| 2. Gemini Flash | Chỉ khi tầng 1 không hiểu | Gói miễn phí (~1.500 lượt/ngày) | (a) mô hình **chỉ phân loại ý định**, trả JSON, không có số, (b) code lấy **số thật**, (c) mô hình **soạn lời văn từ số đó** |
+| 3. Trả lời trung thực | Khi cả hai tầng đều không xử lý được | 0 đ | Nói thẳng là chưa hỗ trợ; app khách còn tự chuyển câu hỏi cho chủ nhà |
+
+Nhờ vậy: câu hỏi lặp đi lặp lại (*"tháng này đóng bao nhiêu"*) **không tốn lượt gọi API**, và mọi con số hiển thị đều lấy từ cơ sở dữ liệu chứ không phải do mô hình đoán.
+
+**Bật Gemini** (tùy chọn — không bật thì tầng 1 và 3 vẫn chạy bình thường):
+
+1. Lấy khóa miễn phí tại <https://aistudio.google.com/apikey>.
+2. Cách an toàn (nên dùng khi công khai web): triển khai `supabase/functions/ai` rồi điền `aiProxyUrl` vào `js/config.js`. Khóa nằm ở máy chủ, trình duyệt không thấy.
+3. Cách nhanh (chỉ chạy thử ở máy cá nhân): điền thẳng `geminiApiKey` vào `js/config.js`. **Lưu ý: ai mở trình duyệt cũng đọc được khóa này.**
+
+Xem hướng dẫn đầy đủ trong `js/config.example.js` và `supabase/functions/ai/index.ts`.
+Trạng thái trợ lý (đang chạy tầng nào, còn bao nhiêu lượt) xem ở **Cài đặt chung → Trợ lý ảo (AI)**.
 
 ## Cấu trúc mã nguồn
 
@@ -69,7 +91,12 @@ css/
   pages.css           # style riêng từng màn hình
 js/
   utils.js            # định dạng tiền/số/ngày, tag template html
-  store.js            # dữ liệu giả lập + trạng thái + truy vấn/đột biến
+  icons.js            # bộ icon SVG dùng chung
+  charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
+  gemini.js           # cầu nối Gemini Flash (phân loại ý định + soạn lời), đếm hạn mức, cache
+  ai.js               # bộ ý định của chủ trọ: mỗi ý định tự lấy số thật từ store
+  assistant.js        # khung chat nổi ở góc màn hình
+  store.js            # dữ liệu + trạng thái + truy vấn/đột biến/phân tích dashboard
   components.js       # MetricCard, StatusBadge, DataTable, DangerDialog...
   router.js           # điều hướng theo hash (#/...)
   app.js              # khung, thanh bên, phân quyền, phím tắt, boot
