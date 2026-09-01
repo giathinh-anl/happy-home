@@ -17,13 +17,115 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 img { max-width: 100%; display: block; }
 :focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
 
-/* Khung điện thoại */
+/* Khung điện thoại (mặc định) */
 .t-app {
   max-width: 480px; margin: 0 auto; min-height: 100vh;
   background: var(--neutral-50); display: flex; flex-direction: column;
   box-shadow: 0 0 40px rgba(0,0,0,.08);
 }
 .t-main { flex: 1; padding: 16px; padding-bottom: 90px; }
+
+/* Thanh bên chỉ dùng cho máy tính */
+.t-side { display: none; }
+
+/* ============================================================
+   BỐ CỤC MÁY TÍNH (≥ 900px): thanh bên + nội dung rộng 2 cột
+   ============================================================ */
+@media (min-width: 900px) {
+  body { background: var(--neutral-100); }
+  .t-app {
+    max-width: 1240px; min-height: 100vh; background: transparent; box-shadow: none;
+    display: grid; grid-template-columns: 268px 1fr; grid-template-rows: auto 1fr;
+    gap: 0 26px; padding: 22px; align-items: start;
+  }
+  /* Ẩn thanh tiêu đề & tab bar kiểu điện thoại */
+  .t-app > .t-header { display: none; }
+  .t-app > .t-tabbar { display: none; }
+  .t-app > .chat-fab { display: none; }
+
+  .t-side {
+    display: flex; flex-direction: column; gap: 6px; grid-row: 1 / span 2;
+    position: sticky; top: 22px; background: var(--neutral-0);
+    border: 1px solid var(--neutral-200); border-radius: 18px; padding: 18px 14px;
+    box-shadow: var(--shadow-card);
+  }
+  .t-side .s-brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 14px; }
+  .t-side .s-brand .mark {
+    width: 38px; height: 38px; border-radius: 10px; flex: 0 0 38px;
+    background: linear-gradient(140deg, var(--brand-500), var(--brand-700));
+    color: #fff; display: grid; place-items: center; font-weight: 800;
+  }
+  .t-side .s-brand b { font-size: 16px; letter-spacing: -.01em; display: block; line-height: 1.2; }
+  .t-side .s-brand small { color: var(--neutral-400); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; }
+
+  .t-side .s-me {
+    display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin-bottom: 10px;
+    background: var(--brand-50); border-radius: 12px;
+  }
+  .t-side .s-me .av {
+    width: 38px; height: 38px; border-radius: 50%; flex: 0 0 38px; background: var(--brand-500);
+    color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px;
+  }
+  .t-side .s-me .nm { font-weight: 700; font-size: 14px; line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t-side .s-me .rm { font-size: 12px; color: var(--brand-700); font-weight: 600; }
+
+  .t-side .s-sep { height: 1px; background: var(--neutral-200); margin: 10px 4px; }
+  .t-side .s-label {
+    font-size: 10.5px; font-weight: 700; color: var(--neutral-400);
+    text-transform: uppercase; letter-spacing: .08em; padding: 6px 12px 4px;
+  }
+  .t-nav {
+    display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 12px;
+    border: none; background: transparent; border-radius: 11px; cursor: pointer;
+    font-size: 14.5px; font-weight: 600; color: var(--neutral-700); text-align: left;
+    transition: background .14s, color .14s;
+  }
+  .t-nav:hover { background: var(--neutral-100); color: var(--neutral-900); }
+  .t-nav.on { background: var(--brand-500); color: #fff; }
+  .t-nav .nic { font-size: 18px; width: 22px; text-align: center; flex: 0 0 22px; }
+  .t-nav .nbadge {
+    margin-left: auto; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700;
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center;
+  }
+  .t-nav.on .nbadge { background: rgba(255,255,255,.25); }
+  .t-side .s-foot { margin-top: auto; padding-top: 12px; }
+
+  /* Nội dung */
+  .t-main {
+    padding: 0; padding-bottom: 40px; grid-column: 2; grid-row: 1 / span 2;
+    max-width: 1000px;
+  }
+  .room-head { display: none; }   /* đã có tiêu đề trang trên máy tính */
+  .t-page-head { display: block; margin-bottom: 18px; }
+  .t-page-head h1 { font-size: 27px; font-weight: 700; letter-spacing: -.025em; }
+  .t-page-head p { color: var(--neutral-500,var(--neutral-600)); font-size: 14px; margin-top: 3px; }
+
+  /* Lưới 2 cột cho trang chủ & các trang nhiều khối */
+  .t-grid2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: start; }
+  .t-grid2 > div { min-width: 0; }
+
+  /* Thẻ to & thoáng hơn trên máy tính */
+  .t-card { border-radius: 16px; padding: 20px; }
+  .due-card { border-radius: 18px; padding: 24px; }
+  .due-card .amount { font-size: 40px; }
+  .quick-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 14px; }
+  .quick-item { padding: 20px 10px; border-radius: 16px; }
+  .quick-item .qic { width: 52px; height: 52px; font-size: 24px; }
+  .quick-item .qlabel { font-size: 14px; }
+  .inv-item { padding: 16px 18px; border-radius: 14px; }
+  .t-btn { max-width: 320px; }
+  .due-card .t-btn { max-width: none; }
+  .usage-chart { height: 150px; }
+  .chat-wrap {
+    height: calc(100vh - 44px); max-width: none; border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--neutral-200); box-shadow: var(--shadow-card);
+    grid-column: 2; grid-row: 1 / span 2; background: var(--neutral-50);
+  }
+  .chat-wrap .t-header.plain { display: flex; border-radius: 18px 18px 0 0; }
+  .chat-wrap .t-header .back { display: none; }
+  .bubble { max-width: 70%; }
+}
 
 /* Header */
 .t-header {

@@ -101,6 +101,50 @@
     document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
   }
 
+  /* ---------- Thanh bên (chỉ hiện trên máy tính) ---------- */
+  const SIDE_MAIN = [
+    { hash: '#/home', ic: '🏠', label: 'Trang chủ', key: 'home' },
+    { hash: '#/invoices', ic: '🧾', label: 'Hóa đơn', key: 'invoices' },
+    { hash: '#/room', ic: '🚪', label: 'Phòng của tôi', key: 'room' },
+    { hash: '#/contract', ic: '📄', label: 'Hợp đồng', key: 'contract' },
+  ];
+  const SIDE_MORE = [
+    { hash: '#/readings', ic: '📷', label: 'Gửi chỉ số', key: 'readings' },
+    { hash: '#/repair', ic: '🔧', label: 'Báo hỏng', key: 'repair' },
+    { hash: '#/track', ic: '🛠️', label: 'Yêu cầu sửa chữa', key: 'track' },
+    { hash: '#/usage', ic: '📊', label: 'Lịch sử điện nước', key: 'usage' },
+    { hash: '#/history', ic: '💳', label: 'Lịch sử thanh toán', key: 'history' },
+    { hash: '#/services', ic: '🛎️', label: 'Bảng giá dịch vụ', key: 'services' },
+    { hash: '#/chat', ic: '💬', label: 'Trợ lý ảo', key: 'chat' },
+    { hash: '#/account', ic: '👤', label: 'Tài khoản', key: 'account' },
+  ];
+
+  function sidebar() {
+    const d = state.data; if (!d) return '';
+    // mục đang chọn suy ra từ URL (kể cả màn hình con như #/invoice/... , #/pay/...)
+    const h = location.hash || '#/home';
+    const seg = h.split('/')[1] || 'home';
+    const active = { invoice: 'invoices', pay: 'invoices', otp: 'home', '': 'home' }[seg] || seg;
+    const unpaid = (d.invoices || []).filter(i => (i.total - i.paid) > 0).length;
+    const item = (x) => `<button class="t-nav ${x.key === active ? 'on' : ''}" data-tab="${x.hash}">
+      <span class="nic">${x.ic}</span><span>${x.label}</span>
+      ${x.key === 'invoices' && unpaid ? `<span class="nbadge">${unpaid}</span>` : ''}</button>`;
+    const nm = d.tenant.fullName || '';
+    return `<aside class="t-side">
+      <div class="s-brand"><span class="mark">H</span>
+        <span><b>Happy Home</b><small>Khách thuê</small></span></div>
+      <div class="s-me"><span class="av">${esc((nm.trim().split(/\s+/).slice(-1)[0] || '?')[0])}</span>
+        <span style="min-width:0"><span class="nm">${esc(nm)}</span>
+          <span class="rm">Phòng ${esc(d.tenant.roomCode || '')}</span></span></div>
+      ${SIDE_MAIN.map(item).join('')}
+      <div class="s-sep"></div>
+      <div class="s-label">Tiện ích</div>
+      ${SIDE_MORE.map(item).join('')}
+      <div class="s-foot"><button class="t-nav" id="sideLogout" style="color:var(--danger)">
+        <span class="nic">⎋</span><span>Đăng xuất</span></button></div>
+    </aside>`;
+  }
+
   /* ---------- màn hình: ĐĂNG NHẬP ---------- */
   function screenLogin() {
     el('tapp').innerHTML = `<div class="t-login">
@@ -201,10 +245,19 @@
            <button class="iconbtn" id="reload" title="Tải lại">⟳</button></div>`
       : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
-    // Nút trợ lý ảo nổi — hiện ở các màn hình chính
+    // Nút trợ lý ảo nổi — hiện ở các màn hình chính (điện thoại)
     const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">💬</button>` : '';
-    el('tapp').innerHTML = `<div class="t-app">${header}<div class="t-main">${body}</div>${fab}${tabs}</div>`;
+    // Tiêu đề trang cho bố cục máy tính (điện thoại đã có thanh header riêng)
+    const deskHead = `<div class="t-page-head"><h1>${esc(opts.deskTitle || title || 'Trang chủ')}</h1>
+      ${opts.deskSub ? `<p>${esc(opts.deskSub)}</p>` : ''}</div>`;
+    el('tapp').innerHTML = `<div class="t-app">${sidebar()}${header}
+      <div class="t-main">${deskHead}${body}</div>${fab}${tabs}</div>`;
     const fb = el('chatFab'); if (fb) fb.onclick = () => go('#/chat');
+    wireTabs();   // thanh bên dùng chung data-tab
+    const slo = el('sideLogout');
+    if (slo) slo.onclick = () => { if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
+      try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
+      state.phone = null; state.data = null; go('#/login'); };
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
     const rl = el('reload'); if (rl) rl.onclick = async () => {
       rl.textContent = '⏳';
@@ -254,22 +307,31 @@
       <div class="t-row"><span class="k">💧 Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
     </div>` : '';
 
+    const contractCardHtml = c ? contractCard(c) : '';
     shell('', `
       <div class="room-head"><div class="rname">Phòng ${esc(d.room.code || d.tenant.roomCode)}</div>
         <div class="bname">${esc(d.building.name || '')}</div></div>
       ${ctWarn}
-      ${dueCard}
-      <div class="section-title">Truy cập nhanh</div>
-      <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
-        <button class="quick-item" data-nav="#/invoices"><div class="qic" style="background:var(--info-bg)">🧾</div><div class="qlabel">Hóa đơn</div></button>
-        <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">📷</div><div class="qlabel">Ghi chỉ số</div></button>
-        <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">🔧</div><div class="qlabel">Báo hỏng</div></button>
-        <button class="quick-item" data-nav="#/chat"><div class="qic" style="background:var(--purple-bg)">💬</div><div class="qlabel">Trợ lý ảo</div></button>
+      <div class="t-grid2">
+        <div>
+          ${dueCard}
+          <div class="section-title">Truy cập nhanh</div>
+          <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
+            <button class="quick-item" data-nav="#/invoices"><div class="qic" style="background:var(--info-bg)">🧾</div><div class="qlabel">Hóa đơn</div></button>
+            <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">📷</div><div class="qlabel">Ghi chỉ số</div></button>
+            <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">🔧</div><div class="qlabel">Báo hỏng</div></button>
+            <button class="quick-item" data-nav="#/chat"><div class="qic" style="background:var(--purple-bg)">💬</div><div class="qlabel">Trợ lý ảo</div></button>
+          </div>
+          ${usageCard}
+        </div>
+        <div>
+          ${contractCardHtml}
+          <div class="section-title">Thông báo gần đây</div>
+          <div class="t-card">${notis || '<div style="color:var(--neutral-400);text-align:center;padding:8px">Chưa có thông báo</div>'}</div>
+        </div>
       </div>
-      ${usageCard}
-      <div class="section-title">Thông báo gần đây</div>
-      <div class="t-card">${notis || '<div class="muted" style="color:var(--neutral-400);text-align:center;padding:8px">Chưa có thông báo</div>'}</div>
-    `, { home: true, tab: 'home' });
+    `, { home: true, tab: 'home', deskTitle: 'Xin chào, ' + (d.tenant.fullName || '').split(' ').slice(-1)[0],
+         deskSub: `Phòng ${d.room.code || d.tenant.roomCode} · ${d.building.name || ''}` });
     const pn = el('payNow'); if (pn) pn.onclick = () => go('#/pay/' + inv.id);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
@@ -837,7 +899,7 @@
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
         </div></div>`).join('');
 
-    el('tapp').innerHTML = `<div class="chat-wrap">
+    el('tapp').innerHTML = `<div class="t-app">${sidebar()}<div class="chat-wrap">
       <div class="t-header plain"><button class="back" id="back">←</button>
         <div class="htitle">Trợ lý Happy Home</div></div>
       <div class="chat-body" id="chatBody">${body}${chat.busy ? '<div class="chat-typing"><i></i><i></i><i></i></div>' : ''}</div>
@@ -845,8 +907,12 @@
       <div class="chat-input">
         <textarea id="chatIn" rows="1" placeholder="Nhập câu hỏi..."></textarea>
         <button class="chat-send" id="chatSend" aria-label="Gửi">➤</button>
-      </div></div>`;
+      </div></div></div>`;
 
+    wireTabs();
+    const slo2 = el('sideLogout');
+    if (slo2) slo2.onclick = () => { try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
+      state.phone = null; state.data = null; go('#/login'); };
     el('back').onclick = () => go('#/home');
     const bodyEl = el('chatBody'); bodyEl.scrollTop = bodyEl.scrollHeight;
     const inp = el('chatIn');
