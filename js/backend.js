@@ -17,7 +17,8 @@ HH.backend = (function () {
   const KINDS = {
     buildings: 'buildings', rooms: 'rooms', tenants: 'tenants', contracts: 'contracts',
     services: 'services', readings: 'readings', invoices: 'invoices', payments: 'payments',
-    assets: 'assets', incidents: 'incidents', transactions: 'transactions', staff: 'staff', auditLog: 'audit_log',
+    assets: 'assets', incidents: 'incidents', transactions: 'transactions', staff: 'staff',
+    claims: 'payment_claims', auditLog: 'audit_log',
   };
   // field JS lệch quy tắc -> cột DB
   const ALIAS = {

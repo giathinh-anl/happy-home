@@ -290,8 +290,7 @@
         <a href="#/b/${ctx.bid}/payments">Thanh toán & công nợ</a> để thu tiền và in phiếu thu.</div></div>` : '';
 
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">🧾</span>
-          <div><div class="page-title-lg">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div></div>
+        <div><div><div class="page-title-lg">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div></div>
         <div class="page-actions"><button class="btn btn-primary" data-primary-new id="genInv2">+ Sinh hóa đơn</button></div>
       </div>
       <div id="periodSel" style="margin-bottom:16px"></div>
@@ -753,8 +752,7 @@
       }
 
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">₫</span>
-          <div><div class="page-title-lg">Thanh toán & công nợ</div>
+        <div><div><div class="page-title-lg">Thanh toán & công nợ</div>
           <div class="page-sub">${ctx.building.name} · kỳ ${S.periodLabel(per)}</div></div></div>
       </div>
       <div id="periodSel" style="margin-bottom:16px"></div>

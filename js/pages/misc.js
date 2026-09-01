@@ -22,8 +22,7 @@
       const tbody = rows.length ? rows
         : [`<tr><td colspan="${owner ? 5 : 4}"><div class="empty"><div class="ic">🛎️</div><h4>Chưa có dịch vụ nào</h4><p class="muted">Thêm dịch vụ để tính vào hóa đơn hằng tháng.</p></div></td></tr>`];
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">🛎️</span>
-          <div><div class="page-title-lg">Dịch vụ & đơn giá</div><div class="page-sub">${ctx.building.name} · ${svcs.length} dịch vụ · đơn giá hiện hành</div></div></div>
+        <div><div><div class="page-title-lg">Dịch vụ & đơn giá</div><div class="page-sub">${ctx.building.name} · ${svcs.length} dịch vụ · đơn giá hiện hành</div></div></div>
         <div class="page-actions"><button class="btn btn-success" id="svExport">📊 Xuất excel</button>
         ${raw(owner ? '<button class="btn btn-primary" data-primary-new>＋ Thêm dịch vụ</button>' : '')}</div>
       </div>
@@ -111,8 +110,7 @@
       const totalValue = all.reduce((s, a) => s + (a.residual || 0) * (a.quantity || 1), 0);
 
       const head = h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">📦</span>
-          <div><div class="page-title-lg">Tài sản theo phòng</div>
+        <div><div><div class="page-title-lg">Tài sản theo phòng</div>
           <div class="page-sub">${ctx.building.name} · ${all.length} mục · ${inRoom} trong phòng · ${inStock} ở kho chung</div></div></div>
         <div class="page-actions">
           <div class="view-toggle">
@@ -311,30 +309,113 @@
 
 
   /* ---------------- SỰ CỐ PHÒNG ---------------- */
+  const INC_STATUS = { open: { label: 'Chờ xử lý', tone: 'warning' },
+    processing: { label: 'Đang xử lý', tone: 'info' }, done: { label: 'Đã xong', tone: 'success' } };
+  let incShowDone = false;
+
   HH.pages.incidents = {
     render(ctx) {
-      const rows = S.incidentsOf(ctx.bid);
-      const statusMap = { open: { label: 'Chờ xử lý', tone: 'warning' }, processing: { label: 'Đang xử lý', tone: 'info' }, done: { label: 'Đã xong', tone: 'success' } };
+      const all = S.allIncidentsOf(ctx.bid);
+      const rows = incShowDone ? all : all.filter(x => x.status !== 'done');
+      const open = all.filter(x => x.status === 'open').length;
+      const doing = all.filter(x => x.status === 'processing').length;
+      const done = all.filter(x => x.status === 'done').length;
       const dt = UI.DataTable({
         rows, rowId: x => x.id, searchKeys: ['roomCode', 'title', 'category'],
         searchPlaceholder: 'Tìm phòng, sự cố...',
         emptyTitle: 'Không có sự cố nào', emptyIcon: '✅', emptyDesc: 'Tất cả phòng đang hoạt động bình thường.',
+        emptyAction: { label: 'Tạo yêu cầu', onClick: () => incidentForm(ctx) },
         columns: [
-          { key: 'roomCode', label: 'Phòng', render: x => `<b>${x.roomCode}</b>` },
-          { key: 'category', label: 'Hạng mục', render: x => `<span class="badge s-neutral"><span class="dot"></span>${x.category}</span>` },
-          { key: 'title', label: 'Mô tả sự cố' },
-          { key: 'createdAt', label: 'Ngày báo', render: x => `<span class="mono">${U.fmtDate(x.createdAt)}</span>` },
-          { key: 'status', label: 'Trạng thái', render: x => { const s = statusMap[x.status]; return `<span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span>`; } },
+          { key: 'roomCode', label: 'Phòng', render: x => `<b>${U.esc(x.roomCode || '')}</b>` },
+          { key: 'category', label: 'Hạng mục', render: x => `<span class="badge s-neutral"><span class="dot"></span>${U.esc(x.category || '')}</span>` },
+          { key: 'title', label: 'Mô tả sự cố', render: x => `${U.esc(x.title || '')}
+            ${(x.photos && x.photos.length) ? `<button class="btn btn-sm btn-outline" data-incphoto="${x.id}" style="margin-left:8px;padding:2px 8px">
+              ${HH.icon('camera', 13)} ${x.photos.length} ảnh</button>` : ''}` },
+          { key: 'createdAt', label: 'Ngày báo', sortable: true, render: x => `<span class="mono">${U.fmtDate(x.createdAt)}</span>` },
+          { key: 'status', label: 'Trạng thái', render: x => { const s = INC_STATUS[x.status] || INC_STATUS.open;
+            return `<span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span>`; } },
         ],
-        actions: x => [{ icon: '✓', label: 'Đánh dấu đã xử lý', onClick: () => { x.status = 'done'; UI.toast('Đã đánh dấu xử lý xong', { type: 'ok' }); HH.router.render(); } }],
+        actions: x => {
+          const items = [];
+          if (x.status !== 'processing' && x.status !== 'done')
+            items.push({ icon: HH.icon('wrench', 16), label: 'Bắt đầu xử lý', onClick: () => {
+              S.updateIncident(x.id, { status: 'processing' }); UI.toast('Đã chuyển sang đang xử lý', { type: 'ok' }); HH.router.render(); } });
+          if (x.status !== 'done')
+            items.push({ icon: HH.icon('check', 16), label: 'Đánh dấu đã xong', onClick: () => {
+              S.updateIncident(x.id, { status: 'done', doneAt: new Date().toISOString() });
+              S.log('incident.done', `Hoàn tất sự cố ${x.roomCode}: ${x.title}`);
+              UI.toast('Đã đánh dấu xử lý xong', { type: 'ok' }); HH.router.render(); } });
+          else items.push({ icon: HH.icon('refresh', 16), label: 'Mở lại', onClick: () => {
+            S.updateIncident(x.id, { status: 'open' }); UI.toast('Đã mở lại yêu cầu', { type: 'ok' }); HH.router.render(); } });
+          if (x.photos && x.photos.length)
+            items.push({ icon: HH.icon('camera', 16), label: `Xem ${x.photos.length} ảnh`, onClick: () => showIncPhotos(x) });
+          if (S.isOwner()) items.push({ sep: true }, { icon: HH.icon('trash', 16), label: 'Xóa yêu cầu', danger: true,
+            onClick: () => { S.removeIncident(x.id); UI.toast('Đã xóa', { type: 'ok' }); HH.router.render(); } });
+          return items;
+        },
       });
       ctx._dt = dt;
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">🧰</span>
-          <div><a class="back-link" href="#/b/${ctx.bid}/units">← Quản lý phòng</a>
-          <div class="page-title-lg">Sự cố phòng</div><div class="page-sub">${ctx.building.name} · ${rows.length} vấn đề đang mở</div></div></div>
-      </div>${raw(dt.render())}`;
+        <div><a class="back-link" href="#/b/${ctx.bid}/units">← Quản lý phòng</a>
+          <div class="page-title-lg">Sự cố & sửa chữa</div>
+          <div class="page-sub">${ctx.building.name} · ${open} chờ xử lý · ${doing} đang xử lý</div></div>
+        <div class="page-actions">
+          <button class="btn btn-outline" id="incToggle">${raw(HH.icon(incShowDone ? 'check' : 'list', 16))}
+            ${raw(incShowDone ? 'Đang xem cả đã xong' : `Hiện cả đã xong (${done})`)}</button>
+          <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Tạo yêu cầu</button></div>
+      </div>
+      <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:700px;margin-bottom:16px">
+        ${raw(UI.metricCard({ label: 'Chờ xử lý', value: open, format: 'number', intent: open ? 'warning' : 'default' }))}
+        ${raw(UI.metricCard({ label: 'Đang xử lý', value: doing, format: 'number' }))}
+        ${raw(UI.metricCard({ label: 'Đã hoàn tất', value: done, format: 'number', intent: 'success' }))}
+      </div>
+      ${raw(dt.render())}`;
     },
-    mount(ctx) { ctx._dt.attach(document); },
+    mount(ctx) {
+      ctx._dt.attach(document);
+      const nb = document.querySelector('[data-primary-new]'); if (nb) nb.onclick = () => incidentForm(ctx);
+      const tg = document.getElementById('incToggle'); if (tg) tg.onclick = () => { incShowDone = !incShowDone; HH.router.render(); };
+      document.querySelectorAll('[data-incphoto]').forEach(b => b.onclick = (e) => {
+        e.stopPropagation(); showIncPhotos(S.incident(b.dataset.incphoto));
+      });
+    },
   };
+
+  function showIncPhotos(x) {
+    if (!x || !x.photos || !x.photos.length) return;
+    UI.modal({ title: `Ảnh yêu cầu — ${x.roomCode}`, size: 'wide',
+      bodyHtml: `<p class="muted" style="margin-bottom:12px">${U.esc(x.title || '')}</p>
+        <div class="photo-strip">${x.photos.map(p => `<div class="photo-thumb" style="width:100%;max-width:220px;height:170px"><img src="${p}"></div>`).join('')}</div>`,
+      footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
+  }
+
+  function incidentForm(ctx) {
+    const rooms = S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code));
+    const cats = ['Điện', 'Nước', 'Máy lạnh', 'Nội thất', 'Vệ sinh', 'An ninh', 'Khác'];
+    UI.modal({ title: 'Tạo yêu cầu sửa chữa', bodyHtml: h`
+      <div class="grid-2">
+        <div class="field"><label>Phòng *</label><select class="select" id="icRoom">
+          ${raw(rooms.map(r => `<option value="${r.code}">${r.code} · ${U.esc(r.typeLabel)}${r.tenantName ? ' · ' + U.esc(r.tenantName) : ''}</option>`).join(''))}
+        </select></div>
+        <div class="field"><label>Hạng mục</label><select class="select" id="icCat">
+          ${raw(cats.map(c => `<option>${c}</option>`).join(''))}</select></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Mô tả sự cố *</label>
+        <textarea class="textarea" id="icTitle" placeholder="VD: Bóng đèn nhà tắm bị cháy"></textarea></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="icSave">Tạo yêu cầu</button>`,
+      onMount(el, close) {
+        el.querySelector('#icSave').onclick = (e) => {
+          const title = el.querySelector('#icTitle').value.trim();
+          if (!title) { UI.toast('Nhập mô tả sự cố', { type: 'error' }); return; }
+          e.currentTarget.classList.add('loading');
+          setTimeout(() => {
+            S.addIncident({ id: U.uid('sc'), buildingId: ctx.bid, roomCode: el.querySelector('#icRoom').value,
+              category: el.querySelector('#icCat').value, title, status: 'open',
+              photos: [], createdAt: new Date().toISOString() });
+            S.log('incident.create', `Tạo yêu cầu sửa chữa ${title}`);
+            close(); UI.toast('Đã tạo yêu cầu', { type: 'ok' }); HH.router.render();
+          }, 300);
+        };
+      } });
+  }
 })();

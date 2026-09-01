@@ -48,6 +48,7 @@ HH.store = (function () {
   const incidents = [];
   const transactions = [];
   const staff = [];
+  const claims = [];
   const auditLog = [];
 
   const CUR_PERIOD = '2026-08';
@@ -238,7 +239,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, auditLog };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, auditLog };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -428,6 +429,20 @@ HH.store = (function () {
 
     buildings, services, assets, auditLog, incidents,
     incidentsOf: (bid) => incidents.filter(x => x.buildingId === bid && x.status !== 'done'),
+    allIncidentsOf: (bid) => incidents.filter(x => x.buildingId === bid),
+    incident: (id) => incidents.find(x => x.id === id),
+    updateIncident(id, patch) { const x = incidents.find(i => i.id === id); if (x) { Object.assign(x, patch); persist(); } return x; },
+    removeIncident(id) {
+      const i = incidents.findIndex(x => x.id === id);
+      if (i >= 0) { incidents.splice(i, 1); persist(); if (usingBackend()) HH.backend.deleteOne('incidents', id); }
+    },
+
+    /* ---------- Phiếu khách báo đã chuyển khoản ---------- */
+    claims,
+    claimsOf: (bid, status) => claims.filter(c => (!bid || c.buildingId === bid) && (!status || c.status === status)),
+    claim: (id) => claims.find(c => c.id === id),
+    updateClaim(id, patch) { const c = claims.find(x => x.id === id); if (c) { Object.assign(c, patch); persist(); } return c; },
+    pendingClaimCount: (bid) => claims.filter(c => c.status === 'pending' && (!bid || c.buildingId === bid)).length,
     building: (id) => buildings.find(b => b.id === id),
 
     // Trung tâm thông báo (tính từ dữ liệu hiện có)

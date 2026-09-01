@@ -14,8 +14,7 @@
           <span class="chev">›</span></a>`).join('')
         : `<div class="empty"><div class="ic">✅</div><h4>Không có thông báo nào</h4><p class="muted">Mọi việc đang được xử lý tốt.</p></div>`;
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">🔔</span>
-          <div><div class="page-title-lg">Thông báo</div><div class="page-sub">Việc cần xử lý trên toàn hệ thống · ${items.length} mục</div></div></div>
+        <div><div><div class="page-title-lg">Thông báo</div><div class="page-sub">Việc cần xử lý trên toàn hệ thống · ${items.length} mục</div></div></div>
       </div>
       <div class="card" style="max-width:760px"><div class="card-pad"><div class="todo-list">${raw(body)}</div></div></div>`;
     },
@@ -47,8 +46,7 @@
         </tr>`;
       }).join('');
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">🔐</span>
-          <div><div class="page-title-lg">Khóa thông minh</div>
+        <div><div><div class="page-title-lg">Khóa thông minh</div>
           <div class="page-sub">${ctx.building.name} · đã kết nối ${connected}/${rooms.length} phòng</div></div></div>
       </div>
       <div class="alert alert-info" style="margin-bottom:16px"><span class="ic">ℹ</span>
@@ -85,8 +83,7 @@
         `<tr><td><b>${v.label}</b></td><td class="num mono">${U.currency(v.price)}</td><td class="num">${v.area} m²</td><td class="num">${v.max} người</td></tr>`).join('');
       const rooms = S.roomsOf(ctx.bid);
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">⚙️</span>
-          <div><div class="page-title-lg">Cấu hình tòa nhà</div><div class="page-sub">${b.name}</div></div></div>
+        <div><div><div class="page-title-lg">Cấu hình tòa nhà</div><div class="page-sub">${b.name}</div></div></div>
       </div>
       <div class="grid-2" style="align-items:start">
         <div class="card"><div class="card-head"><h3>Thông tin tòa nhà</h3></div><div class="card-pad">
@@ -161,8 +158,7 @@
         <td class="col-actions"><button class="kebab" data-txdel="${t.id}">⋯</button></td>
       </tr>`).join('');
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">📊</span>
-          <div><div class="page-title-lg">Thu chi</div><div class="page-sub">${ctx.building.name} · ${txs.length} khoản</div></div></div>
+        <div><div><div class="page-title-lg">Thu chi</div><div class="page-sub">${ctx.building.name} · ${txs.length} khoản</div></div></div>
         <div class="page-actions">
           <button class="btn btn-success" id="addIncome">＋ Khoản thu</button>
           <button class="btn btn-danger" id="addExpense">＋ Khoản chi</button>
@@ -241,18 +237,70 @@
         <td class="num mono b">${U.currency(r.p.amount)}</td>
         <td><span class="badge s-success"><span class="dot"></span>Đã khớp</span></td>
       </tr>`).join('');
+      // --- Phiếu khách báo đã chuyển khoản, chờ đối soát ---
+      const pending = S.claimsOf(null, 'pending').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      const claimCards = pending.map(c => `<div class="claim-card">
+        <div class="claim-info">
+          <div class="between" style="margin-bottom:6px">
+            <b>${U.esc(c.tenantName || '')} · Phòng ${U.esc(c.roomCode || '')}</b>
+            <span class="badge s-warning"><span class="dot"></span>Chờ đối soát</span></div>
+          <div class="mono b text-lg" style="color:var(--brand-700)">${U.currency(c.amount)}</div>
+          <div class="muted text-sm">Hóa đơn <b class="mono">${U.esc(c.invoiceId || '—')}</b> · báo lúc ${U.fmtDate(c.createdAt)}</div>
+          ${c.note ? `<div class="muted text-sm" style="margin-top:4px">"${U.esc(c.note)}"</div>` : ''}
+          <div class="row-gap-2" style="margin-top:12px">
+            <button class="btn btn-primary btn-sm" data-okclaim="${c.id}">${HH.icon('check', 15)} Xác nhận & ghi thu</button>
+            <button class="btn btn-outline btn-sm" data-noclaim="${c.id}">${HH.icon('x', 15)} Từ chối</button>
+          </div>
+        </div>
+        <div class="claim-proof">${c.photo
+          ? `<img src="${c.photo}" alt="Chứng từ" data-zoom="${c.id}">`
+          : `<div class="no-proof">${HH.icon('camera', 22)}<span>Không có ảnh</span></div>`}</div>
+      </div>`).join('');
+
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">💳</span>
-          <div><div class="page-title-lg">Khách chuyển khoản</div><div class="page-sub">Đối soát các thanh toán chuyển khoản · ${rows.length} giao dịch</div></div></div>
+        <div><div class="page-title-lg">Khách chuyển khoản</div>
+          <div class="page-sub">Đối soát thanh toán chuyển khoản · ${pending.length} phiếu chờ · ${rows.length} giao dịch đã khớp</div></div>
       </div>
-      <div class="metric-grid" style="grid-template-columns:repeat(2,1fr);max-width:520px;margin-bottom:16px">
-        ${raw(UI.metricCard({ label: 'Tổng đã nhận (chuyển khoản)', value: total, format: 'currency', intent: 'success' }))}
-        ${raw(UI.metricCard({ label: 'Số giao dịch', value: rows.length, format: 'number' }))}
+      <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:780px;margin-bottom:16px">
+        ${raw(UI.metricCard({ label: 'Chờ đối soát', value: pending.length, format: 'number', intent: pending.length ? 'warning' : 'default' }))}
+        ${raw(UI.metricCard({ label: 'Tổng đã nhận', value: total, format: 'currency', intent: 'success' }))}
+        ${raw(UI.metricCard({ label: 'Giao dịch đã khớp', value: rows.length, format: 'number' }))}
       </div>
+      ${raw(pending.length ? `<h3 style="margin:0 0 12px">Phiếu khách báo đã chuyển khoản</h3>
+        <div class="claim-grid" style="margin-bottom:24px">${claimCards}</div>` : '')}
+      <h3 style="margin:0 0 12px">Giao dịch đã ghi nhận</h3>
       <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
         <thead><tr><th>Ngày</th><th>Tòa nhà</th><th>Phòng</th><th>Khách</th><th>Mã HĐ</th><th class="num">Số tiền</th><th>Trạng thái</th></tr></thead>
         <tbody>${raw(trs || `<tr><td colspan="7"><div class="empty"><div class="ic">💳</div><h4>Chưa có giao dịch chuyển khoản</h4></div></td></tr>`)}</tbody>
       </table></div></div>`;
+    },
+    mount() {
+      document.querySelectorAll('[data-okclaim]').forEach(b => b.onclick = () => {
+        const c = S.claim(b.dataset.okclaim); if (!c) return;
+        const inv = S.invoice(c.invoiceId);
+        if (!inv) { UI.toast('Không tìm thấy hóa đơn của phiếu này', { type: 'error' }); return; }
+        const p = S.recordPayment(inv.id, Math.min(c.amount, inv.total - inv.paid),
+          'Chuyển khoản', new Date().toISOString(), c.note || 'Khách báo chuyển khoản');
+        S.updateClaim(c.id, { status: 'confirmed' });
+        UI.toast(`Đã ghi thu ${U.currency(p ? p.amount : c.amount)} · phiếu ${p ? p.receiptNo : ''}`, { type: 'ok' });
+        HH.router.render();
+      });
+      document.querySelectorAll('[data-noclaim]').forEach(b => b.onclick = () => {
+        UI.dangerDialog({ title: 'Từ chối phiếu chuyển khoản',
+          description: 'Phiếu sẽ được đánh dấu không hợp lệ. Công nợ của khách giữ nguyên.',
+          consequences: ['Không ghi nhận khoản thu nào', 'Thao tác được ghi vào nhật ký'],
+          confirmLabel: 'Từ chối phiếu', reasonLabel: 'Lý do từ chối',
+          onConfirm: (reason) => {
+            S.updateClaim(b.dataset.noclaim, { status: 'rejected', rejectReason: reason });
+            S.log('claim.reject', `Từ chối phiếu chuyển khoản ${b.dataset.noclaim}`, reason);
+            UI.toast('Đã từ chối phiếu', { type: 'ok' }); HH.router.render();
+          } });
+      });
+      document.querySelectorAll('[data-zoom]').forEach(img => img.onclick = () => {
+        UI.modal({ title: 'Ảnh chứng từ', size: 'wide',
+          bodyHtml: `<img src="${img.src}" style="width:100%;border-radius:10px">`,
+          footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
+      });
     },
   };
 
@@ -310,8 +358,7 @@
       }).join('');
 
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">📢</span>
-          <div><div class="page-title-lg">Đăng tin cho thuê</div>
+        <div><div><div class="page-title-lg">Đăng tin cho thuê</div>
           <div class="page-sub">Phòng trống sẵn sàng cho thuê · ${items.length} phòng · ${withPhoto} phòng đã có ảnh</div></div></div>
         <div class="page-actions">
           ${raw(items.length ? '<button class="btn btn-outline" id="copyAll">📋 Chép tất cả tin</button>' : '')}
@@ -431,8 +478,7 @@
       }).join('');
 
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">🧑‍🤝‍🧑</span>
-          <div><div class="page-title-lg">Công ty / nhóm</div><div class="page-sub">Thông tin tổ chức & tài khoản nhân viên</div></div></div>
+        <div><div><div class="page-title-lg">Công ty / nhóm</div><div class="page-sub">Thông tin tổ chức & tài khoản nhân viên</div></div></div>
         ${raw(S.isOwner() ? '<div class="page-actions"><button class="btn btn-primary" data-primary-new>＋ Thêm nhân viên</button></div>' : '')}
       </div>
 
@@ -572,8 +618,7 @@
   HH.pages.companyConfig = {
     render() {
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">⚙️</span>
-          <div><div class="page-title-lg">Cài đặt chung</div><div class="page-sub">Thiết lập tài khoản & ứng dụng</div></div></div>
+        <div><div><div class="page-title-lg">Cài đặt chung</div><div class="page-sub">Thiết lập tài khoản & ứng dụng</div></div></div>
       </div>
       <div class="grid-2" style="align-items:start">
         <div class="card"><div class="card-head"><h3>Tài khoản</h3></div><div class="card-pad">

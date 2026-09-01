@@ -47,6 +47,8 @@ HH.app = (function () {
       else if (t.path) active = path === t.path;
       let pillText = t.pill, pillClass = t.pillClass;
       if (t.key === 'noti') { pillText = String(notiCount); pillClass = notiCount > 0 ? '' : 'zero'; }
+      if (t.key === 'bank') { const n = S.pendingClaimCount ? S.pendingClaimCount() : 0;
+        pillText = n ? String(n) : null; pillClass = ''; }
       const pill = pillText ? `<span class="pill ${pillClass || ''}">${pillText}</span>` : '';
       const attr = t.action ? `data-act="${t.action}"` : `href="#${t.path}"`;
       const tag = t.action ? 'button' : 'a';

@@ -359,6 +359,25 @@ table.dt tr.row-urgent td { background: #fffaf0; }
 .clause-title .cnum { color: var(--brand-700); margin-right: 6px; }
 .clause-body { font-size: var(--text-sm); color: var(--neutral-700); line-height: 1.6; text-align: justify; }
 
+/* Phiếu khách báo đã chuyển khoản (chờ đối soát) */
+.claim-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; }
+.claim-card {
+  display: flex; gap: 14px; background: var(--neutral-0); border: 1px solid var(--warning);
+  border-left: 4px solid var(--warning); border-radius: var(--r-card); padding: 16px;
+  box-shadow: var(--shadow-xs);
+}
+.claim-card .claim-info { flex: 1; min-width: 0; }
+.claim-card .claim-proof { flex: 0 0 116px; }
+.claim-card .claim-proof img {
+  width: 116px; height: 116px; object-fit: cover; border-radius: 10px;
+  border: 1px solid var(--neutral-200); cursor: zoom-in;
+}
+.claim-card .no-proof {
+  width: 116px; height: 116px; border-radius: 10px; border: 1px dashed var(--neutral-300);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  color: var(--neutral-400); font-size: 11px; text-align: center;
+}
+
 /* Đăng tin — thẻ tin đăng */
 .listing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
 .listing-card { overflow: hidden; display: flex; flex-direction: column; }

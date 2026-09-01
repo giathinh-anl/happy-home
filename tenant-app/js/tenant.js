@@ -81,6 +81,7 @@
     if (h === '#/account') return screenAccount();
     if (h === '#/services') return screenServices();
     if (h === '#/chat') return screenChat();
+    if (h === '#/proof') return screenProof();
     return screenHome();
   }
 
@@ -436,10 +437,74 @@
       <button class="t-btn" id="paid" style="margin-top:6px">Tôi đã chuyển khoản</button>
     `);
     document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy, b.dataset.l));
-    el('paid').onclick = async (e) => {
+    el('paid').onclick = () => { state.claim = { invoiceId: inv.id, amount: remain, note: content, photo: null }; go('#/proof'); };
+  }
+
+  /* ---------- màn hình: GỬI CHỨNG TỪ CHUYỂN KHOẢN ---------- */
+  function screenProof() {
+    const c = state.claim;
+    if (!c) { go('#/home'); return; }
+    const inv = (state.data.invoices || []).find(i => i.id === c.invoiceId);
+    shell('Xác nhận chuyển khoản', `
+      <div class="t-card">
+        <div class="t-row"><span class="k">Hóa đơn</span><span class="v">${inv ? vnPeriod(inv.period) : esc(c.invoiceId)}</span></div>
+        <div class="t-row"><span class="k">Phòng</span><span class="v">${esc(state.data.tenant.roomCode || '')}</span></div>
+      </div>
+      <div class="t-field"><label>Số tiền đã chuyển</label>
+        <input class="t-input mono" id="pfAmount" inputmode="numeric" value="${num(c.amount)}"></div>
+      <div class="t-field"><label>Nội dung / ghi chú</label>
+        <input class="t-input" id="pfNote" value="${esc(c.note || '')}" placeholder="VD: đã CK lúc 9h sáng"></div>
+      <div class="t-field"><label>Ảnh chứng từ <span style="color:var(--neutral-400);font-weight:400">(biên lai ngân hàng)</span></label>
+        <div id="pfPhotoBox">
+          <label class="photo-slot" style="width:100%;height:170px;border-radius:14px">
+            <span style="text-align:center;color:var(--neutral-400)">📷<div style="font-size:13px;margin-top:6px">Chụp hoặc chọn ảnh biên lai</div></span>
+            <input type="file" accept="image/*" id="pfPhoto" hidden></label>
+        </div></div>
+      <div class="t-hint" style="text-align:left">Chủ nhà sẽ đối chiếu và xác nhận. Hóa đơn được cập nhật sau khi chủ nhà xác nhận.</div>
+      <button class="t-btn" id="pfSend" style="margin-top:14px">Gửi xác nhận</button>
+    `);
+    const drawPhoto = () => {
+      const box = el('pfPhotoBox');
+      box.innerHTML = c.photo
+        ? `<div style="position:relative"><img src="${c.photo}" style="width:100%;border-radius:14px;border:1px solid var(--neutral-200)">
+             <button id="pfDel" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;
+               background:rgba(0,0,0,.6);color:#fff;border:none;font-size:14px">✕</button></div>`
+        : `<label class="photo-slot" style="width:100%;height:170px;border-radius:14px">
+             <span style="text-align:center;color:var(--neutral-400)">📷<div style="font-size:13px;margin-top:6px">Chụp hoặc chọn ảnh biên lai</div></span>
+             <input type="file" accept="image/*" id="pfPhoto" hidden></label>`;
+      const inp = el('pfPhoto');
+      if (inp) inp.onchange = () => {
+        const f = inp.files[0]; if (!f) return;
+        const rd = new FileReader();
+        rd.onload = () => { c.photo = rd.result; drawPhoto(); };
+        rd.readAsDataURL(f);
+      };
+      const del = el('pfDel'); if (del) del.onclick = () => { c.photo = null; drawPhoto(); };
+    };
+    drawPhoto();
+    const amt = el('pfAmount');
+    amt.oninput = () => { const n = parseInt((amt.value || '').replace(/\D/g, ''), 10); amt.value = n ? num(n) : ''; };
+    el('pfSend').onclick = async (e) => {
+      const amount = parseInt((amt.value || '').replace(/\D/g, ''), 10) || 0;
+      if (!amount) { toast('Nhập số tiền đã chuyển'); return; }
       e.currentTarget.classList.add('loading');
-      try { await rpc('tenant_notify_paid', { p_phone: state.phone, p_invoice_id: inv.id }); toast('Đã báo chủ trọ. Cảm ơn bạn!'); go('#/home'); }
-      catch (err) { toast(err.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại'); e.currentTarget.classList.remove('loading'); }
+      const note = el('pfNote').value.trim();
+      try {
+        await rpc('tenant_submit_payment_claim', { p_phone: state.phone, p_invoice_id: c.invoiceId,
+          p_amount: amount, p_note: note, p_photo: c.photo });
+        state.claim = null;
+        toast('Đã gửi xác nhận cho chủ nhà');
+        go('#/home');
+      } catch (err) {
+        // Máy chủ chưa có hàm mới -> vẫn báo cho chủ nhà theo cách cũ
+        try {
+          await rpc('tenant_notify_paid', { p_phone: state.phone, p_invoice_id: c.invoiceId });
+          state.claim = null; toast('Đã báo chủ nhà (chưa gửi được ảnh)'); go('#/home');
+        } catch (e2) {
+          toast(e2.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại');
+          e.currentTarget.classList.remove('loading');
+        }
+      }
     };
   }
 
@@ -477,7 +542,12 @@
       e.currentTarget.classList.add('loading');
       const title = r.desc.trim();
       try {
-        await rpc('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title });
+        // Gửi kèm ảnh; nếu máy chủ chưa cập nhật hàm (chưa chạy migration) thì gửi không ảnh
+        try {
+          await rpc('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title, p_photos: r.photos });
+        } catch (e1) {
+          await rpc('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title });
+        }
         state.data = await loadData(state.phone); // tải lại để có yêu cầu mới
         state.repair = { cat: null, time: 'Bất kỳ', photos: [] };
         toast('Đã gửi yêu cầu sửa chữa');

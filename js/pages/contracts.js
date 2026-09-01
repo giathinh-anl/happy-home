@@ -85,8 +85,7 @@
       });
       ctx._dt = dt;
       return h`<div class="page-head">
-        <div class="row-gap-3"><span class="lz-home-ic">📄</span>
-          <div><div class="page-title-lg">Hợp đồng</div>
+        <div><div><div class="page-title-lg">Hợp đồng</div>
           <div class="page-sub">${ctx.building.name} · ${all.length} hợp đồng${raw(f ? ` · lọc: ${f.label}` : '')}</div></div></div>
         <div class="page-actions">
           <button class="btn btn-success" id="ctExport">📊 Xuất excel</button>
@@ -244,8 +243,7 @@
 
       return h`<div class="page-head">
         <div><a class="back-link" href="#/b/${ctx.bid}/contracts">← Hợp đồng</a>
-          <div class="row-gap-3"><span class="lz-home-ic">📄</span>
-            <div><div class="page-title-lg">Hợp đồng phòng ${c.roomCode}</div>
+          <div><div><div class="page-title-lg">Hợp đồng phòng ${c.roomCode}</div>
             <div class="page-sub mono">${c.id}</div></div></div></div>
         <div class="page-actions">
           <button class="btn btn-outline" id="ctPrint">🖨 In hợp đồng</button>
