@@ -47,13 +47,34 @@
 
   function roomCell(r) {
     const t = tone(r.status);
-    const name = (r.status === 'occupied' || r.status === 'notice') ? r.tenantName : UI.STATUS.room[r.status].label;
-    return h`<div class="room-cell bl-${raw(t)}" data-room="${r.code}" tabindex="0">
-      ${raw(r.debt ? `<span class="r-debt">Nợ ${U.number(r.debt)}</span>` : '')}
-      <div class="r-code">${r.code}</div>
-      <div class="r-tenant ${raw(name === UI.STATUS.room[r.status].label ? 'faint' : '')}">${name}</div>
-      <div class="r-price">${U.currency(r.price)}</div>
-      <button class="kebab" data-kebab="${r.code}" aria-label="Thao tác">⋯</button>
+    const st = UI.STATUS.room[r.status] || { label: r.status };
+    const occupied = (r.status === 'occupied' || r.status === 'notice');
+    const days = r.contractEnd ? U.daysBetween(U.today(), r.contractEnd) : null;
+
+    // Dòng dưới cùng: ưu tiên cảnh báo nợ > sắp hết hạn > hạn hợp đồng > gợi ý cho thuê
+    let foot;
+    if (r.debt > 0) foot = `<div class="rc-foot danger">${HH.icon('alert', 14)} Nợ ${U.currency(r.debt)}</div>`;
+    else if (occupied && days != null && days < 0) foot = `<div class="rc-foot danger">${HH.icon('alert', 14)} HĐ quá hạn ${Math.abs(days)} ngày</div>`;
+    else if (occupied && days != null && days <= 30) foot = `<div class="rc-foot warn">${HH.icon('clock', 14)} Còn ${days} ngày HĐ</div>`;
+    else if (occupied && days != null) foot = `<div class="rc-foot">${HH.icon('calendar', 14)} Đến ${U.fmtDate(r.contractEnd)}</div>`;
+    else if (r.status === 'vacant') foot = `<div class="rc-foot ok">${HH.icon('check', 14)} Sẵn sàng cho thuê</div>`;
+    else if (r.status === 'reserved') foot = `<div class="rc-foot warn">${HH.icon('wallet', 14)} Cọc ${U.currency(r.holdingDeposit || 0)}</div>`;
+    else foot = `<div class="rc-foot">${HH.icon('clock', 14)} ${U.esc(st.label)}</div>`;
+
+    const who = occupied
+      ? `<div class="rc-who"><span class="rc-av">${U.initials(r.tenantName || '')}</span>
+           <span class="rc-name">${U.esc(r.tenantName || '')}</span></div>`
+      : `<div class="rc-who empty">${HH.icon('door', 15)}<span class="rc-name">${U.esc(st.label)}</span></div>`;
+
+    return `<div class="room-cell tone-${t}" data-room="${r.code}" tabindex="0" role="button" aria-label="Phòng ${r.code}">
+      <div class="rc-top">
+        <span class="rc-status"><i></i>${U.esc(st.label)}</span>
+        <button class="rc-menu" data-kebab="${r.code}" aria-label="Thao tác">${HH.icon('dots', 16)}</button>
+      </div>
+      <div class="rc-code">${r.code}</div>
+      ${who}
+      <div class="rc-price"><span class="v">${U.currency(r.price)}</span><span class="u">/tháng</span></div>
+      ${foot}
     </div>`;
   }
 

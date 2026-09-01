@@ -19,6 +19,12 @@
   --nav-active:  rgba(255,255,255,.16);
   --nav-accent:  #4ade80;   /* gạch chân mục đang chọn */
 
+  /* Nhấn vàng đồng — dùng cho tiêu đề mục, số liệu nổi bật */
+  --gold-50:  #fffbeb;
+  --gold-200: #fde68a;
+  --gold-500: #d4a017;
+  --gold-600: #b8860b;
+
   /* Trung tính */
   --neutral-0:   #ffffff;
   --neutral-50:  #fafaf9;   /* nền trang */

@@ -31,6 +31,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 
 img { max-width: 100%; display: block; }
 
+/* Icon SVG: giữ đúng kích thước, không bị co giãn trong flexbox */
+.ic-svg { flex: 0 0 auto; display: inline-block; vertical-align: middle; }
+
 h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; }
 
 /* Tiện ích */

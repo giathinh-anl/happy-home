@@ -83,25 +83,30 @@
 }
 .lz-building-card .add:hover { background: var(--brand-500); color: #fff; }
 
-.lz-modules { display: flex; align-items: stretch; gap: 4px; }
+.lz-modules { display: flex; align-items: stretch; gap: 6px; flex: 1; }
 .lz-module {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
-  gap: 8px; padding: 9px 14px; border-radius: var(--r-input);
+  gap: 9px; padding: 11px 18px; border-radius: var(--r-input);
   background: transparent; border: 1px solid transparent; color: var(--neutral-600);
-  font-size: 13.5px; font-weight: 550; text-decoration: none; white-space: nowrap; transition: all .14s; cursor: pointer;
+  font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap;
+  transition: all .14s; cursor: pointer;
 }
 .lz-module:hover { background: var(--neutral-100); text-decoration: none; color: var(--neutral-900); }
 .lz-module.active {
-  background: var(--brand-50); color: var(--brand-700); font-weight: 650;
+  background: var(--brand-50); color: var(--brand-700);
   border-color: var(--brand-200); box-shadow: var(--shadow-xs);
 }
-.lz-module .ic-svg { opacity: .8; flex: 0 0 auto; }
+.lz-module .ic-svg { opacity: .75; flex: 0 0 auto; }
 .lz-module.active .ic-svg { opacity: 1; }
 .lz-module .pill {
   background: var(--danger); color: #fff; font-size: 10px; font-weight: 700;
   border-radius: 9999px; min-width: 17px; height: 17px; padding: 0 5px; display: grid; place-items: center;
 }
-@media (max-width: 1280px) { .lz-module span:not(.ic-svg):not(.pill) { display: none; } .lz-module { padding: 9px 11px; } }
+/* Màn hình hẹp: thu gọn chữ nhưng vẫn giữ icon đủ lớn */
+@media (max-width: 1150px) {
+  .lz-module span:not(.ic-svg):not(.pill) { display: none; }
+  .lz-module { padding: 11px 14px; }
+}
 
 /* ---------- Nội dung ---------- */
 .lz-content { flex: 1; padding: var(--sp-6) 16px var(--sp-16); }

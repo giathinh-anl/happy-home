@@ -69,7 +69,7 @@ HH.app = (function () {
     const mods = MODULES.filter(m => !m.perm || S.can(m.perm)).map(m => {
       const active = seg === m.seg;
       return `<a class="lz-module ${active ? 'active' : ''}" href="#/b/${bid}/${m.seg}" title="${m.label}">
-        ${ic(m.ic)}<span>${m.label}</span></a>`;
+        ${ic(m.ic, 20)}<span>${m.label}</span></a>`;
     }).join('');
     const moreActive = MORE.some(m => m.seg === seg);
     return h`<div class="lz-modulebar"><div class="lz-modulebar-inner">
@@ -80,7 +80,7 @@ HH.app = (function () {
       </div>
       <div class="lz-modules">
         ${raw(mods)}
-        <button class="lz-module ${raw(moreActive ? 'active' : '')}" id="moreBtn" title="Thêm">${raw(ic('dots'))}<span>Thêm</span></button>
+        <button class="lz-module ${raw(moreActive ? 'active' : '')}" id="moreBtn" title="Thêm">${raw(ic('dots', 20))}<span>Thêm</span></button>
       </div>
     </div></div>`;
   }
