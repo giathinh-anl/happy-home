@@ -15,3 +15,6 @@ tmp/
 # Khóa kết nối Supabase của người dùng (không commit)
 js/config.js
 tenant-app/js/config.js
+
+# Bản gộp 1 tệp để chia sẻ (sinh lại bằng: python build-demo.py)
+demo/

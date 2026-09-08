@@ -11,7 +11,24 @@
   const CUR_PERIOD = '2026-08', CUR_PERIOD_LABEL = 'T8/2026';
   const TODAY = new Date('2026-08-13');
   const DEMO_OTP = '123456';
-  const BANK = { name: 'MB Bank', account: '0912345678', holder: 'CTY HAPPY HOME' };
+  // Tài khoản nhận tiền. bin = mã ngân hàng theo chuẩn NAPAS (MB Bank = 970422,
+  // Vietcombank 970436, Techcombank 970407, ACB 970416, BIDV 970418, VietinBank 970415).
+  // Đổi ở đây (hoặc đặt HH_CONFIG.bank trong js/config.js) là mã VietQR đổi theo.
+  const BANK = Object.assign(
+    { name: 'MB Bank', bin: '970422', account: '0912345678', holder: 'CTY HAPPY HOME' },
+    (window.HH_CONFIG && HH_CONFIG.bank) || {});
+
+  /* Nội dung chuyển khoản chuẩn để web quản trị tự khớp hóa đơn: "HD2608013".
+     Không dùng dấu/khoảng trắng vì nhiều ngân hàng cắt bỏ ký tự lạ. */
+  function payContent(inv) { return inv ? String(inv.id).replace(/[^A-Za-z0-9]/g, '') : ''; }
+
+  /* Mã VietQR thật — quét bằng app ngân hàng là tự điền số tiền + nội dung */
+  function vietQrUrl(amount, content) {
+    return `https://img.vietqr.io/image/${encodeURIComponent(BANK.bin)}-${encodeURIComponent(BANK.account)}-compact2.png`
+      + `?amount=${encodeURIComponent(Math.round(amount || 0))}`
+      + `&addInfo=${encodeURIComponent(content || '')}`
+      + `&accountName=${encodeURIComponent(BANK.holder)}`;
+  }
   const PHONE_KEY = 'hh_tenant_phone';
 
   /* ---------- tiện ích ---------- */
@@ -413,17 +430,18 @@
     const inv = (state.data.invoices || []).find(i => i.id === id) || currentUnpaid();
     if (!inv) { shell('Thanh toán', `<div class="t-empty"><div class="eic">✓</div><p>Không có khoản cần thanh toán</p></div>`); return; }
     const remain = inv.total - inv.paid;
-    const content = `${state.data.room.code} ${vnPeriod(inv.period)}`;
-    const qrData = encodeURIComponent(`${BANK.name} ${BANK.account} ${BANK.holder} ${remain} ${content}`);
+    const content = payContent(inv);
     shell('Thanh toán', `
       <div style="text-align:center;margin-bottom:8px">
         <div style="color:var(--neutral-600)">Hóa đơn ${vnPeriod(inv.period)}</div>
         <div class="mono" style="font-size:28px;font-weight:800">${vnd(remain)}</div>
       </div>
       <div class="qr-box">
-        <img class="qr-img" alt="Mã QR" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}"
+        <img class="qr-img" alt="Mã VietQR" src="${vietQrUrl(remain, content)}"
           onerror="this.outerHTML='<div class=&quot;qr-fallback&quot;></div>'">
-        <div style="color:var(--neutral-600);font-size:14px">Quét mã bằng ứng dụng ngân hàng để thanh toán</div>
+        <div style="color:var(--neutral-600);font-size:14px">
+          Quét mã bằng <b>app ngân hàng bất kỳ</b> — số tiền và nội dung tự điền sẵn.<br>
+          <span style="color:var(--success);font-weight:600">Chuyển xong là hệ thống tự trừ công nợ.</span></div>
       </div>
       <div class="divider">hoặc</div>
       <div class="t-card">
@@ -432,8 +450,10 @@
         <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${BANK.account}</span><button class="copybtn" data-copy="${BANK.account}" data-l="số tài khoản">📋</button></span></div>
         <div class="bank-row"><span class="bk">Chủ tài khoản</span><span class="bv">${BANK.holder}</span></div>
         <div class="bank-row"><span class="bk">Số tiền</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${num(remain)}</span><button class="copybtn" data-copy="${remain}" data-l="số tiền">📋</button></span></div>
-        <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">📋</button></span></div>
+        <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">📋</button></span></div>
       </div>
+      <div class="t-note" style="margin-top:10px">Ghi <b>đúng nội dung</b> ở trên thì hệ thống nhận ra hóa đơn
+        và tự xóa công nợ. Ghi khác thì chủ nhà phải đối soát tay, sẽ lâu hơn.</div>
       <button class="t-btn" id="paid" style="margin-top:6px">Tôi đã chuyển khoản</button>
     `);
     document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy, b.dataset.l));
@@ -804,7 +824,7 @@
   ];
 
   const norm = (s) => (s || '').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
   const hasAny = (t, arr) => arr.some(k => t.includes(k));
 
   function pushMsg(who, html, actions, byAi) {
@@ -912,7 +932,7 @@
           <tr><td>Số tài khoản</td><td>${esc(BANK.account)}</td></tr>
           <tr><td>Chủ tài khoản</td><td>${esc(BANK.holder)}</td></tr>
         </table>
-        <div class="b-note">Nội dung ghi: <b>${esc(d.tenant.roomCode || '')} ${inv ? vnPeriod(inv.period) : ''}</b></div>`,
+        <div class="b-note">Nội dung ghi đúng: <b>${esc(payContent(inv) || d.tenant.roomCode || '')}</b> — ghi đúng thì hệ thống tự trừ công nợ.</div>`,
         actions: inv ? [{ label: 'Mở trang thanh toán', go: '#/pay/' + inv.id, solid: true }] : [] };
     }
 
@@ -1008,7 +1028,7 @@
           điều_khoản: key === 'terms' ? (c.terms && c.terms.length ? c.terms : DEFAULT_TERMS) : undefined };
       case 'payinfo':
         return { ...base, ngân_hàng: BANK.name, số_tài_khoản: BANK.account, chủ_tài_khoản: BANK.holder,
-          nội_dung_chuyển_khoản: `${d.tenant.roomCode || ''} ${inv ? vnPeriod(inv.period) : ''}`.trim(),
+          nội_dung_chuyển_khoản: payContent(inv) || (d.tenant.roomCode || ''),
           số_tiền_cần_chuyển: inv ? vnd(inv.total - inv.paid) : '0 ₫' };
       case 'history': {
         const p = d.payments || [];

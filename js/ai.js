@@ -18,7 +18,7 @@ HH.ai = (function () {
   const G = () => window.HHGemini;
 
   const norm = (s) => (s || '').toLowerCase().normalize('NFD')
-    .replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+    .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
   const has = (t, arr) => arr.some(k => t.includes(k));
   const money = (n) => U.currency(n || 0);
   const pct = (n) => U.percent(n || 0);

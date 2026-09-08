@@ -216,65 +216,54 @@
     });
   }
 
-  /* ---------------- KHÁCH CHUYỂN KHOẢN ---------------- */
+  /* ---------------- KHÁCH CHUYỂN KHOẢN & ĐỐI SOÁT NGÂN HÀNG ---------------- */
+  const trTab = { tab: 'claims' };
+
   HH.pages.transfers = {
     render() {
       const rows = [];
       S.buildings.forEach(b => {
         S.paymentsAll().filter(p => p.buildingId === b.id && (p.method || '').includes('Chuyển khoản')).forEach(p => {
-          const inv = S.invoice(p.invoiceId);
-          rows.push({ p, b, inv });
+          rows.push({ p, b, inv: S.invoice(p.invoiceId) });
         });
       });
       rows.sort((a, b) => (b.p.date || '').localeCompare(a.p.date || ''));
       const total = rows.reduce((s, r) => s + r.p.amount, 0);
-      const trs = rows.map(r => `<tr>
-        <td class="mono">${U.fmtDate(r.p.date)}</td>
-        <td>${r.b.name}</td>
-        <td>${r.inv ? r.inv.roomCode : '—'}</td>
-        <td>${r.inv ? r.inv.tenantName : '—'}</td>
-        <td class="mono">${r.p.invoiceId || '—'}</td>
-        <td class="num mono b">${U.currency(r.p.amount)}</td>
-        <td><span class="badge s-success"><span class="dot"></span>Đã khớp</span></td>
-      </tr>`).join('');
-      // --- Phiếu khách báo đã chuyển khoản, chờ đối soát ---
+      const autoCount = rows.filter(r => r.p.auto).length;
       const pending = S.claimsOf(null, 'pending').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      const claimCards = pending.map(c => `<div class="claim-card">
-        <div class="claim-info">
-          <div class="between" style="margin-bottom:6px">
-            <b>${U.esc(c.tenantName || '')} · Phòng ${U.esc(c.roomCode || '')}</b>
-            <span class="badge s-warning"><span class="dot"></span>Chờ đối soát</span></div>
-          <div class="mono b text-lg" style="color:var(--brand-700)">${U.currency(c.amount)}</div>
-          <div class="muted text-sm">Hóa đơn <b class="mono">${U.esc(c.invoiceId || '—')}</b> · báo lúc ${U.fmtDate(c.createdAt)}</div>
-          ${c.note ? `<div class="muted text-sm" style="margin-top:4px">"${U.esc(c.note)}"</div>` : ''}
-          <div class="row-gap-2" style="margin-top:12px">
-            <button class="btn btn-primary btn-sm" data-okclaim="${c.id}">${HH.icon('check', 15)} Xác nhận & ghi thu</button>
-            <button class="btn btn-outline btn-sm" data-noclaim="${c.id}">${HH.icon('x', 15)} Từ chối</button>
-          </div>
-        </div>
-        <div class="claim-proof">${c.photo
-          ? `<img src="${c.photo}" alt="Chứng từ" data-zoom="${c.id}">`
-          : `<div class="no-proof">${HH.icon('camera', 22)}<span>Không có ảnh</span></div>`}</div>
-      </div>`).join('');
+      const waiting = S.unhandledBankTx();
+
+      const tabs = `<div class="view-toggle" style="margin-bottom:16px">
+        <button data-trtab="claims" class="${trTab.tab === 'claims' ? 'active' : ''}">
+          Khách báo chuyển khoản${pending.length ? ` (${pending.length})` : ''}</button>
+        <button data-trtab="bank" class="${trTab.tab === 'bank' ? 'active' : ''}">
+          Đối soát ngân hàng${waiting.length ? ` (${waiting.length})` : ''}</button>
+        <button data-trtab="done" class="${trTab.tab === 'done' ? 'active' : ''}">Đã ghi thu (${rows.length})</button>
+      </div>`;
+
+      const body = trTab.tab === 'claims' ? claimsTab(pending)
+        : trTab.tab === 'bank' ? bankTab(waiting) : doneTab(rows);
 
       return h`<div class="page-head">
         <div><div class="page-title-lg">Khách chuyển khoản</div>
-          <div class="page-sub">Đối soát thanh toán chuyển khoản · ${pending.length} phiếu chờ · ${rows.length} giao dịch đã khớp</div></div>
+          <div class="page-sub">Tiền về là tự khớp hóa đơn và xóa công nợ · ${pending.length} phiếu chờ · ${rows.length} giao dịch đã ghi thu</div></div>
       </div>
-      <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:780px;margin-bottom:16px">
-        ${raw(UI.metricCard({ label: 'Chờ đối soát', value: pending.length, format: 'number', intent: pending.length ? 'warning' : 'default' }))}
-        ${raw(UI.metricCard({ label: 'Tổng đã nhận', value: total, format: 'currency', intent: 'success' }))}
-        ${raw(UI.metricCard({ label: 'Giao dịch đã khớp', value: rows.length, format: 'number' }))}
+      <div class="metric-grid" style="grid-template-columns:repeat(4,1fr);max-width:1000px;margin-bottom:16px">
+        ${raw(UI.metricCard({ label: 'Phiếu khách báo · chờ duyệt', value: pending.length, format: 'number', intent: pending.length ? 'warning' : 'default' }))}
+        ${raw(UI.metricCard({ label: 'Giao dịch NH chờ đối soát', value: waiting.length, format: 'number', intent: waiting.length ? 'warning' : 'default' }))}
+        ${raw(UI.metricCard({ label: 'Tổng đã nhận qua CK', value: total, format: 'currency', intent: 'success' }))}
+        ${raw(UI.metricCard({ label: 'Tự động ghi thu', value: autoCount, format: 'number' }))}
       </div>
-      ${raw(pending.length ? `<h3 style="margin:0 0 12px">Phiếu khách báo đã chuyển khoản</h3>
-        <div class="claim-grid" style="margin-bottom:24px">${claimCards}</div>` : '')}
-      <h3 style="margin:0 0 12px">Giao dịch đã ghi nhận</h3>
-      <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
-        <thead><tr><th>Ngày</th><th>Tòa nhà</th><th>Phòng</th><th>Khách</th><th>Mã HĐ</th><th class="num">Số tiền</th><th>Trạng thái</th></tr></thead>
-        <tbody>${raw(trs || `<tr><td colspan="7"><div class="empty"><div class="ic">💳</div><h4>Chưa có giao dịch chuyển khoản</h4></div></td></tr>`)}</tbody>
-      </table></div></div>`;
+      ${raw(tabs)}
+      ${raw(body)}`;
     },
+
     mount() {
+      document.querySelectorAll('[data-trtab]').forEach(b => b.onclick = () => {
+        trTab.tab = b.dataset.trtab; HH.router.render();
+      });
+
+      // --- Phiếu khách báo đã chuyển khoản ---
       document.querySelectorAll('[data-okclaim]').forEach(b => b.onclick = () => {
         const c = S.claim(b.dataset.okclaim); if (!c) return;
         const inv = S.invoice(c.invoiceId);
@@ -301,16 +290,274 @@
           bodyHtml: `<img src="${img.src}" style="width:100%;border-radius:10px">`,
           footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
       });
+
+      // --- Đối soát ngân hàng ---
+      const paste = document.getElementById('btnPaste');
+      if (paste) paste.onclick = () => pasteStatementDialog();
+      const hook = document.getElementById('btnHook');
+      if (hook) hook.onclick = () => webhookDialog();
+      const runAll = document.getElementById('btnRunAll');
+      if (runAll) runAll.onclick = () => {
+        const r = S.autoReconcile();
+        if (r.done.length) UI.toast(`Đã tự động ghi thu ${r.done.length} giao dịch — công nợ tương ứng đã xóa`, { type: 'ok' });
+        else UI.toast(r.review.length ? 'Không có giao dịch nào khớp chắc chắn — xem cột "Kết quả dò"' : 'Không có giao dịch mới',
+          { type: r.review.length ? 'warning' : 'info' });
+        HH.router.render();
+      };
+      document.querySelectorAll('[data-btapply]').forEach(b => b.onclick = () => {
+        const tx = S.bankTx.find(x => x.id === b.dataset.btapply);
+        if (tx) pickInvoiceDialog(tx);
+      });
+      document.querySelectorAll('[data-btdel]').forEach(b => b.onclick = () => {
+        S.removeBankTx(b.dataset.btdel); UI.toast('Đã bỏ giao dịch', { type: 'ok' }); HH.router.render();
+      });
     },
   };
+
+  function claimsTab(pending) {
+    if (!pending.length) return `<div class="card"><div class="empty" style="padding:32px">
+      <div class="ic">${HH.icon('check', 26)}</div><h4>Không có phiếu nào chờ duyệt</h4>
+      <p class="muted">Khách bấm "Tôi đã chuyển khoản" trong app thì phiếu sẽ hiện ở đây.</p></div></div>`;
+    return `<div class="claim-grid">${pending.map(c => `<div class="claim-card">
+      <div class="claim-info">
+        <div class="between" style="margin-bottom:6px">
+          <b>${U.esc(c.tenantName || '')} · Phòng ${U.esc(c.roomCode || '')}</b>
+          <span class="badge s-warning"><span class="dot"></span>Chờ đối soát</span></div>
+        <div class="mono b text-lg" style="color:var(--brand-700)">${U.currency(c.amount)}</div>
+        <div class="muted text-sm">Hóa đơn <b class="mono">${U.esc(c.invoiceId || '—')}</b> · báo lúc ${U.fmtDate(c.createdAt)}</div>
+        ${c.note ? `<div class="muted text-sm" style="margin-top:4px">"${U.esc(c.note)}"</div>` : ''}
+        <div class="row-gap-2" style="margin-top:12px">
+          <button class="btn btn-primary btn-sm" data-okclaim="${c.id}">${HH.icon('check', 15)} Xác nhận & ghi thu</button>
+          <button class="btn btn-outline btn-sm" data-noclaim="${c.id}">${HH.icon('x', 15)} Từ chối</button>
+        </div>
+      </div>
+      <div class="claim-proof">${c.photo
+        ? `<img src="${c.photo}" alt="Chứng từ" data-zoom="${c.id}">`
+        : `<div class="no-proof">${HH.icon('camera', 22)}<span>Không có ảnh</span></div>`}</div>
+    </div>`).join('')}</div>`;
+  }
+
+  function bankTab(waiting) {
+    const preview = S.autoReconcile({ dryRun: true });
+    const okIds = new Set(preview.done.map(x => x.tx.id));
+    const trs = waiting.map(t => {
+      const m = S.matchTransfer(t);
+      const ok = okIds.has(t.id);
+      return `<tr>
+        <td class="mono nowrap">${U.fmtDate(t.date)}</td>
+        <td class="mono">${U.esc(t.content || '')}</td>
+        <td class="num mono b">${U.currency(t.amount)}</td>
+        <td>${ok
+          ? `<span class="badge s-success"><span class="dot"></span>Khớp ${U.esc(m.invoice.roomCode)} · ${S.periodLabel(m.invoice.period)}</span>`
+          : `<span class="badge ${m.status === 'ambiguous' ? 's-warning' : 's-neutral'}"><span class="dot"></span>${m.status === 'ambiguous' ? 'Chưa chắc' : 'Không khớp'}</span>`}
+          <div class="muted text-xs" style="margin-top:3px">${U.esc(m.reason || '')}</div></td>
+        <td class="col-actions nowrap">
+          <button class="btn btn-outline btn-sm" data-btapply="${t.id}">Chọn hóa đơn</button>
+          <button class="kebab" data-btdel="${t.id}" title="Bỏ giao dịch">${HH.icon('trash', 15)}</button></td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="card" style="margin-bottom:16px"><div class="card-pad">
+      <div class="between" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <b>Tiền về là tự xóa công nợ</b>
+          <div class="muted text-sm" style="margin-top:4px;max-width:620px">
+            App đọc <b>nội dung chuyển khoản</b> để tìm đúng hóa đơn rồi ghi thu — hóa đơn chuyển sang
+            <b>Đã thu</b> và công nợ biến mất. Khách quét mã VietQR trong app khách thuê thì nội dung
+            luôn đúng dạng <span class="mono">HD2608013</span> nên gần như khớp 100%.</div>
+        </div>
+        <div class="row-gap-2">
+          <button class="btn btn-outline" id="btnHook">${HH.icon('bolt', 16)} Nối ngân hàng</button>
+          <button class="btn btn-outline" id="btnPaste">${HH.icon('sheet', 16)} Dán sao kê</button>
+          <button class="btn btn-primary" id="btnRunAll">${HH.icon('refresh', 16)} Chạy đối soát</button>
+        </div>
+      </div></div></div>
+      ${waiting.length ? `<div class="dt-wrap"><div class="dt-scroll"><table class="dt">
+        <thead><tr><th>Ngày</th><th>Nội dung chuyển khoản</th><th class="num">Số tiền</th><th>Kết quả dò</th><th></th></tr></thead>
+        <tbody>${trs}</tbody></table></div></div>`
+      : `<div class="card"><div class="empty" style="padding:32px">
+          <div class="ic">${HH.icon('bank', 26)}</div><h4>Chưa có giao dịch ngân hàng nào chờ</h4>
+          <p class="muted">Bấm <b>Nối ngân hàng</b> để tiền về là tự vào đây, hoặc <b>Dán sao kê</b> để đối soát thủ công.</p></div></div>`}`;
+  }
+
+  function doneTab(rows) {
+    const trs = rows.map(r => `<tr>
+      <td class="mono nowrap">${U.fmtDate(r.p.date)}</td>
+      <td>${U.esc(r.b.name)}</td>
+      <td>${r.inv ? U.esc(r.inv.roomCode) : '—'}</td>
+      <td>${r.inv ? U.esc(r.inv.tenantName || '') : '—'}</td>
+      <td class="mono">${U.esc(r.p.invoiceId || '—')}</td>
+      <td class="num mono b">${U.currency(r.p.amount)}</td>
+      <td>${r.p.auto
+        ? '<span class="badge s-purple"><span class="dot"></span>Tự động</span>'
+        : '<span class="badge s-success"><span class="dot"></span>Thủ công</span>'}</td>
+    </tr>`).join('');
+    return `<div class="dt-wrap"><div class="dt-scroll"><table class="dt">
+      <thead><tr><th>Ngày</th><th>Tòa nhà</th><th>Phòng</th><th>Khách</th><th>Mã HĐ</th><th class="num">Số tiền</th><th>Cách ghi</th></tr></thead>
+      <tbody>${trs || `<tr><td colspan="7"><div class="empty"><div class="ic">${HH.icon('card', 26)}</div><h4>Chưa có giao dịch chuyển khoản</h4></div></td></tr>`}</tbody>
+    </table></div></div>`;
+  }
+
+  /* Dán sao kê ngân hàng -> tách giao dịch -> xem trước -> nạp vào hàng chờ */
+  function pasteStatementDialog() {
+    UI.modal({
+      size: 'wide', title: 'Dán sao kê ngân hàng',
+      bodyHtml: h`<p class="muted text-sm" style="margin-bottom:10px">
+          Mở app/web ngân hàng, sao chép các dòng giao dịch <b>tiền vào</b> rồi dán xuống dưới.
+          Mỗi dòng một giao dịch — app tự tách ngày, số tiền và nội dung.</p>
+        <textarea class="textarea" id="stText" style="min-height:180px;font-family:var(--font-mono);font-size:13px"
+          placeholder="03/09/2026  HD2608013 CHUYEN TIEN  3.943.000&#10;03/09/2026  P205 T8 2026  4.321.000"></textarea>
+        <div id="stPreview" style="margin-top:12px"></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span>
+        <button class="btn btn-primary" id="stAdd" disabled>Nạp vào hàng chờ</button>`,
+      onMount(el, close) {
+        const ta = el.querySelector('#stText'), pv = el.querySelector('#stPreview'), add = el.querySelector('#stAdd');
+        let parsed = [];
+        const refresh = () => {
+          parsed = S.parseStatement(ta.value);
+          add.disabled = !parsed.length;
+          if (!parsed.length) { pv.innerHTML = `<div class="muted text-sm">Chưa nhận ra giao dịch nào.</div>`; return; }
+          let okN = 0;
+          const trs = parsed.map(t => {
+            const m = S.matchTransfer(t);
+            if (m.status === 'matched') okN++;
+            return `<tr><td class="mono nowrap">${U.fmtDate(t.date)}</td>
+              <td class="mono">${U.esc(t.content)}</td>
+              <td class="num mono b">${U.currency(t.amount)}</td>
+              <td>${m.status === 'matched'
+                ? `<span class="badge s-success"><span class="dot"></span>${U.esc(m.invoice.roomCode)} · ${S.periodLabel(m.invoice.period)}</span>`
+                : `<span class="badge s-warning"><span class="dot"></span>${m.status === 'ambiguous' ? 'Chưa chắc' : 'Không khớp'}</span>`}</td></tr>`;
+          }).join('');
+          pv.innerHTML = `<div class="muted text-sm" style="margin-bottom:6px">
+              Nhận ra <b>${parsed.length}</b> giao dịch · <b style="color:var(--success)">${okN}</b> khớp chắc chắn</div>
+            <div class="dt-scroll" style="max-height:210px"><table class="dt">
+            <thead><tr><th>Ngày</th><th>Nội dung</th><th class="num">Số tiền</th><th>Dò được</th></tr></thead>
+            <tbody>${trs}</tbody></table></div>`;
+        };
+        ta.oninput = U.debounce(refresh, 250);
+        refresh();
+        add.onclick = () => {
+          let n = 0; parsed.forEach(t => { if (S.addBankTx(t)) n++; });
+          close();
+          const r = S.autoReconcile();
+          UI.toast(`Nạp ${n} giao dịch · tự ghi thu ${r.done.length}${r.review.length ? ` · ${r.review.length} cần kiểm tra` : ''}`,
+            { type: 'ok', sticky: true });
+          trTab.tab = 'bank'; HH.router.render();
+        };
+      },
+    });
+  }
+
+  /* Giao dịch không tự khớp -> chủ trọ chọn hóa đơn thủ công */
+  function pickInvoiceDialog(tx) {
+    const open = [];
+    S.buildings.forEach(b => S.invoicesOf(b.id)
+      .filter(i => i.status !== 'cancelled' && i.status !== 'draft' && i.total > i.paid)
+      .forEach(i => open.push({ i, b })));
+    open.sort((a, b) => (a.i.period + a.i.roomCode).localeCompare(b.i.period + b.i.roomCode));
+    if (!open.length) { UI.toast('Không còn hóa đơn nào chưa thu', { type: 'warning' }); return; }
+    UI.modal({
+      size: 'wide', title: 'Chọn hóa đơn cho giao dịch này',
+      bodyHtml: h`<div class="alert alert-info" style="margin-bottom:12px"><span class="ic">i</span><div>
+          <b class="mono">${U.currency(tx.amount)}</b> · ${U.fmtDate(tx.date)}<br>
+          Nội dung: <span class="mono">${tx.content || '(trống)'}</span></div></div>
+        <div class="field"><label>Tìm nhanh</label>
+          <input class="input" id="piQ" placeholder="Gõ mã phòng, tên khách hoặc mã hóa đơn..."></div>
+        <div class="dt-scroll" style="max-height:280px;margin-top:10px"><table class="dt">
+          <thead><tr><th>Mã HĐ</th><th>Phòng</th><th>Khách</th><th>Kỳ</th><th class="num">Còn nợ</th><th></th></tr></thead>
+          <tbody id="piRows"></tbody></table></div>`,
+      footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>`,
+      onMount(el, close) {
+        const q = el.querySelector('#piQ'), tb = el.querySelector('#piRows');
+        const draw = () => {
+          const k = q.value.trim().toLowerCase();
+          const list = open.filter(({ i, b }) => !k ||
+            (i.id + ' ' + i.roomCode + ' ' + (i.tenantName || '') + ' ' + b.name).toLowerCase().includes(k));
+          tb.innerHTML = list.slice(0, 40).map(({ i, b }) => `<tr>
+            <td class="mono">${U.esc(i.id)}</td>
+            <td><b>${U.esc(i.roomCode)}</b><div class="muted text-xs">${U.esc(b.name)}</div></td>
+            <td>${U.esc(i.tenantName || '')}</td><td class="mono">${S.periodLabel(i.period)}</td>
+            <td class="num mono b">${U.currency(i.total - i.paid)}</td>
+            <td class="col-actions"><button class="btn btn-primary btn-sm" data-pick="${U.esc(i.id)}">Ghi thu</button></td>
+          </tr>`).join('') || `<tr><td colspan="6" class="muted" style="padding:16px">Không tìm thấy hóa đơn nào</td></tr>`;
+          tb.querySelectorAll('[data-pick]').forEach(btn => btn.onclick = () => {
+            const r = S.applyTransfer(tx, btn.dataset.pick);
+            if (!r.payment) { UI.toast(r.reason || 'Không ghi thu được', { type: 'error' }); return; }
+            tx.handled = true; tx.invoiceId = btn.dataset.pick; tx.paymentId = r.payment.id;
+            tx.matchNote = 'Chủ trọ chọn thủ công'; S.persist();
+            S.log('bank.manual', `Ghi thu thủ công ${U.currency(r.payment.amount)} cho ${btn.dataset.pick}`);
+            close();
+            UI.toast(`Đã ghi thu ${U.currency(r.payment.amount)} · phiếu ${r.payment.receiptNo}`
+              + (r.over ? ` · dư ${U.currency(r.over)}` : ''), { type: 'ok' });
+            HH.router.render();
+          });
+        };
+        q.oninput = U.debounce(draw, 150); draw(); q.focus();
+      },
+    });
+  }
+
+  /* Hướng dẫn nối webhook ngân hàng để chạy hoàn toàn tự động */
+  function webhookDialog() {
+    const url = (window.HH_CONFIG && HH_CONFIG.supabaseUrl)
+      ? HH_CONFIG.supabaseUrl.replace(/\/+$/, '') + '/functions/v1/bank-webhook'
+      : 'https://<project-ref>.supabase.co/functions/v1/bank-webhook';
+    UI.modal({
+      size: 'wide', title: 'Nối ngân hàng để chạy hoàn toàn tự động',
+      bodyHtml: h`<p class="muted text-sm">Ngân hàng Việt Nam không mở API cho tài khoản cá nhân, nên cách chạy thật là
+          dùng một dịch vụ đọc biến động số dư (<b>SePay</b>, <b>Casso</b> — đều có gói miễn phí) rồi cho nó
+          bắn giao dịch về địa chỉ dưới đây. Tiền về là hóa đơn tự chuyển sang <b>Đã thu</b>.</p>
+        <div class="field" style="margin-top:12px"><label>1. Địa chỉ webhook của bạn</label>
+          <div class="row-gap-2"><input class="input mono" id="whUrl" readonly value="${url}">
+            <button class="btn btn-outline" id="whCopy">Chép</button></div></div>
+        <div class="field" style="margin-top:14px"><label>2. Mật khẩu dùng chung (secret)</label>
+          <div class="row-gap-2"><input class="input mono" id="whSecret" readonly placeholder="Bấm Tạo secret →">
+            <button class="btn btn-outline" id="whGen">Tạo secret</button>
+            <button class="btn btn-outline" id="whSCopy">Chép</button></div>
+          <span class="hint" style="display:block;margin-top:6px">Đặt chuỗi này vào biến
+            <span class="mono">BANK_WEBHOOK_SECRET</span> của Edge Function. Không đưa cho ai khác.</span></div>
+        <div class="field" style="margin-top:14px"><label>3. Các bước còn lại</label>
+          <ol class="muted text-sm" style="padding-left:18px;line-height:1.9;margin:0">
+            <li>Chạy <span class="mono">supabase/migration-bank-reconcile.sql</span> trong SQL Editor.</li>
+            <li>Triển khai <span class="mono">supabase/functions/bank-webhook</span> (hướng dẫn ngay trong tệp).</li>
+            <li>Vào SePay/Casso → thêm webhook → dán địa chỉ trên, chọn <b>chỉ giao dịch tiền vào</b>.</li>
+            <li>Xong. Giao dịch tự hiện ở tab này và tự ghi thu nếu nội dung khớp hóa đơn.</li>
+          </ol></div>
+        <div class="alert alert-info" style="margin-top:14px"><span class="ic">i</span><div>
+          Chưa nối được cũng không sao: bấm <b>Dán sao kê</b> để đối soát cả tháng trong vài giây,
+          hoặc duyệt phiếu khách tự báo ở tab đầu tiên.</div></div>`,
+      footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>`,
+      onMount(el) {
+        const sec = el.querySelector('#whSecret');
+        el.querySelector('#whCopy').onclick = () => copyText(el.querySelector('#whUrl').value, 'địa chỉ webhook');
+        el.querySelector('#whSCopy').onclick = () => sec.value
+          ? copyText(sec.value, 'secret') : UI.toast('Chưa có secret — bấm "Tạo secret" trước', { type: 'warning' });
+        el.querySelector('#whGen').onclick = async (e) => {
+          if (!S.usingBackend()) { UI.toast('Cần kết nối Supabase mới tạo được secret', { type: 'error' }); return; }
+          const btn = e.currentTarget; btn.classList.add('loading'); btn.disabled = true;
+          const { data, error } = await HH.backend.rpc('bank_hook_secret');
+          btn.classList.remove('loading'); btn.disabled = false;
+          if (error) { UI.toast(/function/i.test(error.message)
+            ? 'Chưa chạy migration-bank-reconcile.sql' : error.message, { type: 'error' }); return; }
+          sec.value = data; UI.toast('Đã tạo secret — nhớ chép và giữ kín', { type: 'ok' });
+        };
+      },
+    });
+  }
 
   /* ---------------- ĐĂNG TIN ---------------- */
   const AMENITIES = ['Máy lạnh', 'Nóng lạnh', 'Ban công', 'Cửa sổ', 'Tủ lạnh', 'Máy giặt', 'Giường', 'Tủ quần áo', 'Bếp', 'Wifi', 'Giữ xe', 'Tự do giờ giấc'];
   const postPage = { page: 1, size: 9 };
 
+  // Tiện nghi của phòng: nếu chủ trọ đã tự chọn thì tôn trọng đúng lựa chọn đó
+  // (kể cả khi bỏ chọn hết); chưa chọn bao giờ thì lấy tạm từ danh sách tài sản.
+  function roomAmenities(b, r) {
+    if (r.amenitiesSet || (r.amenities && r.amenities.length)) return r.amenities || [];
+    return S.assetsOf(b.id, r.code).map(a => a.name);
+  }
+
   function listingText(b, r) {
-    const am = (r.amenities && r.amenities.length) ? r.amenities
-      : S.assetsOf(b.id, r.code).map(a => a.name);
+    const am = roomAmenities(b, r);
     const lines = [
       `🏠 [CHO THUÊ] ${r.typeLabel} ${r.code} — ${b.name}`,
       ``,
@@ -341,7 +588,7 @@
           ? `<div class="listing-cover"><img src="${photos[0]}" alt="${U.esc(r.code)}">
               ${photos.length > 1 ? `<span class="pcount">📷 ${photos.length}</span>` : ''}</div>`
           : `<div class="listing-cover empty"><span>📷</span><small>Chưa có ảnh</small></div>`;
-        const am = (r.amenities && r.amenities.length) ? r.amenities : S.assetsOf(b.id, r.code).map(a => a.name);
+        const am = roomAmenities(b, r);
         return `<div class="card listing-card">
           ${cover}
           <div class="card-pad">
@@ -399,7 +646,7 @@
 
   function listingDialog(b, r) {
     const photos = r.photos || [];
-    const curAm = (r.amenities && r.amenities.length) ? r.amenities : S.assetsOf(b.id, r.code).map(a => a.name);
+    const curAm = roomAmenities(b, r);
     const text = listingText(b, r);
     const gallery = photos.length
       ? `<div class="photo-strip" style="margin-bottom:12px">${photos.map(p => `<div class="photo-thumb" style="width:120px;height:92px"><img src="${p}"></div>`).join('')}</div>`
@@ -422,13 +669,31 @@
         <button class="btn btn-primary" id="copyListing">📋 Chép nội dung</button>`,
       onMount(el, close) {
         const ta = el.querySelector('#listingText');
-        // đổi tiện nghi -> lưu + dựng lại nội dung
+        let list = curAm.slice();
+        let edited = false;                          // người dùng đã tự sửa nội dung chưa
+        ta.oninput = () => { edited = true; };
+
+        // Đổi tiện nghi: cập nhật TẠI CHỖ, không đóng/mở lại hộp thoại (tránh giật)
         el.querySelectorAll('[data-am]').forEach(c => c.onclick = () => {
-          const list = (r.amenities && r.amenities.length ? r.amenities.slice() : curAm.slice());
-          const i = list.indexOf(c.dataset.am);
-          if (i >= 0) list.splice(i, 1); else list.push(c.dataset.am);
-          S.updateRoom(b.id, r.code, { amenities: list });
-          close(); listingDialog(b, S.room(b.id, r.code));
+          const name = c.dataset.am;
+          const i = list.indexOf(name);
+          if (i >= 0) list.splice(i, 1); else list.push(name);
+          c.classList.toggle('on', list.includes(name));
+          c.querySelector('.lz-chip-box').textContent = list.includes(name) ? '✓' : '';
+          S.updateRoom(b.id, r.code, { amenities: list, amenitiesSet: true });
+
+          // Giữ nguyên nội dung người dùng đang gõ — chỉ thay đúng dòng "Tiện nghi"
+          const line = list.length ? `✨ Tiện nghi: ${list.join(', ')}` : '';
+          const caret = ta.selectionStart, scroll = ta.scrollTop;
+          if (!edited) {
+            ta.value = listingText(b, S.room(b.id, r.code));
+          } else if (/^✨ Tiện nghi:.*$/m.test(ta.value)) {
+            ta.value = ta.value.replace(/^✨ Tiện nghi:.*$/m, line).replace(/\n\n(?=\n)/g, '\n');
+          } else if (line) {
+            ta.value = ta.value.replace(/^(📍 .*)$/m, '$1\n' + line);
+          }
+          try { ta.setSelectionRange(Math.min(caret, ta.value.length), Math.min(caret, ta.value.length)); } catch (e) {}
+          ta.scrollTop = scroll;
         });
         el.querySelector('#copyListing').onclick = () => copyText(ta.value, 'nội dung tin');
         el.querySelector('#shareFb').onclick = () => {

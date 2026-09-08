@@ -47,6 +47,7 @@ Rồi mở `http://localhost:8777/index.html`.
 | Thanh toán | **Ghi nhận thanh toán** với **phân bổ tự động** (trả trước kỳ cũ nhất) · trang công nợ |
 | Khác | Dịch vụ & đơn giá · Tài sản (khấu hao, giá trị còn lại) |
 | Trợ lý ảo | **Chat AI** ở cả web quản trị và app khách thuê — luật từ khóa trả lời miễn phí, Gemini Flash chỉ dùng cho câu hỏi phức tạp |
+| Thu tiền tự động | **Đối soát ngân hàng**: mã VietQR điền sẵn nội dung, tiền về là tự khớp hóa đơn và xóa công nợ (webhook SePay/Casso, dán sao kê, hoặc duyệt phiếu khách báo) |
 
 ### Thành phần dùng chung (theo Phần II đặc tả)
 `MetricCard`, `StatusBadge` (bảng quy ước màu §1.2), `DataTable` (tìm/lọc/sắp xếp/phân trang/chọn hàng loạt/trạng thái rỗng/skeleton), `PeriodSelector`, `DangerDialog` (bắt buộc nhập lý do ≥10 ký tự), toast, modal, menu.
@@ -57,6 +58,29 @@ Rồi mở `http://localhost:8777/index.html`.
 - Phím tắt: `/` tìm kiếm · `n` tạo mới · `Esc` đóng · `?` bảng phím tắt.
 - Phân quyền sinh menu theo vai trò; chặn truy cập route ngoài phạm vi.
 - Responsive: thanh bên thành ngăn kéo trên màn hình hẹp.
+
+## Thu tiền chuyển khoản tự động
+
+Câu hỏi thường gặp: *"khách chuyển khoản xong thì công nợ tự xóa được không?"* — được, nhưng cần
+giải quyết hai việc tách bạch:
+
+**1. Làm sao biết giao dịch này của hóa đơn nào?**
+App sinh mã **VietQR thật** trong app khách thuê, điền sẵn số tiền và nội dung dạng
+`HD2608013` (mã hóa đơn, bỏ dấu gạch). Khách quét bằng app ngân hàng bất kỳ là nội dung luôn đúng.
+Nếu khách gõ tay, bộ dò vẫn tìm được theo thứ tự: mã hóa đơn → mã phòng + kỳ → mã phòng + số tiền →
+số tiền duy nhất. Không chắc thì **không đoán** — đẩy sang cho chủ trọ chọn tay.
+
+**2. Làm sao biết tiền đã về?**
+Ngân hàng Việt Nam không mở API cho tài khoản cá nhân, nên có 3 đường, dùng chung một bộ dò:
+
+| Cách | Độ tự động | Cần gì |
+|---|---|---|
+| Webhook **SePay** / **Casso** | Tiền về là tự ghi thu | Chạy `migration-bank-reconcile.sql`, triển khai `functions/bank-webhook`, dán webhook vào SePay/Casso (đều có gói miễn phí) |
+| **Dán sao kê** | Đối soát cả tháng trong vài giây | Không cần gì — copy các dòng tiền vào rồi dán |
+| **Khách tự báo** | Chủ trọ bấm duyệt | Không cần gì — có sẵn |
+
+Mọi khoản thu đều sinh **phiếu thu có số**, ghi vào nhật ký, và có chống ghi trùng theo mã giao dịch
+ngân hàng. Xem ở **Khách chuyển khoản → Đối soát ngân hàng**.
 
 ## Trợ lý ảo (AI)
 

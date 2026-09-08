@@ -18,7 +18,7 @@ HH.backend = (function () {
     buildings: 'buildings', rooms: 'rooms', tenants: 'tenants', contracts: 'contracts',
     services: 'services', readings: 'readings', invoices: 'invoices', payments: 'payments',
     assets: 'assets', incidents: 'incidents', transactions: 'transactions', staff: 'staff',
-    claims: 'payment_claims', auditLog: 'audit_log',
+    claims: 'payment_claims', bankTx: 'bank_transactions', auditLog: 'audit_log',
   };
   // field JS lệch quy tắc -> cột DB
   const ALIAS = {
@@ -174,6 +174,12 @@ HH.backend = (function () {
     if (error) console.error('[delByBuilding buildings]', error.message);
   }
 
+  // Gọi 1 hàm RPC bất kỳ (dùng cho bank_hook_secret, tenant_*...)
+  async function rpc(name, args) {
+    if (!enabled) return { error: { message: 'Chưa kết nối máy chủ' } };
+    return client.rpc(name, args || {});
+  }
+
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
-    loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, KINDS };
+    loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, rpc, client: () => client, KINDS };
 })();

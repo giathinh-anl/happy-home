@@ -49,6 +49,7 @@ HH.store = (function () {
   const transactions = [];
   const staff = [];
   const claims = [];
+  const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
 
   const CUR_PERIOD = '2026-08';
@@ -241,7 +242,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, auditLog };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, bankTx, auditLog };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -426,6 +427,12 @@ HH.store = (function () {
       // cập nhật cờ sắp hết hạn & trạng thái quá hạn theo ngày hiện tại
       const c1 = api.refreshExpiryFlags(), c2 = api.refreshInvoiceStatus();
       if (c1 || c2) persist();
+      // Tiền ngân hàng về lúc chưa mở app -> khớp hóa đơn & xóa công nợ ngay khi vào
+      try {
+        const r = api.autoReconcile();
+        if (r.done.length) setTimeout(() => HH.ui && HH.ui.toast(
+          `Tự động ghi thu ${r.done.length} giao dịch chuyển khoản mới`, { type: 'ok', sticky: true }), 900);
+      } catch (e) { console.info('Đối soát tự động bỏ qua:', e && e.message); }
       return 'loaded';
     },
 
@@ -897,6 +904,162 @@ HH.store = (function () {
       persist();
       if (usingBackend()) HH.backend.deleteOne('payments', payId);
     },
+    /* ============================================================
+       ĐỐI SOÁT NGÂN HÀNG — tự động xóa công nợ khi tiền về
+       ------------------------------------------------------------
+       Một giao dịch ngân hàng chỉ có 3 thứ: SỐ TIỀN, NỘI DUNG, NGÀY.
+       Muốn tự động thì NỘI DUNG phải nhận ra được hóa đơn. App sinh sẵn
+       nội dung dạng "HD2608013" trong mã VietQR nên khách chỉ cần quét là đúng.
+       Nếu khách gõ tay thì vẫn dò được theo mã phòng + kỳ.
+       ============================================================ */
+    bankTx,
+    // Chuẩn hóa nội dung chuyển khoản: bỏ dấu, viết hoa, bỏ ký tự lạ
+    normContent(s) {
+      return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/gi, 'D').toUpperCase().replace(/[^A-Z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    },
+    // Nội dung nên dùng cho 1 hóa đơn (đưa vào VietQR / hướng dẫn khách)
+    transferContent(inv) { return inv ? String(inv.id).replace(/[^A-Za-z0-9]/g, '') : ''; },
+
+    /** Dò 1 giao dịch về đúng hóa đơn.
+     *  Trả về { status, invoice, reason, candidates } —
+     *  status: 'matched' (chắc chắn) | 'ambiguous' (nhiều khả năng) | 'unmatched' */
+    matchTransfer(tx) {
+      const content = api.normContent(tx.content);
+      const amount = Math.round(+tx.amount || 0);
+      const open = invoices.filter(i => i.status !== 'cancelled' && i.status !== 'draft' && i.total > i.paid);
+      if (!open.length) return { status: 'unmatched', reason: 'Không còn hóa đơn nào chưa thu' };
+
+      // 1) Khớp thẳng mã hóa đơn (chắc chắn nhất) — "HD2608013"
+      const byId = open.find(i => content.includes(api.transferContent(i).toUpperCase()));
+      if (byId) return { status: 'matched', invoice: byId, reason: 'Khớp mã hóa đơn trong nội dung' };
+
+      // 2) Khớp mã phòng (+ kỳ nếu có) — "P405 T8 2026", "P405082026"
+      const codes = new Set(open.map(i => (i.roomCode || '').toUpperCase()).filter(Boolean));
+      const hit = [...codes].filter(c => new RegExp('(^| )' + c + '($| |[0-9])').test(content));
+      if (hit.length === 1) {
+        let list = open.filter(i => (i.roomCode || '').toUpperCase() === hit[0]);
+        // Có nói rõ kỳ nào không? chấp nhận T8, 082026, 2026 08, 2608
+        const per = list.find(i => {
+          const [y, m] = i.period.split('-');
+          const forms = ['T' + Number(m), m + y, y + ' ' + m, y.slice(2) + m];
+          return forms.some(f => content.replace(/ /g, '').includes(f.replace(/ /g, '')));
+        });
+        if (per) list = [per];
+        if (list.length === 1) return { status: 'matched', invoice: list[0],
+          reason: per ? 'Khớp mã phòng và kỳ' : 'Khớp mã phòng, chỉ còn 1 hóa đơn chưa thu' };
+        // nhiều hóa đơn của cùng phòng -> ưu tiên cái khớp đúng số tiền
+        const exact = list.filter(i => i.total - i.paid === amount);
+        if (exact.length === 1) return { status: 'matched', invoice: exact[0], reason: 'Khớp mã phòng và số tiền' };
+        // không rõ kỳ -> trả cũ nhất trước (đúng nguyên tắc phân bổ)
+        const oldest = list.slice().sort((a, b) => a.period.localeCompare(b.period))[0];
+        return { status: 'ambiguous', invoice: oldest, candidates: list,
+          reason: `Phòng ${hit[0]} còn ${list.length} hóa đơn chưa thu — cần chọn kỳ` };
+      }
+      if (hit.length > 1) return { status: 'ambiguous', candidates: open.filter(i => hit.includes((i.roomCode || '').toUpperCase())),
+        reason: 'Nội dung nhắc tới nhiều phòng' };
+
+      // 3) Không có mã nào — thử khớp duy nhất theo số tiền
+      const byAmount = open.filter(i => i.total - i.paid === amount);
+      if (byAmount.length === 1) return { status: 'matched', invoice: byAmount[0],
+        reason: 'Chỉ có đúng 1 hóa đơn có số tiền này' };
+      if (byAmount.length > 1) return { status: 'ambiguous', candidates: byAmount,
+        reason: `${byAmount.length} hóa đơn cùng số tiền — không rõ của ai` };
+
+      return { status: 'unmatched', reason: 'Nội dung không có mã phòng/mã hóa đơn' };
+    },
+
+    /** Ghi thu cho 1 giao dịch đã khớp. Chống ghi trùng bằng mã giao dịch ngân hàng. */
+    applyTransfer(tx, invoiceId) {
+      const ref = tx.ref || tx.id;
+      if (ref && payments.some(p => p.bankRef === ref)) return { skipped: true, reason: 'Giao dịch này đã ghi thu rồi' };
+      const inv = api.invoice(invoiceId || (tx.invoiceId));
+      if (!inv) return { skipped: true, reason: 'Không tìm thấy hóa đơn' };
+      const remain = inv.total - inv.paid;
+      if (remain <= 0) return { skipped: true, reason: 'Hóa đơn đã thu đủ' };
+      const amount = Math.min(remain, Math.round(+tx.amount || 0));
+      if (amount <= 0) return { skipped: true, reason: 'Số tiền không hợp lệ' };
+      const p = api.recordPayment(inv.id, amount, 'Chuyển khoản',
+        tx.date || new Date().toISOString(), tx.content || 'Đối soát tự động từ ngân hàng');
+      if (p) { p.bankRef = ref || null; p.auto = true; persist(); }
+      return { payment: p, invoice: inv, over: Math.max(0, Math.round(+tx.amount || 0) - amount) };
+    },
+
+    /** Quét các giao dịch ngân hàng chưa xử lý và tự ghi thu những cái khớp chắc chắn.
+     *  Chạy khi mở app (nếu chủ trọ đã bật) hoặc bấm tay ở trang Đối soát. */
+    autoReconcile(opts) {
+      opts = opts || {};
+      const out = { done: [], review: [], skipped: [] };
+      bankTx.filter(t => !t.handled && (+t.amount > 0)).forEach(t => {
+        const m = api.matchTransfer(t);
+        if (m.status !== 'matched') { t.matchNote = m.reason; out.review.push({ tx: t, match: m }); return; }
+        if (opts.dryRun) { out.done.push({ tx: t, match: m }); return; }
+        const r = api.applyTransfer(t, m.invoice.id);
+        if (r.payment) {
+          t.handled = true; t.invoiceId = m.invoice.id; t.paymentId = r.payment.id; t.matchNote = m.reason;
+          api.log('bank.auto', `Tự động ghi thu ${U.currency(r.payment.amount)} cho ${m.invoice.id} (${m.reason})`);
+          out.done.push({ tx: t, match: m, payment: r.payment });
+        } else { t.matchNote = r.reason; out.skipped.push({ tx: t, reason: r.reason }); }
+      });
+      if (!opts.dryRun && (out.done.length || out.review.length)) persist();
+      return out;
+    },
+
+    addBankTx(t) {
+      const ref = t.ref || t.id;
+      if (ref && bankTx.some(x => (x.ref || x.id) === ref)) return null;   // đã có
+      const row = Object.assign({ id: U.uid('bt'), handled: false, createdAt: new Date().toISOString() }, t);
+      bankTx.push(row); persist(); return row;
+    },
+    removeBankTx(id) {
+      const i = bankTx.findIndex(x => x.id === id);
+      if (i >= 0) { bankTx.splice(i, 1); persist(); if (usingBackend()) HH.backend.deleteOne('bankTx', id); }
+    },
+    unhandledBankTx: () => bankTx.filter(t => !t.handled),
+
+    /** Đọc sao kê dán vào (CSV hoặc văn bản thô, mỗi dòng 1 giao dịch).
+     *  Quan trọng: KHÔNG được nhầm mã hóa đơn "HD2608013" hay mã phòng "P102"
+     *  là số tiền — nếu nhầm thì mất luôn thông tin để dò. Vì vậy chỉ coi là
+     *  số tiền khi cả cụm chữ đó là số (có dấu phân cách nghìn hoặc ≥ 4 chữ số). */
+    parseStatement(text) {
+      const out = [];
+      // Số có phân cách nghìn, hoặc số trần ≥ 5 chữ số (để "2026" còn nằm lại
+      // trong nội dung mà dò kỳ, chứ không bị hiểu nhầm là số tiền).
+      const isAmountToken = (tk) => /^\d{1,3}([.,]\d{3})+$/.test(tk) || /^\d{5,}$/.test(tk);
+      const isDateToken = (tk) => /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(tk) || /^\d{4}-\d{2}-\d{2}$/.test(tk);
+
+      String(text || '').split(/\r?\n/).forEach((line, idx) => {
+        const raw = line.trim();
+        if (!raw || /^(ngay|ngày|date|stt|no\b|so du|số dư)/i.test(raw)) return;   // bỏ dòng tiêu đề
+
+        const tokens = raw.split(/[\s;,\t|]+/).filter(Boolean);
+        let amount = 0, date = null;
+        const rest = [];
+        tokens.forEach(tk => {
+          // bỏ dấu +/- và đuôi tiền tệ dính vào ("3.943.000VND")
+          const clean = tk.replace(/^[+\-]/, '').replace(/(vnd|vnđ|đ|d)$/i, '');
+          if (isDateToken(clean)) {
+            const a = clean.split(/[/-]/).map(Number);
+            date = clean.includes('-') && clean.indexOf('-') === 4
+              ? new Date(a[0], a[1] - 1, a[2]).toISOString()
+              : new Date(a[2], a[1] - 1, a[0]).toISOString();
+            return;
+          }
+          if (isAmountToken(clean)) {
+            const n = Math.round(U.parseNum(clean));
+            if (n >= 1000) { amount = Math.max(amount, n); return; }   // là số tiền -> bỏ khỏi nội dung
+          }
+          rest.push(tk);                                              // giữ nguyên để còn dò mã
+        });
+        if (amount < 1000) return;                                    // dòng không có số tiền -> bỏ qua
+
+        const content = rest.join(' ').replace(/\s+/g, ' ').trim();
+        out.push({ ref: 'paste-' + Date.now() + '-' + idx, amount,
+          date: date || new Date().toISOString(), content, source: 'paste' });
+      });
+      return out;
+    },
+
     isOverdue(inv) { return inv && inv.dueDate && U.daysBetween(U.today(), inv.dueDate) < 0 && (inv.total - inv.paid) > 0; },
     // Cập nhật trạng thái quá hạn theo ngày hiện tại
     refreshInvoiceStatus() {
