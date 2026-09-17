@@ -548,34 +548,46 @@ HH.store = (function () {
       };
     },
 
-    /* ---------- Phân tích chi tiết cho trang Tổng quan (biểu đồ) ---------- */
-    dashboardAnalytics() {
-      const per = api.period(), prev = api.prevPeriodOf(per);
-      const invPer = (p) => invoices.filter(i => i.period === p && i.status !== 'cancelled');
+    /* ---------- Phân tích chi tiết (Tổng quan + trợ lý ảo) ----------
+       opts.period     : kỳ cần xem "YYYY-MM" (mặc định: kỳ đang chọn)
+       opts.buildingId : chỉ tính 1 tòa (mặc định: toàn công ty)
+       opts.months     : số kỳ của chuỗi xu hướng (mặc định 6) */
+    dashboardAnalytics(opts) {
+      opts = opts || {};
+      const per = opts.period || api.period(), prev = api.prevPeriodOf(per);
+      const bid = opts.buildingId || null;
+      const nMonths = Math.max(2, Math.min(24, opts.months || 6));
+      const inB = (x) => !bid || x.buildingId === bid;
+      const INV = invoices.filter(inB), TX = transactions.filter(inB), ROOMS = rooms.filter(inB);
+      const RD = readings.filter(inB), PAY = payments.filter(inB);
+      const BLD = bid ? buildings.filter(b => b.id === bid) : buildings;
+
+      const invPer = (p) => INV.filter(i => i.period === p && i.status !== 'cancelled');
       const paidIn = (p) => invPer(p).reduce((s, i) => s + i.paid, 0);
       const billedIn = (p) => invPer(p).reduce((s, i) => s + i.total, 0);
-      const costIn = (p) => transactions.filter(t => t.kind === 'expense' && (t.date || '').slice(0, 7) === p)
+      const costIn = (p) => TX.filter(t => t.kind === 'expense' && (t.date || '').slice(0, 7) === p)
         .reduce((s, t) => s + t.amount, 0);
-      const otherIncomeIn = (p) => transactions.filter(t => t.kind === 'income' && (t.date || '').slice(0, 7) === p)
+      const otherIncomeIn = (p) => TX.filter(t => t.kind === 'income' && (t.date || '').slice(0, 7) === p)
         .reduce((s, t) => s + t.amount, 0);
 
       // ----- Xu hướng thật (so với kỳ trước) -----
       const rev = paidIn(per), revPrev = paidIn(prev);
       const cost = costIn(per), costPrev = costIn(prev);
-      const billed = billedIn(per);
-      const debt = invoices.filter(i => i.status !== 'cancelled' && i.status !== 'draft')
+      const billed = billedIn(per), billedPrev = billedIn(prev);
+      const debt = INV.filter(i => i.status !== 'cancelled' && i.status !== 'draft')
         .reduce((s, i) => s + (i.total - i.paid), 0);
       const debtPrev = invPer(prev).reduce((s, i) => s + (i.total - i.paid), 0);
       const profit = rev + otherIncomeIn(per) - cost;
       const profitPrev = revPrev + otherIncomeIn(prev) - costPrev;
       const trend = (now, before) => (before > 0 ? (now - before) / before : (now > 0 ? 1 : 0));
 
-      // ----- 6 kỳ: thu vào / chi ra / phát hành -----
+      // ----- Chuỗi n kỳ: thu vào / chi ra / phát hành -----
       const series = [];
-      for (let k = 5; k >= 0; k--) {
+      for (let k = nMonths - 1; k >= 0; k--) {
         const mp = shiftPeriod(per, -k);
         series.push({ period: mp, label: 'T' + Number(mp.split('-')[1]),
-          revenue: paidIn(mp), cost: costIn(mp), billed: billedIn(mp) });
+          revenue: paidIn(mp), cost: costIn(mp), billed: billedIn(mp),
+          invoices: invPer(mp).length });
       }
 
       // ----- Cơ cấu hóa đơn kỳ này (theo dòng hóa đơn) -----
@@ -588,13 +600,13 @@ HH.store = (function () {
 
       // ----- Cơ cấu chi phí kỳ này -----
       const eMap = {};
-      transactions.filter(t => t.kind === 'expense' && (t.date || '').slice(0, 7) === per)
+      TX.filter(t => t.kind === 'expense' && (t.date || '').slice(0, 7) === per)
         .forEach(t => { const c = t.category || 'Chi khác'; eMap[c] = (eMap[c] || 0) + t.amount; });
       const expenseMix = Object.keys(eMap).map(k => ({ label: k, value: eMap[k] }))
         .sort((a, b) => b.value - a.value);
 
-      // ----- Trạng thái phòng -----
-      const cnt = (st) => rooms.filter(r => r.status === st).length;
+      // ----- Trạng thái phòng (hiện tại) -----
+      const cnt = (st) => ROOMS.filter(r => r.status === st).length;
       const roomMix = [
         { label: 'Đang thuê', value: cnt('occupied'), color: '#22c55e' },
         { label: 'Báo trả', value: cnt('notice'), color: '#f59e0b' },
@@ -604,7 +616,7 @@ HH.store = (function () {
       ].filter(x => x.value > 0);
 
       // ----- Trạng thái hóa đơn kỳ này -----
-      const ist = (st) => invoices.filter(i => i.period === per && i.status === st).length;
+      const ist = (st) => INV.filter(i => i.period === per && i.status === st).length;
       const invoiceMix = [
         { label: 'Đã thu đủ', value: ist('paid'), color: '#22c55e' },
         { label: 'Thu một phần', value: ist('partial'), color: '#3b82f6' },
@@ -614,17 +626,18 @@ HH.store = (function () {
       ].filter(x => x.value > 0);
 
       // ----- Tỉ lệ thu theo từng tòa -----
-      const byBuilding = buildings.map(b => {
-        const iv = invoices.filter(i => i.buildingId === b.id && i.period === per && i.status !== 'cancelled' && i.status !== 'draft');
+      const byBuilding = BLD.map(b => {
+        const iv = INV.filter(i => i.buildingId === b.id && i.period === per && i.status !== 'cancelled' && i.status !== 'draft');
         const t = iv.reduce((s, i) => s + i.total, 0), p = iv.reduce((s, i) => s + i.paid, 0);
-        const rs = rooms.filter(r => r.buildingId === b.id);
+        const rs = ROOMS.filter(r => r.buildingId === b.id);
         const occ = rs.filter(r => r.status === 'occupied' || r.status === 'notice').length;
         return { id: b.id, name: b.name, billed: t, collected: p, rooms: rs.length, occupied: occ,
+          vacant: rs.filter(r => r.status === 'vacant').length,
           occupancy: rs.length ? occ / rs.length : 0 };
       });
 
       // ----- Phiếu thu gần đây (bổ sung phòng/khách từ hóa đơn nếu phiếu cũ chưa có) -----
-      const recent = payments.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 6)
+      const recent = PAY.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 6)
         .map(p => {
           if (p.roomCode && p.tenantName) return p;
           const iv = api.invoice(p.invoiceId) || {};
@@ -633,7 +646,7 @@ HH.store = (function () {
 
       // ----- Phòng nợ nhiều nhất -----
       const debtMap = {};
-      invoices.filter(i => i.status !== 'cancelled' && i.status !== 'draft' && i.total > i.paid).forEach(i => {
+      INV.filter(i => i.status !== 'cancelled' && i.status !== 'draft' && i.total > i.paid).forEach(i => {
         const k = i.buildingId + '|' + i.roomCode;
         if (!debtMap[k]) {
           const b = buildings.find(x => x.id === i.buildingId);
@@ -646,26 +659,29 @@ HH.store = (function () {
       const topDebtors = allDebtors.slice(0, 5);
 
       // ----- Tiêu thụ điện nước kỳ này -----
-      const rdPer = readings.filter(r => r.period === per);
+      const rdPer = RD.filter(r => r.period === per);
       const elecKwh = rdPer.reduce((s, r) => s + Math.max(0, api.consumptionOf(r, 'elec') || 0), 0);
       const waterM3 = rdPer.reduce((s, r) => s + Math.max(0, api.consumptionOf(r, 'water') || 0), 0);
 
-      const totalRooms = rooms.length;
-      const occAll = rooms.filter(r => r.status === 'occupied' || r.status === 'notice').length;
+      const totalRooms = ROOMS.length;
+      const occAll = ROOMS.filter(r => r.status === 'occupied' || r.status === 'notice').length;
 
       return {
-        period: per, prevPeriod: prev,
+        period: per, prevPeriod: prev, buildingId: bid,
+        hasData: invPer(per).length > 0 || rdPer.length > 0 || costIn(per) > 0,
         kpi: {
-          revenue: rev, revenueTrend: trend(rev, revPrev),
-          billed, collectRate: billed > 0 ? rev / billed : 0,
-          cost, costTrend: trend(cost, costPrev),
-          profit, profitTrend: trend(profit, profitPrev),
+          revenue: rev, revenueTrend: trend(rev, revPrev), revenuePrev: revPrev,
+          billed, billedPrev, collectRate: billed > 0 ? rev / billed : 0,
+          collectRatePrev: billedPrev > 0 ? revPrev / billedPrev : 0,
+          cost, costTrend: trend(cost, costPrev), costPrev,
+          profit, profitTrend: trend(profit, profitPrev), profitPrev,
           debt, debtTrend: trend(debt, debtPrev),
           occupancy: totalRooms ? occAll / totalRooms : 0,
           occupiedRooms: occAll, totalRooms,
+          invoices: invPer(per).length, invoicesPrev: invPer(prev).length,
         },
         series, revenueMix, expenseMix, roomMix, invoiceMix, byBuilding,
-        recentPayments: recent, topDebtors, debtorCount: allDebtors.length,
+        recentPayments: recent, topDebtors, allDebtors, debtorCount: allDebtors.length,
         usage: { elecKwh, waterM3, roomsRead: rdPer.length },
       };
     },

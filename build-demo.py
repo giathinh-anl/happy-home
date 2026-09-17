@@ -19,7 +19,7 @@ JS = [
     'js/backend.js', 'js/store.js', 'js/components.js',
     'js/pages/auth-dashboard.js', 'js/pages/rooms.js', 'js/pages/tenants.js',
     'js/pages/contracts.js', 'js/pages/billing.js', 'js/pages/misc.js', 'js/pages/more.js',
-    'js/gemini.js', 'js/ai.js', 'js/assistant.js',
+    'js/nlu.js', 'js/gemini.js', 'js/ai.js', 'js/assistant.js',
     'js/router.js', 'js/app.js',
 ]
 
@@ -55,6 +55,7 @@ def main():
     )
 
     html = u'''<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Happy Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

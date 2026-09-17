@@ -799,7 +799,7 @@
     el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Ghi chỉ số: tự gửi số điện/nước cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     el('logoutBtn').onclick = () => {
       if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
-      try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
+      try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem('hh_tchat_' + state.phone); } catch (e) {}
       state.phone = null; state.data = null; go('#/login');
     };
   }
@@ -812,284 +812,487 @@
      - Trợ lý CHỈ đọc dữ liệu; không sửa hóa đơn/thanh toán.
      - Không đoán khi không có dữ liệu — trả lời trung thực và chuyển tiếp.
      ============================================================ */
-  const chat = { msgs: [], busy: false };
+  const NLU = window.HHNLU;
+  const chat = { msgs: [], busy: false, ctx: NLU ? NLU.createContext() : null, loadedFor: null };
+  const chatKey = () => 'hh_tchat_' + (state.phone || '');
 
   const SUGGESTIONS = [
     'Tháng này tôi đóng bao nhiêu?',
+    'Sao tháng này tiền cao hơn?',
     'Hạn đóng tiền khi nào?',
     'Tiền điện nước tháng này',
-    'Hợp đồng của tôi',
-    'Báo hỏng thiết bị',
+    'Hợp đồng còn bao lâu?',
     'Thông tin chuyển khoản',
   ];
 
-  const norm = (s) => (s || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  const norm = NLU ? NLU.norm : (s) => String(s || '').toLowerCase();
   const hasAny = (t, arr) => arr.some(k => t.includes(k));
 
-  function pushMsg(who, html, actions, byAi) {
-    chat.msgs.push({ who, html, actions: actions || [], ai: !!byAi });
+  function pushMsg(who, html, actions, byAi, extra) {
+    chat.msgs.push(Object.assign({ who, html, actions: actions || [], ai: !!byAi }, extra || {}));
+    saveChat();
   }
 
-  /** Bộ hiểu ý định — trả lời DỰA TRÊN dữ liệu thật của khách đang đăng nhập */
-  function answer(text) {
-    const t = norm(text);
-    const d = state.data;
-    const inv = currentUnpaid();
-    const c = d.contract;
+  /* Hội thoại giữ trong sessionStorage theo từng số điện thoại (đóng tab là mất) */
+  function saveChat() {
+    try {
+      sessionStorage.setItem(chatKey(), JSON.stringify({
+        msgs: chat.msgs.slice(-40), ctx: chat.ctx ? chat.ctx.dump() : null }));
+    } catch (e) { /* bỏ qua */ }
+  }
+  function loadChat() {
+    if (chat.loadedFor === state.phone) return;
+    chat.loadedFor = state.phone;
+    chat.msgs = [];
+    if (chat.ctx) chat.ctx.clear();
+    try {
+      const o = JSON.parse(sessionStorage.getItem(chatKey()) || 'null');
+      if (o && Array.isArray(o.msgs)) chat.msgs = o.msgs;
+      if (o && chat.ctx) chat.ctx.load(o.ctx);
+    } catch (e) { /* bắt đầu mới */ }
+  }
 
-    // 1) Chào hỏi
-    if (hasAny(t, ['xin chao', 'chao ', 'hello', 'hi ', 'alo']) && t.length < 20)
-      return { html: `Chào anh/chị <b>${esc(d.tenant.fullName)}</b>! Em có thể giúp gì cho phòng <b>${esc(d.tenant.roomCode || '')}</b> ạ?`,
-        actions: [{ label: 'Tiền tháng này', send: 'Tháng này tôi đóng bao nhiêu?' },
-                  { label: 'Báo hỏng', go: '#/repair' }] };
+  /* ---------- dữ liệu của khách đang đăng nhập ---------- */
+  const invList = () => (state.data.invoices || []).filter(i => i.status !== 'cancelled' && i.status !== 'draft')
+    .slice().sort((a, b) => (a.period || '').localeCompare(b.period || ''));
+  const invOf = (per) => invList().find(i => i.period === per);
+  const readingOf = (per) => usageList().find(u => u.period === per);
+  const lineAmt = (inv, re) => { const l = inv && (inv.lines || []).find(x => re.test(x.label) || (re.source.includes('điện') && x.type === 'elec')); return l ? l.amount : null; };
+  const termsList = () => {
+    const c = state.data.contract || {};
+    const src = (c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
+    return src.map(t => ({ title: t.title, body: (t.body || '')
+      .replace('{deposit}', vnd(c.deposit)).replace('{rent}', vnd(c.rent)).replace('{dueDays}', c.dueDays || 5) }));
+  };
+  const diffTxt = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + vnd(Math.abs(n));
 
-    // 2) Số tiền phải đóng / hóa đơn — kèm BẢNG PHÂN TÍCH
-    if (hasAny(t, ['bao nhieu', 'tien phong', 'hoa don', 'phai dong', 'phai tra', 'thanh toan bao nhieu', 'no bao nhieu', 'cong no'])) {
-      if (!inv) return { html: `Hiện anh/chị <b>không còn khoản nào phải thanh toán</b>. Cảm ơn anh/chị đã đóng đầy đủ ạ! ✓`,
-        actions: [{ label: 'Xem lịch sử hóa đơn', go: '#/invoices' }] };
+  /* ============================================================
+     BỘ Ý ĐỊNH — mỗi ý định tự lấy SỐ THẬT từ state.data (dữ liệu máy chủ
+     trả về theo số điện thoại đã xác thực, không lấy từ nội dung tin nhắn).
+     ============================================================ */
+  const TI = {};
+
+  TI.invoice = {
+    desc: 'Số tiền phải đóng, chi tiết hóa đơn của một tháng, còn nợ bao nhiêu',
+    kw: ['phai dong', 'phai tra', 'dong bao nhieu', 'tra bao nhieu', 'tien phong', 'hoa don', 'tien nha',
+      'het bao nhieu', 'tong tien', 'con no', 'no bao nhieu', 'cong no', 'tien thang'],
+    weak: ['bao nhieu'],
+    run(sl) {
+      const inv = sl.period ? invOf(sl.period) : currentUnpaid();
+      const facts = { kỳ: sl.period ? vnPeriod(sl.period) : null };
+      if (sl.period && !inv) return { facts, html: `Em chưa thấy hóa đơn <b>${vnPeriod(sl.period)}</b> của phòng mình ạ.`,
+        suggest: ['Tháng này tôi đóng bao nhiêu?', 'Lịch sử thanh toán'] };
+      if (!inv) return { facts: { còn_phải_đóng: '0 ₫' },
+        html: `Hiện anh/chị <b>không còn khoản nào phải thanh toán</b>. Cảm ơn anh/chị đã đóng đầy đủ ạ! ✓`,
+        actions: [{ label: 'Xem lịch sử hóa đơn', go: '#/invoices' }],
+        suggest: ['Sao tháng này tiền cao hơn?', 'Lịch sử thanh toán'] };
       const remain = inv.total - inv.paid;
-      const rows = (inv.lines || []).map(l => `<tr><td>${esc(l.label)}</td><td>${vnd(l.amount)}</td></tr>`).join('');
       const dl = daysLeft(inv.dueDate);
-      return {
+      Object.assign(facts, { kỳ: vnPeriod(inv.period), tổng: vnd(inv.total), đã_trả: vnd(inv.paid), còn_phải_đóng: vnd(remain),
+        hạn: fmtDate(inv.dueDate), còn_lại_ngày: dl, các_khoản: (inv.lines || []).map(l => ({ khoản: l.label, tiền: vnd(l.amount) })) });
+      const rows = (inv.lines || []).map(l => `<tr><td>${esc(l.label)}</td><td>${vnd(l.amount)}</td></tr>`).join('');
+      return { facts,
         html: `<div class="b-title">Hóa đơn ${vnPeriod(inv.period)}</div>
           <table>${rows}<tr class="sum"><td>Tổng cộng</td><td>${vnd(inv.total)}</td></tr>
           ${inv.paid > 0 ? `<tr><td>Đã thanh toán</td><td>−${vnd(inv.paid)}</td></tr>
             <tr class="sum"><td>Còn phải đóng</td><td>${vnd(remain)}</td></tr>` : ''}</table>
-          <div class="b-note">Hạn: <b>${fmtDate(inv.dueDate)}</b> · ${dl < 0
-            ? `<span class="b-warn">đã quá hạn ${Math.abs(dl)} ngày</span>` : `còn ${dl} ngày`}</div>`,
-        actions: [{ label: 'Xem chi tiết', go: '#/invoice/' + inv.id },
-                  { label: 'Thanh toán', go: '#/pay/' + inv.id, solid: true }] };
-    }
+          <div class="b-note">${remain <= 0 ? '<b>Đã thanh toán đủ ✓</b>'
+            : `Hạn: <b>${fmtDate(inv.dueDate)}</b> · ${dl < 0 ? `<span class="b-warn">đã quá hạn ${-dl} ngày</span>` : `còn ${dl} ngày`}`}</div>`,
+        actions: [{ label: 'Xem chi tiết', go: '#/invoice/' + inv.id }]
+          .concat(remain > 0 ? [{ label: 'Thanh toán', go: '#/pay/' + inv.id, solid: true }] : []),
+        suggest: ['So với tháng trước', 'Tiền điện tháng này', 'Thông tin chuyển khoản'] };
+    },
+  };
 
-    // 3) Hạn đóng tiền
-    if (hasAny(t, ['han dong', 'khi nao', 'han thanh toan', 'bao gio', 'deadline', 'han cuoi'])) {
-      if (!inv) return { html: 'Hiện chưa có hóa đơn nào đang chờ thanh toán ạ.', actions: [{ label: 'Xem hóa đơn', go: '#/invoices' }] };
+  TI.due = {
+    desc: 'Hạn đóng tiền, còn bao nhiêu ngày, đóng trễ thì sao',
+    kw: ['han dong', 'han thanh toan', 'han cuoi', 'deadline', 'khi nao phai dong', 'bao gio phai dong',
+      'dong truoc ngay', 'tre han', 'qua han', 'dong tre', 'ngay may phai dong'],
+    run(sl) {
+      const inv = sl.period ? invOf(sl.period) : currentUnpaid();
+      if (!inv || inv.total - inv.paid <= 0) return { facts: {},
+        html: sl.period && inv ? `Hóa đơn <b>${vnPeriod(inv.period)}</b> đã thanh toán đủ rồi ạ ✓`
+          : 'Hiện chưa có hóa đơn nào đang chờ thanh toán ạ.',
+        actions: [{ label: 'Xem hóa đơn', go: '#/invoices' }] };
       const dl = daysLeft(inv.dueDate);
-      return { html: `Hóa đơn <b>${vnPeriod(inv.period)}</b> có hạn thanh toán ngày <b>${fmtDate(inv.dueDate)}</b>.<br>
-        ${dl < 0 ? `<span class="b-warn">Đã quá hạn ${Math.abs(dl)} ngày</span> — anh/chị vui lòng thanh toán sớm giúp em ạ.`
-                 : `Còn <b>${dl} ngày</b> nữa ạ.`}`,
-        actions: [{ label: 'Thanh toán ngay', go: '#/pay/' + inv.id, solid: true }] };
-    }
+      const late = termsList().find(t => /quá hạn|thanh toán/i.test(t.title + t.body));
+      return { facts: { kỳ: vnPeriod(inv.period), hạn: fmtDate(inv.dueDate), còn_lại_ngày: dl, số_tiền: vnd(inv.total - inv.paid) },
+        html: `Hóa đơn <b>${vnPeriod(inv.period)}</b> (${vnd(inv.total - inv.paid)}) có hạn <b>${fmtDate(inv.dueDate)}</b>.<br>
+          ${dl < 0 ? `<span class="b-warn">Đã quá hạn ${-dl} ngày</span> — anh/chị thanh toán sớm giúp em ạ.` : `Còn <b>${dl} ngày</b> nữa ạ.`}
+          ${late && dl < 3 ? `<div class="b-note">Theo hợp đồng: ${esc(late.body)}</div>` : ''}`,
+        actions: [{ label: 'Thanh toán ngay', go: '#/pay/' + inv.id, solid: true }],
+        suggest: ['Thông tin chuyển khoản'] };
+    },
+  };
 
-    // 4) Điện nước / tiêu thụ
-    if (hasAny(t, ['dien nuoc', 'tien dien', 'tien nuoc', 'chi so', 'tieu thu', 'so dien', 'so nuoc', 'kwh'])) {
-      const u = latestUsage();
-      if (!u) return { html: 'Em chưa thấy dữ liệu chỉ số điện nước của phòng mình. Anh/chị có thể tự gửi chỉ số để chủ nhà duyệt ạ.',
+  TI.utilities = {
+    desc: 'Điện nước của một tháng: số kWh, số khối, tiền điện, tiền nước',
+    kw: ['dien nuoc', 'tien dien', 'tien nuoc', 'so dien', 'so nuoc', 'kwh', 'tieu thu', 'xai dien', 'dung dien',
+      'so khoi', 'chi so', 'xai het', 'dung het'],
+    run(sl) {
+      const u = sl.period ? readingOf(sl.period) : latestUsage();
+      if (!u) return { facts: {},
+        html: sl.period ? `Em chưa thấy chỉ số điện nước <b>${vnPeriod(sl.period)}</b> của phòng mình ạ.`
+          : 'Em chưa thấy chỉ số điện nước của phòng mình. Anh/chị có thể tự gửi chỉ số để chủ nhà duyệt ạ.',
         actions: [{ label: 'Gửi chỉ số', go: '#/readings', solid: true }] };
-      const eLine = (inv && (inv.lines || []).find(l => l.type === 'elec' || /điện/i.test(l.label)));
-      const wLine = (inv && (inv.lines || []).find(l => /nước/i.test(l.label)));
-      return { html: `<div class="b-title">Tiêu thụ ${esc(u.label)}</div>
-        <table>
-          <tr><td>⚡ Điện</td><td>${u.elec != null ? num(u.elec) + ' kWh' : '—'}</td></tr>
-          ${eLine ? `<tr><td>Tiền điện</td><td>${vnd(eLine.amount)}</td></tr>` : ''}
-          <tr><td>💧 Nước</td><td>${u.water != null ? num(u.water) + ' m³' : '—'}</td></tr>
-          ${wLine ? `<tr><td>Tiền nước</td><td>${vnd(wLine.amount)}</td></tr>` : ''}
-        </table>
-        <div class="b-note">Số liệu lấy từ chỉ số chủ nhà đã ghi.</div>`,
-        actions: [{ label: 'Lịch sử điện nước', go: '#/usage' }, { label: 'Bảng giá', go: '#/services' }] };
-    }
+      // Tiền điện/nước lấy từ hóa đơn CÙNG KỲ với chỉ số (không lẫn kỳ khác)
+      const inv = invOf(u.period);
+      const eAmt = lineAmt(inv, /điện/i), wAmt = lineAmt(inv, /nước/i);
+      return { facts: { kỳ: u.label, điện_kWh: u.elec, nước_m3: u.water, tiền_điện: eAmt != null ? vnd(eAmt) : null, tiền_nước: wAmt != null ? vnd(wAmt) : null },
+        html: `<div class="b-title">Điện nước ${esc(u.label)}</div>
+          <table>
+            <tr><td>Điện</td><td>${u.elec != null ? num(u.elec) + ' kWh' : '—'}</td></tr>
+            ${eAmt != null ? `<tr><td>Tiền điện</td><td>${vnd(eAmt)}</td></tr>` : ''}
+            <tr><td>Nước</td><td>${u.water != null ? num(u.water) + ' m³' : '—'}</td></tr>
+            ${wAmt != null ? `<tr><td>Tiền nước</td><td>${vnd(wAmt)}</td></tr>` : ''}
+          </table>
+          <div class="b-note">Số liệu lấy từ chỉ số chủ nhà đã ghi.</div>`,
+        actions: [{ label: 'Lịch sử điện nước', go: '#/usage' }],
+        suggest: ['So với tháng trước', 'Giá điện bao nhiêu một số?'] };
+    },
+  };
 
-    // 5) Hợp đồng
-    if (hasAny(t, ['hop dong', 'het han', 'gia han', 'dieu khoan', 'thoi han thue'])) {
-      if (!c) return { html: 'Em chưa thấy thông tin hợp đồng của phòng mình trên hệ thống. Anh/chị vui lòng liên hệ chủ nhà ạ.',
+  TI.compare = {
+    desc: 'So sánh hóa đơn/tiền điện tháng này với tháng trước, vì sao tiền cao hơn',
+    kw: ['so voi', 'so sanh', 'cao hon', 'nhieu hon', 'dat hon', 'tang len', 'chenh lech', 'it hon', 'thap hon', 'giam xuong'],
+    run(sl) {
+      const list = invList();
+      const cur = sl.period ? invOf(sl.period) : list[list.length - 1];
+      const idx = cur ? list.indexOf(cur) : -1;
+      const base = sl.basePeriod ? invOf(sl.basePeriod) : (idx > 0 ? list[idx - 1] : null);
+      if (!cur || !base) return { facts: {},
+        html: 'Em cần ít nhất <b>2 hóa đơn</b> của phòng mình để so sánh, hiện chưa đủ ạ.',
+        actions: [{ label: 'Xem hóa đơn', go: '#/invoices' }] };
+      const labels = [];
+      [base, cur].forEach(i => (i.lines || []).forEach(l => { if (!labels.includes(l.label)) labels.push(l.label); }));
+      const amt = (i, lb) => { const l = (i.lines || []).find(x => x.label === lb); return l ? l.amount : 0; };
+      const diffs = labels.map(lb => ({ lb, a: amt(base, lb), b: amt(cur, lb), d: amt(cur, lb) - amt(base, lb) }));
+      const total = cur.total - base.total;
+      const main = diffs.filter(x => Math.sign(x.d) === Math.sign(total) && x.d !== 0).sort((x, y) => Math.abs(y.d) - Math.abs(x.d))[0];
+      const ru = readingOf(cur.period), rb = readingOf(base.period);
+      const P0 = vnPeriod(base.period), P1 = vnPeriod(cur.period);
+      let why = '';
+      if (main) {
+        why = `, chủ yếu do <b>${esc(main.lb)}</b> ${main.d > 0 ? 'tăng' : 'giảm'} ${vnd(Math.abs(main.d))}`;
+        if (/điện/i.test(main.lb) && ru && rb && ru.elec != null && rb.elec != null) why += ` (dùng ${num(ru.elec)} kWh so với ${num(rb.elec)} kWh)`;
+        else if (/nước/i.test(main.lb) && ru && rb && ru.water != null && rb.water != null) why += ` (dùng ${num(ru.water)} m³ so với ${num(rb.water)} m³)`;
+      }
+      const head = total === 0 ? `Hóa đơn <b>${P1}</b> bằng đúng <b>${P0}</b>: ${vnd(cur.total)}.`
+        : `Hóa đơn <b>${P1}</b> ${total > 0 ? 'cao' : 'thấp'} hơn <b>${P0}</b> <b>${vnd(Math.abs(total))}</b>${why}.`;
+      return { facts: { kỳ_gốc: P0, kỳ_so: P1, tổng_kỳ_gốc: vnd(base.total), tổng_kỳ_so: vnd(cur.total), chênh: diffTxt(total),
+          theo_khoản: diffs.map(x => ({ khoản: x.lb, [P0]: vnd(x.a), [P1]: vnd(x.b), chênh: diffTxt(x.d) })),
+          điện_kWh: { [P0]: rb && rb.elec, [P1]: ru && ru.elec }, nước_m3: { [P0]: rb && rb.water, [P1]: ru && ru.water } },
+        html: `${head}
+          <table><tr><td></td><td><b>${P0}</b></td><td><b>${P1}</b></td></tr>
+          ${diffs.map(x => `<tr><td>${esc(x.lb)}</td><td>${vnd(x.a)}</td><td>${vnd(x.b)}${x.d ? `<br><span class="${x.d > 0 ? 'b-warn' : 'b-good'}">${diffTxt(x.d)}</span>` : ''}</td></tr>`).join('')}
+          <tr class="sum"><td>Tổng</td><td>${vnd(base.total)}</td><td>${vnd(cur.total)}</td></tr></table>`,
+        actions: [{ label: 'Lịch sử điện nước', go: '#/usage' }],
+        suggest: ['Giá điện bao nhiêu một số?', 'Tháng này tôi đóng bao nhiêu?'] };
+    },
+  };
+
+  TI.contract = {
+    desc: 'Hợp đồng: giá thuê, tiền cọc, ngày bắt đầu/hết hạn, còn bao lâu, gia hạn',
+    kw: ['hop dong', 'het han', 'gia han', 'thoi han thue', 'tien coc', 'ngay het han', 'bao lau nua', 'con bao nhieu ngay', 'con bao lau', 'ket thuc'],
+    run() {
+      const c = state.data.contract;
+      if (!c) return { facts: {}, html: 'Em chưa thấy thông tin hợp đồng của phòng mình trên hệ thống. Anh/chị vui lòng liên hệ chủ nhà ạ.',
         actions: [{ label: 'Liên hệ chủ nhà', act: 'contact' }] };
       const dl = c.end ? daysLeft(c.end) : null;
-      return { html: `<div class="b-title">Hợp đồng phòng ${esc(d.tenant.roomCode || '')}</div>
-        <table>
-          <tr><td>Giá thuê</td><td>${vnd(c.rent)}</td></tr>
-          <tr><td>Tiền cọc</td><td>${vnd(c.deposit)}</td></tr>
-          <tr><td>Từ ngày</td><td>${fmtDate(c.start)}</td></tr>
-          <tr><td>Đến ngày</td><td>${fmtDate(c.end)}</td></tr>
-        </table>
-        ${dl != null ? `<div class="b-note">${dl < 0
-          ? `<span class="b-warn">Hợp đồng đã hết hạn ${Math.abs(dl)} ngày</span> — vui lòng liên hệ chủ nhà để gia hạn.`
-          : (dl <= 30 ? `<span class="b-warn">Sắp hết hạn — còn ${dl} ngày.</span>` : `Còn <b>${dl} ngày</b>.`)}</div>` : ''}`,
-        actions: [{ label: 'Xem điều khoản', go: '#/contract' }] };
-    }
+      return { facts: { giá_thuê: vnd(c.rent), tiền_cọc: vnd(c.deposit), từ: fmtDate(c.start), đến: fmtDate(c.end), còn_lại_ngày: dl },
+        html: `<div class="b-title">Hợp đồng phòng ${esc(state.data.tenant.roomCode || '')}</div>
+          <table>
+            <tr><td>Giá thuê</td><td>${vnd(c.rent)}</td></tr>
+            <tr><td>Tiền cọc</td><td>${vnd(c.deposit)}</td></tr>
+            <tr><td>Từ ngày</td><td>${fmtDate(c.start)}</td></tr>
+            <tr><td>Đến ngày</td><td>${fmtDate(c.end)}</td></tr>
+          </table>
+          ${dl != null ? `<div class="b-note">${dl < 0
+            ? `<span class="b-warn">Hợp đồng đã hết hạn ${-dl} ngày</span> — vui lòng liên hệ chủ nhà để gia hạn.`
+            : (dl <= 30 ? `<span class="b-warn">Sắp hết hạn — còn ${dl} ngày.</span>` : `Còn <b>${dl} ngày</b>.`)}</div>` : ''}`,
+        actions: [{ label: 'Xem điều khoản', go: '#/contract' }],
+        suggest: ['Muốn dọn đi thì báo trước bao lâu?', 'Tiền cọc có được trả lại không?'] };
+    },
+  };
 
-    // 6) Báo hỏng -> THẺ XÁC NHẬN trước khi tạo phiếu
-    if (hasAny(t, ['bao hong', 'hu ', 'hong ', 'sua chua', 'sua giup', 'khong len', 'khong chay', 'ro ri', 'chap dien', 'mat dien', 'mat nuoc', 'tac ', 'bi hu'])) {
-      // Ưu tiên thiết bị cụ thể trước (VD "máy lạnh chảy nước" phải là Máy lạnh, không phải Nước)
+  // Tra điều khoản theo đúng điều người thuê đang hỏi
+  const TERM_TOPICS = [
+    { re: /(don di|tra phong|cham dut|chuyen di|bao truoc|ket thuc som)/, tr: /chấm dứt/i },
+    { re: /(tien coc|coc|hoan tra|tra lai coc)/, tr: /cọc/i },
+    { re: /(hu hong|lam hong|boi thuong|den bu|tai san)/, tr: /tài sản|bồi thường/i },
+    { re: /(sua chua|cai tao|khoan|son lai|dong dinh)/, tr: /sửa chữa|cải tạo/i },
+    { re: /(tre han|qua han|dong tre|cham dong)/, tr: /thanh toán/i },
+    { re: /(tam tru|an ninh|pccc|chay no|on ao|gio giac|nuoi|thu cung|khach|ban be o lai)/, tr: /an ninh|nội quy/i },
+    { re: /(sang nhuong|cho thue lai|nhuong lai|o ghep)/, tr: /Bên B|chuyển nhượng/i },
+    { re: /(dien|nuoc|dich vu|internet|wifi)/, tr: /dịch vụ/i },
+  ];
+  TI.terms = {
+    desc: 'Điều khoản, nội quy: báo trước khi dọn đi, trả cọc, bồi thường, nuôi thú, tạm trú…',
+    kw: ['dieu khoan', 'noi quy', 'quy dinh', 'duoc phep', 'co duoc', 'bao truoc', 'don di', 'tra phong', 'tra lai coc',
+      'hoan coc', 'tra lai', 'hoan tra', 'lay lai coc', 'mat coc', 'boi thuong', 'nuoi', 'thu cung', 'tam tru', 'o ghep',
+      'sang nhuong', 'cham dut'],
+    run(sl, text) {
+      const t = norm(text);
+      const all = termsList();
+      const topic = TERM_TOPICS.find(x => x.re.test(t));
+      const hits = topic ? all.filter(x => topic.tr.test(x.title + ' ' + x.body)) : [];
+      if (hits.length) {
+        return { facts: { điều_khoản_liên_quan: hits },
+          html: `Theo hợp đồng của anh/chị:${hits.slice(0, 2).map(x =>
+            `<div class="b-term"><b>${esc(x.title)}</b><br>${esc(x.body)}</div>`).join('')}
+            <div class="b-note">Trường hợp cụ thể anh/chị nên hỏi thêm chủ nhà ạ.</div>`,
+          actions: [{ label: 'Xem đủ điều khoản', go: '#/contract' }, { label: 'Hỏi chủ nhà', act: 'contact' }] };
+      }
+      return { facts: { số_điều_khoản: all.length, tiêu_đề: all.map(x => x.title) },
+        html: `Hợp đồng có <b>${all.length}</b> điều khoản:<br>${all.map((x, i) => `${i + 1}. ${esc(x.title)}`).join('<br>')}
+          <div class="b-note">Anh/chị hỏi cụ thể (ví dụ “dọn đi thì báo trước bao lâu?”) em sẽ trích đúng điều đó.</div>`,
+        actions: [{ label: 'Xem đầy đủ', go: '#/contract' }] };
+    },
+  };
+
+  // Báo hỏng: có đồ vật + trạng thái hỏng -> THẺ XÁC NHẬN trước khi tạo phiếu
+  const BROKEN = /\b(hong|hu|ro ri|chay nuoc|tac|nghet|chap dien|chap mach|khong (len|chay|mat|vao|sang|lanh|nong|xa|dong|mo)|mat (dien|nuoc|mang|wifi)|bi yeu|keu to|bi ket)\b/;
+  TI.repair = {
+    desc: 'Báo hỏng thiết bị, yêu cầu sửa chữa mới',
+    kw: ['bao hong', 'bi hong', 'hu hong', 'bi hu', 'sua chua', 'sua giup', 'khong len', 'khong chay', 'ro ri', 'chap dien',
+      'mat dien', 'mat nuoc', 'bi tac', 'khong mat', 'chay nuoc', 'hong roi', 'can sua', 'mat mang', 'mat wifi'],
+    neg: ['theo doi', 'tien do', 'sua xong chua', 'da sua chua', 'khi nao sua', 'bao gio sua'],
+    run(sl, text) {
+      const t = norm(text);
       const cat = hasAny(t, ['may lanh', 'dieu hoa', 'khong mat']) ? 'Máy lạnh'
-        : hasAny(t, ['chap dien', 'o cam', 'bong den', 'mat dien', 'cup dien', 'aptomat', 'dien']) ? 'Điện'
-        : hasAny(t, ['nuoc', 'voi ', 'ro ri', 'bon cau', 'tac ', 'nghet']) ? 'Nước'
+        : hasAny(t, ['wifi', 'mang', 'internet']) ? 'Internet'
+        : hasAny(t, ['chap dien', 'o cam', 'bong den', 'den ', 'mat dien', 'cup dien', 'aptomat', 'dien']) ? 'Điện'
+        : hasAny(t, ['nuoc', 'voi', 'ro ri', 'bon cau', 'tac', 'nghet', 'binh nong lanh']) ? 'Nước'
         : 'Khác';
-      const title = text.trim().replace(/^(cho|giup|toi|minh|em|anh|chi)\s+/i, '');
-      return { html: `Em sẽ tạo <b>yêu cầu sửa chữa</b> với nội dung:<br>
-        <div style="background:var(--neutral-100);padding:10px 12px;border-radius:10px;margin:8px 0">
-          <b>${esc(cat)}</b><br>"${esc(title)}"</div>
-        Anh/chị xác nhận giúp em ạ?`,
+      const title = text.trim().replace(/^(cho|giup|toi|minh|em|anh|chi|phong)\s+/i, '');
+      return { facts: { loại: cat, nội_dung: title },
+        html: `Em sẽ tạo <b>yêu cầu sửa chữa</b> với nội dung:
+          <div class="b-term"><b>${esc(cat)}</b><br>"${esc(title)}"</div>
+          Anh/chị xác nhận giúp em ạ?`,
         actions: [{ label: 'Xác nhận gửi', act: 'mkincident', data: { cat, title }, solid: true },
-                  { label: 'Sửa lại', go: '#/repair' }] };
-    }
+          { label: 'Sửa lại / thêm ảnh', go: '#/repair' }] };
+    },
+  };
 
-    // 7) Thanh toán / chuyển khoản
-    if (hasAny(t, ['chuyen khoan', 'ngan hang', 'stk', 'so tai khoan', 'qr', 'tra tien', 'dong tien o dau', 'thanh toan the nao'])) {
-      return { html: `Anh/chị có thể thanh toán bằng <b>mã QR</b> hoặc <b>chuyển khoản</b>:
-        <table>
-          <tr><td>Ngân hàng</td><td>${esc(BANK.name)}</td></tr>
-          <tr><td>Số tài khoản</td><td>${esc(BANK.account)}</td></tr>
-          <tr><td>Chủ tài khoản</td><td>${esc(BANK.holder)}</td></tr>
-        </table>
-        <div class="b-note">Nội dung ghi đúng: <b>${esc(payContent(inv) || d.tenant.roomCode || '')}</b> — ghi đúng thì hệ thống tự trừ công nợ.</div>`,
-        actions: inv ? [{ label: 'Mở trang thanh toán', go: '#/pay/' + inv.id, solid: true }] : [] };
-    }
+  TI.track = {
+    desc: 'Theo dõi tiến độ các yêu cầu sửa chữa đã gửi',
+    kw: ['theo doi', 'tien do', 'yeu cau cua toi', 'sua xong chua', 'da sua chua', 'khi nao sua', 'bao gio sua', 'da bao hong'],
+    run() {
+      const inc = state.data.incidents || [];
+      if (!inc.length) return { facts: {}, html: 'Anh/chị chưa gửi yêu cầu sửa chữa nào ạ.',
+        actions: [{ label: 'Báo hỏng', go: '#/repair', solid: true }] };
+      const open = inc.filter(x => x.status !== 'done');
+      return { facts: { đang_xử_lý: open.length, danh_sách: inc.slice(0, 5).map(x => ({ nội_dung: x.title, trạng_thái: incStatusLabel(x.status), ngày: fmtDate(x.createdAt) })) },
+        html: `${open.length ? `Có <b>${open.length}</b> yêu cầu đang chờ/đang xử lý:` : 'Tất cả yêu cầu đã được xử lý xong ✓'}
+          <table>${inc.slice(0, 5).map(x => `<tr><td>${esc(x.title)}<br><span class="b-muted">${fmtDate(x.createdAt)}</span></td>
+            <td>${incStatusLabel(x.status)}</td></tr>`).join('')}</table>`,
+        actions: [{ label: 'Xem chi tiết', go: '#/track' }] };
+    },
+  };
 
-    // 8) Bảng giá dịch vụ
-    if (hasAny(t, ['gia dich vu', 'don gia', 'bang gia', 'gia dien', 'gia nuoc', 'phi rac', 'internet bao nhieu'])) {
-      const svcs = d.services || [];
-      if (!svcs.length) return { html: 'Em chưa có bảng giá dịch vụ trên hệ thống. Anh/chị vui lòng hỏi chủ nhà ạ.',
-        actions: [{ label: 'Liên hệ chủ nhà', act: 'contact' }] };
-      return { html: `<div class="b-title">Bảng giá dịch vụ</div><table>
-        <tr><td>Tiền phòng</td><td>${vnd(d.room.price)}</td></tr>
-        ${svcs.map(s => `<tr><td>${esc(s.name)}</td><td>${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</td></tr>`).join('')}
-        </table>`, actions: [{ label: 'Xem đầy đủ', go: '#/services' }] };
-    }
+  TI.payinfo = {
+    desc: 'Cách thanh toán, số tài khoản ngân hàng, mã QR, nội dung chuyển khoản',
+    kw: ['chuyen khoan', 'ngan hang', 'stk', 'so tai khoan', 'ma qr', 'quet ma', 'tra tien o dau', 'dong tien o dau',
+      'thanh toan the nao', 'cach thanh toan', 'noi dung chuyen', 'ghi noi dung'],
+    run() {
+      const inv = currentUnpaid();
+      return { facts: { ngân_hàng: BANK.name, số_tài_khoản: BANK.account, chủ_tài_khoản: BANK.holder,
+          nội_dung: payContent(inv) || state.data.tenant.roomCode, số_tiền: inv ? vnd(inv.total - inv.paid) : '0 ₫' },
+        html: `Anh/chị quét <b>mã VietQR</b> hoặc chuyển khoản:
+          <table>
+            <tr><td>Ngân hàng</td><td>${esc(BANK.name)}</td></tr>
+            <tr><td>Số tài khoản</td><td>${esc(BANK.account)}</td></tr>
+            <tr><td>Chủ tài khoản</td><td>${esc(BANK.holder)}</td></tr>
+            ${inv ? `<tr><td>Số tiền</td><td>${vnd(inv.total - inv.paid)}</td></tr>
+            <tr><td>Nội dung</td><td><b>${esc(payContent(inv))}</b></td></tr>` : ''}
+          </table>
+          <div class="b-note">Ghi đúng nội dung thì hệ thống tự trừ công nợ, không cần chờ chủ nhà duyệt.</div>`,
+        actions: inv ? [{ label: 'Mở mã QR', go: '#/pay/' + inv.id, solid: true }] : [] };
+    },
+  };
 
-    // 9) Tài sản trong phòng
-    if (hasAny(t, ['tai san', 'do dac', 'thiet bi', 'trong phong co gi', 'noi that'])) {
-      const a = d.assets || [];
-      if (!a.length) return { html: 'Phòng mình chưa có danh sách tài sản trên hệ thống ạ.' };
-      return { html: `Phòng <b>${esc(d.tenant.roomCode)}</b> có <b>${a.length}</b> tài sản:<br>
-        ${a.map(x => `• ${esc(x.name)}${(x.quantity || 1) > 1 ? ' ×' + x.quantity : ''}`).join('<br>')}
-        <div class="b-note">Vui lòng giữ gìn giúp em ạ.</div>`,
-        actions: [{ label: 'Xem phòng của tôi', go: '#/room' }] };
-    }
-
-    // 10) Liên hệ chủ nhà
-    if (hasAny(t, ['lien he', 'so dien thoai chu', 'goi chu', 'chu nha', 'chu tro', 'gap ai'])) {
-      return { html: 'Em kết nối anh/chị với chủ nhà nhé.', actions: [{ label: 'Liên hệ chủ nhà', act: 'contact', solid: true }] };
-    }
-
-    // 11) Lịch sử thanh toán
-    if (hasAny(t, ['da dong', 'lich su', 'bien lai', 'phieu thu', 'da tra'])) {
-      const p = d.payments || [];
-      if (!p.length) return { html: 'Em chưa thấy lịch sử thanh toán nào ạ.' };
+  TI.history = {
+    desc: 'Lịch sử đã thanh toán, biên lai, phiếu thu',
+    kw: ['da dong', 'lich su', 'bien lai', 'phieu thu', 'da tra', 'da thanh toan', 'thang nao da dong', 'da chuyen'],
+    run(sl) {
+      let p = (state.data.payments || []).slice();
+      if (sl.months) {
+        const from = NLU.shiftPeriod(CUR_PERIOD, -(sl.months - 1));
+        p = p.filter(x => (x.date || '').slice(0, 7) >= from);
+      }
+      if (!p.length) return { facts: {}, html: 'Em chưa thấy lịch sử thanh toán nào ạ.' };
       const total = p.reduce((s, x) => s + x.amount, 0);
-      return { html: `Anh/chị đã thanh toán <b>${vnd(total)}</b> qua <b>${p.length}</b> lần.<br>
-        Gần nhất: <b>${vnd(p[0].amount)}</b> ngày ${fmtDate(p[0].date)}.`,
+      return { facts: { số_lần: p.length, tổng: vnd(total), gần_nhất: { số_tiền: vnd(p[0].amount), ngày: fmtDate(p[0].date) } },
+        html: `Anh/chị đã thanh toán <b>${vnd(total)}</b> qua <b>${p.length}</b> lần${sl.months ? ` trong ${sl.months} tháng gần đây` : ''}:
+          <table>${p.slice(0, 5).map(x => `<tr><td>${fmtDate(x.date)}</td><td>${vnd(x.amount)}</td></tr>`).join('')}</table>`,
         actions: [{ label: 'Xem lịch sử', go: '#/history' }] };
-    }
+    },
+  };
 
-    // 12) Không hiểu -> để tầng AI xử lý (nếu có), sau đó mới chuyển cho quản lý
-    return { html: null, forward: text };
+  TI.prices = {
+    desc: 'Bảng giá dịch vụ: giá điện một số, giá nước, phí rác, internet',
+    kw: ['gia dich vu', 'don gia', 'bang gia', 'gia dien', 'gia nuoc', 'phi rac', 'gia internet', 'wifi bao nhieu',
+      'bao nhieu mot so', 'bao nhieu 1 so', 'bao nhieu mot khoi', 'mot so dien', 'phi dich vu'],
+    run() {
+      const svcs = state.data.services || [];
+      if (!svcs.length) return { facts: {}, html: 'Em chưa có bảng giá dịch vụ trên hệ thống. Anh/chị vui lòng hỏi chủ nhà ạ.',
+        actions: [{ label: 'Liên hệ chủ nhà', act: 'contact' }] };
+      return { facts: { tiền_phòng: vnd(state.data.room.price), dịch_vụ: svcs.map(s => ({ tên: s.name, giá: num(s.unit) + ' ' + (s.unitLabel || '') })) },
+        html: `<div class="b-title">Bảng giá dịch vụ</div><table>
+          <tr><td>Tiền phòng</td><td>${vnd(state.data.room.price)}</td></tr>
+          ${svcs.map(s => `<tr><td>${esc(s.name)}</td><td>${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</td></tr>`).join('')}
+          </table>`, actions: [{ label: 'Xem đầy đủ', go: '#/services' }] };
+    },
+  };
+
+  TI.assets = {
+    desc: 'Tài sản, đồ đạc, thiết bị có trong phòng',
+    kw: ['tai san', 'do dac', 'thiet bi', 'trong phong co gi', 'noi that', 'co nhung gi', 'duoc trang bi'],
+    run() {
+      const a = state.data.assets || [];
+      if (!a.length) return { facts: {}, html: 'Phòng mình chưa có danh sách tài sản trên hệ thống ạ.' };
+      return { facts: { tài_sản: a.map(x => x.name) },
+        html: `Phòng <b>${esc(state.data.tenant.roomCode)}</b> có <b>${a.length}</b> tài sản:<br>
+          ${a.map(x => `• ${esc(x.name)}${(x.quantity || 1) > 1 ? ' ×' + x.quantity : ''}`).join('<br>')}
+          <div class="b-note">Vui lòng giữ gìn giúp em ạ — hư hỏng do sử dụng sai sẽ phải bồi thường theo hợp đồng.</div>`,
+        actions: [{ label: 'Xem phòng của tôi', go: '#/room' }] };
+    },
+  };
+
+  TI.room = {
+    desc: 'Thông tin phòng: diện tích, tầng, giá, người ở cùng',
+    kw: ['phong cua toi', 'phong toi', 'dien tich', 'bao nhieu met', 'o chung', 'o cung', 'cung phong', 'may nguoi', 'tang may'],
+    run() {
+      const d = state.data, r = d.room || {};
+      const mates = (d.roommates || []).map(x => x.fullName).filter(Boolean);
+      return { facts: { phòng: r.code, tầng: r.floor, diện_tích: r.area, giá: vnd(r.price), người_ở: mates },
+        html: `<div class="b-title">Phòng ${esc(r.code || d.tenant.roomCode || '')}</div>
+          <table>
+            ${r.area ? `<tr><td>Diện tích</td><td>${r.area} m²</td></tr>` : ''}
+            ${r.floor ? `<tr><td>Tầng</td><td>${r.floor}</td></tr>` : ''}
+            <tr><td>Giá thuê</td><td>${vnd(r.price)}</td></tr>
+            <tr><td>Người ở</td><td>${mates.length ? mates.map(esc).join('<br>') : esc(d.tenant.fullName)}</td></tr>
+          </table>`,
+        actions: [{ label: 'Phòng của tôi', go: '#/room' }] };
+    },
+  };
+
+  TI.contact = {
+    desc: 'Liên hệ chủ nhà, số điện thoại quản lý',
+    kw: ['lien he', 'so dien thoai chu', 'goi chu', 'chu nha', 'chu tro', 'quan ly', 'gap ai', 'hotline', 'nguoi phu trach'],
+    run() {
+      const b = state.data.building || {};
+      return { facts: { tòa: b.name, điện_thoại: b.contactPhone || null },
+        html: b.contactPhone ? `Chủ nhà <b>${esc(b.name || '')}</b>: <b>${esc(b.contactPhone)}</b>.` : 'Em kết nối anh/chị với chủ nhà nhé.',
+        actions: [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }] };
+    },
+  };
+
+  TI.help = {
+    desc: 'Hỏi trợ lý làm được gì',
+    kw: ['giup gi', 'lam duoc gi', 'hoi duoc gi', 'huong dan', 'em la ai', 'ban la ai', 'ho tro gi'],
+    run() {
+      return { facts: {},
+        html: `Em tra cứu <b>dữ liệu thật</b> của phòng mình và hiểu được <b>tháng</b> trong câu hỏi. Anh/chị thử:
+          <table>
+            <tr><td>Tiền</td><td>Tháng 7 tôi đóng bao nhiêu?</td></tr>
+            <tr><td>Vì sao</td><td>Sao tháng này tiền cao hơn?</td></tr>
+            <tr><td>Điện nước</td><td>Tiền điện tháng trước</td></tr>
+            <tr><td>Hợp đồng</td><td>Dọn đi thì báo trước bao lâu?</td></tr>
+            <tr><td>Sửa chữa</td><td>Máy lạnh không mát · Sửa xong chưa?</td></tr>
+          </table>`,
+        suggest: SUGGESTIONS.slice(0, 3) };
+    },
+  };
+
+  /* ---------- hiểu câu hỏi ---------- */
+  const T_GREET = /^(xin chao|chao|hello|hi|alo|chao em|chao ban)( (em|ban|bot|tro ly|anh|chi))?$/;
+
+  function understand(text, forced) {
+    const t = norm(text);
+    const ctx = chat.ctx;
+    const last = ctx.get();
+    const ranked = NLU.score(text, TI);
+    let intent = forced || (ranked[0] && ranked[0].score >= 2 ? ranked[0].key : null);
+
+    // "Sao tháng này tiền điện cao vậy?" -> so sánh (dù có chữ "tiền điện")
+    if (!forced && /\b(cao|tang|nhieu|dat|giam|it|thap|chenh|khac)\b/.test(t)
+      && /\b(sao|tai sao|vi sao|so voi|hon|the nao ma)\b/.test(t)
+      && /\b(tien|hoa don|dien|nuoc|thang)\b/.test(t)) intent = 'compare';
+    // Có đồ vật đang hỏng mà chưa hỏi tiến độ -> báo hỏng
+    if (!forced && (!intent || intent === 'utilities') && BROKEN.test(t) && !/theo doi|tien do|xong chua/.test(t)) intent = 'repair';
+
+    const p = NLU.extractPeriod(text, CUR_PERIOD);
+    const slots = { period: p ? p.period : null, months: NLU.extractMonths(text), basePeriod: null };
+    const carried = [];
+    const follow = NLU.looksFollowUp(text);
+
+    if (!intent && last && (slots.period || slots.months || follow)) { intent = last.intent; carried.push('hỏi tiếp'); }
+    if (!intent) return null;
+
+    if (intent === 'compare') {
+      const parts = t.split(/\bso voi\b/);
+      if (parts.length > 1) {
+        const a = NLU.extractPeriod(parts[0], CUR_PERIOD), b = NLU.extractPeriod(parts.slice(1).join(' '), CUR_PERIOD);
+        slots.period = a ? a.period : (last && last.slots.period) || null;
+        if (b) slots.basePeriod = b.how === 'prev' && slots.period ? NLU.shiftPeriod(slots.period, -1) : b.period;
+      }
+    } else if (!slots.period && last && last.slots.period && (follow || carried.length)) {
+      slots.period = last.slots.period; carried.push(vnPeriod(slots.period));
+    }
+    return { intent, slots, carried };
+  }
+
+  const T_LABEL = { invoice: 'hóa đơn', due: 'hạn đóng', utilities: 'điện nước', compare: 'so sánh hóa đơn',
+    contract: 'hợp đồng', terms: 'điều khoản', repair: 'báo hỏng', track: 'tiến độ sửa chữa', payinfo: 'chuyển khoản',
+    history: 'lịch sử thanh toán', prices: 'bảng giá', assets: 'tài sản', room: 'phòng', contact: 'liên hệ', help: 'hướng dẫn' };
+
+  /** Tầng 1: trả lời bằng dữ liệu thật. null = không hiểu */
+  function answer(text, forced) {
+    if (!NLU) return { html: 'Trợ lý chưa tải xong, anh/chị tải lại trang giúp em ạ.' };
+    if (T_GREET.test(norm(text))) {
+      return { html: `Chào anh/chị <b>${esc(state.data.tenant.fullName)}</b>! Em có thể giúp gì cho phòng <b>${esc(state.data.tenant.roomCode || '')}</b> ạ?`,
+        suggest: SUGGESTIONS.slice(0, 4) };
+    }
+    const u = understand(text, forced);
+    if (!u) return null;
+    const r = TI[u.intent].run(u.slots, text);
+    chat.ctx.set(u.intent, u.slots);
+    const scope = u.slots.period ? vnPeriod(u.slots.period) : '';
+    return Object.assign({}, r, { intent: u.intent,
+      note: u.carried.length ? `Hiểu là: ${T_LABEL[u.intent]}${scope ? ' · ' + scope : ''}` : '' });
   }
 
   /* ============================================================
-     TẦNG 2 — GEMINI FLASH (chỉ chạy khi luật từ khóa ở trên không nhận ra ý định)
-     Mô hình CHỈ làm 2 việc: (a) phân loại ý định, (b) soạn lời văn từ số thật.
-     Số liệu luôn do code lấy từ dữ liệu của CHÍNH khách đang đăng nhập
-     (state.data — máy chủ trả về theo state.phone đã xác thực), không phải do mô hình nghĩ ra.
+     TẦNG 2 — GEMINI FLASH (chỉ chạy khi tầng 1 không hiểu)
+     Mô hình CHỈ: (a) phân loại ý định + tháng, (b) soạn lời văn từ số thật.
+     Số liệu luôn do code lấy từ dữ liệu của CHÍNH khách đang đăng nhập.
      ============================================================ */
-  const T_INTENTS = [
-    { key: 'invoice', desc: 'Số tiền phải đóng, chi tiết hóa đơn, còn nợ bao nhiêu' },
-    { key: 'due', desc: 'Hạn đóng tiền, còn bao nhiêu ngày, đóng trễ thì sao' },
-    { key: 'utilities', desc: 'Điện nước: số kWh, số khối, tiền điện tiền nước' },
-    { key: 'contract', desc: 'Hợp đồng: giá thuê, tiền cọc, ngày bắt đầu/kết thúc, gia hạn' },
-    { key: 'terms', desc: 'Điều khoản, nội quy, quy định của hợp đồng' },
-    { key: 'payinfo', desc: 'Cách thanh toán, số tài khoản ngân hàng, mã QR' },
-    { key: 'history', desc: 'Lịch sử đã thanh toán, biên lai, phiếu thu' },
-    { key: 'prices', desc: 'Bảng giá dịch vụ: giá điện, giá nước, phí rác, internet' },
-    { key: 'assets', desc: 'Tài sản, đồ đạc, thiết bị có trong phòng' },
-    { key: 'room', desc: 'Thông tin phòng: diện tích, giá, tầng, người ở cùng' },
-    { key: 'repair', desc: 'Báo hỏng, yêu cầu sửa chữa, theo dõi tiến độ sửa' },
-    { key: 'contact', desc: 'Liên hệ chủ nhà, số điện thoại quản lý' },
-  ];
+  const T_INTENTS = Object.keys(TI).map(k => ({ key: k, desc: TI[k].desc,
+    params: ['invoice', 'due', 'utilities', 'compare'].includes(k) ? 'period' : (k === 'history' ? 'months' : '') }));
 
-  /* Lấy SỐ THẬT cho từng ý định — đây là dữ liệu duy nhất mô hình được dùng */
-  function tenantFacts(key) {
-    const d = state.data, inv = currentUnpaid(), c = d.contract, u = latestUsage();
-    const base = { họ_tên: d.tenant.fullName, phòng: d.tenant.roomCode || '' };
-    switch (key) {
-      case 'invoice':
-        if (!inv) return { ...base, còn_phải_đóng: '0 ₫', ghi_chú: 'Khách đã thanh toán đầy đủ, không còn khoản nào' };
-        return { ...base, kỳ: vnPeriod(inv.period), tổng_hóa_đơn: vnd(inv.total),
-          đã_thanh_toán: vnd(inv.paid), còn_phải_đóng: vnd(inv.total - inv.paid),
-          hạn_thanh_toán: fmtDate(inv.dueDate), còn_lại_ngày: daysLeft(inv.dueDate),
-          các_khoản: (inv.lines || []).map(l => ({ khoản: l.label, tiền: vnd(l.amount), mô_tả: l.meta || null })) };
-      case 'due':
-        if (!inv) return { ...base, ghi_chú: 'Không có hóa đơn nào đang chờ thanh toán' };
-        return { ...base, kỳ: vnPeriod(inv.period), hạn_thanh_toán: fmtDate(inv.dueDate),
-          còn_lại_ngày: daysLeft(inv.dueDate), số_tiền: vnd(inv.total - inv.paid) };
-      case 'utilities':
-        if (!u) return { ...base, ghi_chú: 'Chưa có chỉ số điện nước nào được ghi cho phòng này' };
-        return { ...base, kỳ: u.label, điện_kWh: u.elec, nước_m3: u.water,
-          tiền_điện: inv ? (((inv.lines || []).find(l => l.type === 'elec' || /điện/i.test(l.label)) || {}).amount != null
-            ? vnd((inv.lines.find(l => l.type === 'elec' || /điện/i.test(l.label))).amount) : null) : null,
-          tiền_nước: inv ? (((inv.lines || []).find(l => /nước/i.test(l.label)) || {}).amount != null
-            ? vnd((inv.lines.find(l => /nước/i.test(l.label))).amount) : null) : null };
-      case 'contract':
-      case 'terms':
-        if (!c) return { ...base, ghi_chú: 'Chưa có thông tin hợp đồng trên hệ thống' };
-        return { ...base, giá_thuê: vnd(c.rent), tiền_cọc: vnd(c.deposit),
-          từ_ngày: fmtDate(c.start), đến_ngày: fmtDate(c.end),
-          còn_lại_ngày: c.end ? daysLeft(c.end) : null,
-          điều_khoản: key === 'terms' ? (c.terms && c.terms.length ? c.terms : DEFAULT_TERMS) : undefined };
-      case 'payinfo':
-        return { ...base, ngân_hàng: BANK.name, số_tài_khoản: BANK.account, chủ_tài_khoản: BANK.holder,
-          nội_dung_chuyển_khoản: payContent(inv) || (d.tenant.roomCode || ''),
-          số_tiền_cần_chuyển: inv ? vnd(inv.total - inv.paid) : '0 ₫' };
-      case 'history': {
-        const p = d.payments || [];
-        return { ...base, số_lần_đã_đóng: p.length, tổng_đã_đóng: vnd(p.reduce((s, x) => s + x.amount, 0)),
-          gần_nhất: p.length ? { số_tiền: vnd(p[0].amount), ngày: fmtDate(p[0].date) } : null };
-      }
-      case 'prices':
-        return { ...base, tiền_phòng: vnd(d.room && d.room.price),
-          dịch_vụ: (d.services || []).map(s => ({ tên: s.name, đơn_giá: num(s.unit) + ' ' + (s.unitLabel || '') })) };
-      case 'assets':
-        return { ...base, số_tài_sản: (d.assets || []).length,
-          danh_sách: (d.assets || []).map(a => a.name + ((a.quantity || 1) > 1 ? ' ×' + a.quantity : '')) };
-      case 'room':
-        return { ...base, diện_tích: d.room && d.room.area ? d.room.area + ' m²' : null,
-          tầng: d.room && d.room.floor, giá_thuê: vnd(d.room && d.room.price),
-          người_ở_cùng: (d.roommates || []).map(r => r.fullName) };
-      case 'repair': {
-        const inc = d.incidents || [];
-        return { ...base, số_yêu_cầu_đã_gửi: inc.length,
-          đang_xử_lý: inc.filter(x => x.status !== 'done').length,
-          danh_sách: inc.slice(0, 5).map(x => ({ nội_dung: x.title, trạng_thái: x.status, ngày: fmtDate(x.createdAt) })) };
-      }
-      case 'contact':
-        return { ...base, tên_tòa_nhà: d.building && d.building.name,
-          số_điện_thoại_quản_lý: (d.building && d.building.contactPhone) || null };
-      default:
-        return base;
-    }
-  }
-
-  const T_ACTIONS = {
-    invoice: (inv) => inv ? [{ label: 'Xem chi tiết', go: '#/invoice/' + inv.id }, { label: 'Thanh toán', go: '#/pay/' + inv.id, solid: true }] : [],
-    due: (inv) => inv ? [{ label: 'Thanh toán ngay', go: '#/pay/' + inv.id, solid: true }] : [],
-    utilities: () => [{ label: 'Lịch sử điện nước', go: '#/usage' }],
-    contract: () => [{ label: 'Xem hợp đồng', go: '#/contract' }],
-    terms: () => [{ label: 'Xem điều khoản', go: '#/contract' }],
-    payinfo: (inv) => inv ? [{ label: 'Mở trang thanh toán', go: '#/pay/' + inv.id, solid: true }] : [],
-    history: () => [{ label: 'Xem lịch sử', go: '#/history' }],
-    prices: () => [{ label: 'Bảng giá đầy đủ', go: '#/services' }],
-    assets: () => [{ label: 'Phòng của tôi', go: '#/room' }],
-    room: () => [{ label: 'Phòng của tôi', go: '#/room' }],
-    repair: () => [{ label: 'Báo hỏng', go: '#/repair', solid: true }, { label: 'Theo dõi', go: '#/track' }],
-    contact: () => [{ label: 'Liên hệ chủ nhà', act: 'contact', solid: true }],
-  };
-
-  /** Trả lời bằng Gemini. Trả về null nếu không dùng được -> chuyển cho quản lý. */
   async function aiAnswer(text) {
     const G = window.HHGemini;
-    if (!G || !G.configured()) return null;
+    if (!G || !G.configured() || !NLU) return null;
     try {
-      const ck = 't|' + norm(text);
-      const cls = G.cacheGet(ck) || await G.classify(text, T_INTENTS);
+      const last = chat.ctx.get();
+      const ck = 't|' + norm(text) + '|' + (last ? last.intent + (last.slots.period || '') : '');
+      const cls = G.cacheGet(ck) || await G.classify(text, T_INTENTS, {
+        today: CUR_PERIOD,
+        context: last ? `Câu trước khách hỏi về "${T_LABEL[last.intent]}"${last.slots.period ? ' tháng ' + vnPeriod(last.slots.period) : ''}.` : '',
+      });
       G.cacheSet(ck, cls);
-      if (cls.intent === 'unknown' || cls.confidence < 0.35 || !T_INTENTS.some(i => i.key === cls.intent)) return null;
-
-      const facts = tenantFacts(cls.intent);          // <- số thật, code tự lấy
-      const composed = await G.compose(text, facts,
+      if (cls.intent === 'unknown' || cls.confidence < 0.35 || !TI[cls.intent]) return null;
+      // Kiểm tra tham số mô hình đưa: kỳ phải đúng dạng YYYY-MM
+      const p = cls.params || {};
+      const per = /^\d{4}-(0[1-9]|1[0-2])$/.test(p.period || '') ? p.period : null;
+      const r = answer(text + (per ? ' ' + per.split('-')[1] + '/' + per.split('-')[0] : ''), cls.intent);
+      if (!r || r.html == null) return null;
+      // Thẻ xác nhận (báo hỏng) và bảng số giữ nguyên; còn lại để Gemini viết lời tự nhiên hơn
+      if (cls.intent === 'repair' || /<table/.test(r.html)) return r;
+      const composed = await G.compose(text, r.facts || {},
         'Xưng "em", gọi khách là "anh/chị". Người hỏi là khách đang thuê phòng. Thân thiện, ngắn gọn.');
-      const inv = currentUnpaid();
-      return { html: composed.replace(/```[a-z]*|```/g, '').trim(),
-        actions: (T_ACTIONS[cls.intent] ? T_ACTIONS[cls.intent](inv) : []), ai: true };
+      return Object.assign({}, r, { html: composed.replace(/```[a-z]*|```/g, '').trim(), ai: true });
     } catch (e) {
       return null;   // hết lượt / lỗi mạng -> quay về luồng chuyển cho quản lý
     }
@@ -1097,36 +1300,42 @@
 
   /* ---------- màn hình chat ---------- */
   function screenChat() {
+    loadChat();
     if (!chat.msgs.length) {
       pushMsg('bot', `Chào anh/chị <b>${esc(state.data.tenant.fullName)}</b>! Em là trợ lý của Happy Home.<br>
-        Em có thể tra cứu <b>tiền phòng, hạn đóng, điện nước, hợp đồng</b> và <b>tạo yêu cầu sửa chữa</b> giúp anh/chị.`);
+        Em tra cứu <b>tiền phòng, điện nước, hợp đồng</b> theo đúng tháng anh/chị hỏi, giải thích vì sao hóa đơn thay đổi,
+        và <b>tạo yêu cầu sửa chữa</b> giúp anh/chị.`, [], false, { suggest: SUGGESTIONS });
     }
+    const lastBot = [...chat.msgs].reverse().find(m => m.who === 'bot');
+    const sugg = (lastBot && lastBot.suggest && lastBot.suggest.length) ? lastBot.suggest : SUGGESTIONS;
     const body = chat.msgs.map((m, i) => `
       <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
-        <div class="bubble">${m.html}
-          ${m.ai ? '<span class="b-ai">✦ soạn bởi Gemini · số liệu lấy từ hệ thống</span>' : ''}
-          ${m.actions.length ? `<div class="b-actions">${m.actions.map((a, j) =>
+        <div class="bubble">${m.note ? `<div class="b-ctx">↻ ${esc(m.note)}</div>` : ''}${m.html}
+          ${m.ai ? '<span class="b-ai">✦ lời văn do Gemini soạn · số liệu lấy từ hệ thống</span>' : ''}
+          ${(m.actions || []).length ? `<div class="b-actions">${m.actions.map((a, j) =>
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
         </div></div>`).join('');
 
     el('tapp').innerHTML = `<div class="t-app">${sidebar()}<div class="chat-wrap">
-      <div class="t-header plain"><button class="back" id="back">←</button>
-        <div class="htitle">Trợ lý Happy Home</div></div>
-      <div class="chat-body" id="chatBody">${body}${chat.busy ? '<div class="chat-typing"><i></i><i></i><i></i></div>' : ''}</div>
-      <div class="chat-sugg">${SUGGESTIONS.map(s => `<button data-sugg="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      <div class="t-header plain"><button class="back" id="back" aria-label="Quay lại">←</button>
+        <div class="htitle">Trợ lý Happy Home</div>
+        <button class="chat-new" id="chatNew" title="Cuộc trò chuyện mới">Trò chuyện mới</button></div>
+      <div class="chat-body" id="chatBody" aria-live="polite">${body}${chat.busy ? '<div class="chat-typing"><i></i><i></i><i></i></div>' : ''}</div>
+      <div class="chat-sugg">${sugg.map(s => `<button data-sugg="${esc(s)}">${esc(s)}</button>`).join('')}</div>
       <div class="chat-input">
-        <textarea id="chatIn" rows="1" placeholder="Nhập câu hỏi..."></textarea>
+        <textarea id="chatIn" rows="1" placeholder="Hỏi về tiền phòng, điện nước, hợp đồng…"></textarea>
         <button class="chat-send" id="chatSend" aria-label="Gửi">➤</button>
       </div></div></div>`;
 
     wireTabs();
     const slo2 = el('sideLogout');
-    if (slo2) slo2.onclick = () => { try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
+    if (slo2) slo2.onclick = () => { try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatKey()); } catch (e) {}
       state.phone = null; state.data = null; go('#/login'); };
     el('back').onclick = () => go('#/home');
+    el('chatNew').onclick = () => { chat.msgs = []; chat.ctx.clear(); saveChat(); screenChat(); };
     const bodyEl = el('chatBody'); bodyEl.scrollTop = bodyEl.scrollHeight;
     const inp = el('chatIn');
-    const send = () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; inp.style.height = 'auto'; ask(v); };
+    const send = () => { const v = inp.value.trim(); if (!v || chat.busy) return; inp.value = ''; inp.style.height = 'auto'; ask(v); };
     el('chatSend').onclick = send;
     inp.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
     inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(96, inp.scrollHeight) + 'px'; };
@@ -1137,41 +1346,49 @@
       if (a.send) return ask(a.send);
       if (a.act === 'contact') return contactLandlord();
       if (a.act === 'mkincident') return doCreateIncident(a.data);
+      if (a.act === 'forward') return forwardToLandlord(a.data);
     });
   }
 
   async function ask(text) {
+    if (chat.busy) return;
     pushMsg('me', esc(text));
     chat.busy = true; screenChat();
 
-    // Tầng 1 — luật từ khóa (miễn phí, tức thì)
-    await new Promise(r => setTimeout(r, 380));
-    const res = answer(text);
-    if (res.html) {
-      chat.busy = false;
-      pushMsg('bot', res.html, res.actions);
-      screenChat(); return;
-    }
+    // Tầng 1 — hiểu câu tại chỗ (miễn phí, tức thì)
+    await new Promise(r => setTimeout(r, 320));
+    let res = answer(text);
 
-    // Tầng 2 — Gemini Flash (chỉ khi luật không nhận ra)
-    const ai = await aiAnswer(text);
+    // Tầng 2 — Gemini Flash (chỉ khi tầng 1 không hiểu)
+    if (!res) res = await aiAnswer(text);
     chat.busy = false;
-    if (ai) { pushMsg('bot', ai.html, ai.actions, true); screenChat(); return; }
 
-    // Tầng 3 — trả lời trung thực + chuyển cho quản lý
-    forwardToLandlord(res.forward);
+    if (res) {
+      pushMsg('bot', res.html, res.actions, res.ai, { suggest: res.suggest, note: res.note });
+    } else {
+      // Tầng 3 — nói thật là chưa hiểu, HỎI trước khi chuyển cho chủ nhà (tránh gửi nhầm câu linh tinh)
+      pushMsg('bot', `Câu này em chưa trả lời được ạ. Anh/chị muốn em <b>chuyển câu hỏi cho chủ nhà</b> không?`,
+        [{ label: 'Gửi cho chủ nhà', act: 'forward', data: text, solid: true }, { label: 'Em làm được gì?', send: 'Bạn giúp được gì?' }]);
+    }
     screenChat();
   }
 
-  // Không xử lý được -> trả lời trung thực + gửi câu hỏi cho chủ nhà (đúng đặc tả §5.1)
+  // Khách đồng ý -> gửi câu hỏi cho chủ nhà (đúng đặc tả §5.1)
   async function forwardToLandlord(text) {
-    pushMsg('bot', `Việc này em chưa hỗ trợ được ạ. Em đã <b>chuyển câu hỏi cho bộ phận quản lý</b>,
-      anh/chị sẽ được liên hệ lại trong giờ làm việc.`, [{ label: 'Liên hệ ngay', act: 'contact' }]);
-    screenChat();
+    if (!text) return;
+    pushMsg('bot', 'Em đang chuyển câu hỏi...'); screenChat();
     try {
       await rpc('tenant_create_incident', { p_phone: state.phone, p_category: 'Khác', p_title: '[Câu hỏi] ' + text });
       state.data = await loadData(state.phone);
-    } catch (e) { /* không chặn hội thoại nếu gửi lỗi */ }
+      chat.msgs.pop();
+      pushMsg('bot', `Em đã <b>chuyển câu hỏi cho chủ nhà</b> ✓ Anh/chị sẽ được trả lời trong giờ làm việc.`,
+        [{ label: 'Gọi ngay', act: 'contact' }]);
+    } catch (e) {
+      chat.msgs.pop();
+      pushMsg('bot', 'Em chuyển chưa được ạ. Anh/chị gọi trực tiếp chủ nhà giúp em nhé.',
+        [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }]);
+    }
+    screenChat();
   }
 
   async function doCreateIncident(data) {

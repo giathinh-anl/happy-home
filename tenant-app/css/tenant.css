@@ -438,3 +438,22 @@ img { max-width: 100%; display: block; }
   background: var(--info-bg, #eff6ff); border: 1px solid #bfdbfe;
   border-radius: 12px; padding: 10px 12px;
 }
+
+/* ---------- Trợ lý: phần nâng cấp ---------- */
+.bubble .b-ctx { font-size: 11px; font-weight: 600; color: var(--brand-700); margin: -2px 0 6px; }
+.bubble .b-term {
+  background: var(--neutral-100); border-radius: 10px; padding: 9px 11px; margin: 8px 0;
+  font-size: 13.5px; line-height: 1.55;
+}
+.bubble .b-muted { font-size: 11.5px; color: var(--neutral-400); }
+.bubble .b-good { color: var(--success); font-weight: 600; }
+.bubble table td span.b-warn, .bubble table td span.b-good { font-size: 12px; }
+.chat-new {
+  margin-left: auto; border: none; border-radius: 9px; padding: 7px 11px; cursor: pointer;
+  background: rgba(255,255,255,.16); color: #fff; font-size: 12.5px; font-weight: 600;
+}
+.chat-new:hover { background: rgba(255,255,255,.26); }
+.chat-new:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* bảng nhiều cột (so sánh 2 tháng): mọi cột số căn phải, cùng kiểu chữ số */
+.bubble table td:not(:first-child) { text-align: right; font-family: var(--font-mono); white-space: nowrap; padding-left: 10px; }
+.bubble table td:not(:first-child):not(:last-child) { font-weight: 500; color: var(--neutral-600); }

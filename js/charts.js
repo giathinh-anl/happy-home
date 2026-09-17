@@ -52,7 +52,7 @@ HH.chart = (function () {
       const hl = opt.highlightLast && i === data.length - 1;
       return `<div class="ch-bar-col" title="${esc(d.label)}: ${esc(opt.fmt ? opt.fmt(d.value) : money(d.value))}">
         <div class="ch-bar-v">${esc(opt.shortFmt ? opt.shortFmt(d.value) : '')}</div>
-        <div class="ch-bar ${hl ? 'hl' : ''}" style="height:${pct}%;${d.color ? 'background:' + d.color : ''}"></div>
+        <div class="ch-bar-track"><div class="ch-bar ${hl ? 'hl' : ''}" style="height:${pct}%;${d.color ? 'background:' + d.color : ''}"></div></div>
         <div class="ch-bar-l">${esc(d.label)}</div></div>`;
     }).join('')}</div>`;
   }

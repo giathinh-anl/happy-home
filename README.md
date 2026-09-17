@@ -94,6 +94,23 @@ Trợ lý chạy theo **3 tầng**, thiết kế để **không bao giờ để 
 
 Nhờ vậy: câu hỏi lặp đi lặp lại (*"tháng này đóng bao nhiêu"*) **không tốn lượt gọi API**, và mọi con số hiển thị đều lấy từ cơ sở dữ liệu chứ không phải do mô hình đoán.
 
+**Tầng 1 hiểu được gì** (`js/nlu.js`, dùng chung cho 2 app, không gọi mạng):
+
+| Loại | Ví dụ |
+|---|---|
+| Tháng | *tháng này · tháng trước · 2 tháng trước · tháng 7 · T7/2026 · tháng này năm ngoái* |
+| Khoảng thời gian | *6 tháng gần đây · nửa năm · cả năm* |
+| Tòa nhà / phòng / khách | *Gò Vấp · Q7 · phòng P101 · phòng 205 · khách tên Linh · số điện thoại* |
+| Hỏi nối tiếp | *Phòng P101 thế nào?* → *còn nợ bao nhiêu?* → *còn P102 thì sao?* |
+| Gõ sai / không dấu | *doanh thuu thang nay · phong nao dang no* |
+
+Khi không chắc, bot **hỏi lại** thay vì đoán (mã phòng có ở nhiều tòa, nhiều khách trùng tên, phòng không tồn tại),
+và luôn ghi dòng *"Hiểu là: …"* mỗi khi dùng lại ngữ cảnh của câu trước để người dùng kịp sửa.
+
+**Trợ lý quản trị** còn: so sánh 2 kỳ, biểu đồ xu hướng, soạn sẵn tin nhắc nợ (chép / mở Zalo — không tự gửi).
+**Trợ lý khách thuê** còn: giải thích *vì sao tháng này tiền cao hơn* bằng số thật từng khoản, trích đúng điều khoản
+hợp đồng theo câu hỏi, theo dõi tiến độ sửa chữa, và **hỏi trước** khi chuyển câu hỏi lạ cho chủ nhà.
+
 **Bật Gemini** (tùy chọn — không bật thì tầng 1 và 3 vẫn chạy bình thường):
 
 1. Lấy khóa miễn phí tại <https://aistudio.google.com/apikey>.
@@ -117,6 +134,7 @@ js/
   utils.js            # định dạng tiền/số/ngày, tag template html
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
+  nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
   gemini.js           # cầu nối Gemini Flash (phân loại ý định + soạn lời), đếm hạn mức, cache
   ai.js               # bộ ý định của chủ trọ: mỗi ý định tự lấy số thật từ store
   assistant.js        # khung chat nổi ở góc màn hình

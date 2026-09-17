@@ -121,15 +121,27 @@
   /* ---------- BƯỚC 1: phân loại ý định (chỉ trả JSON, không có số liệu) ---------- */
   const CLASSIFY_SYS = `Bạn là bộ phân loại ý định cho phần mềm quản lý nhà cho thuê tiếng Việt.
 Nhiệm vụ DUY NHẤT: đọc câu hỏi và chọn 1 ý định trong danh sách được cung cấp.
-TUYỆT ĐỐI KHÔNG trả lời câu hỏi, KHÔNG đưa ra bất kỳ con số nào.
-Chỉ trả về JSON đúng dạng: {"intent":"<mã ý định>","params":{...},"confidence":0..1}
+TUYỆT ĐỐI KHÔNG trả lời câu hỏi, KHÔNG đưa ra bất kỳ số liệu kinh doanh nào.
+Chỉ trả về JSON đúng dạng:
+{"intent":"<mã ý định>","params":{"period":"YYYY-MM"|null,"months":số|null,"building":"tên tòa"|null,"roomCode":"mã phòng"|null,"name":"tên khách"|null},"confidence":0..1}
+Quy tắc tham số:
+- Chỉ điền thứ người dùng THỰC SỰ nói ra (hoặc nói tiếp theo NGỮ CẢNH). Không nói thì để null, không tự bịa.
+- "period": đổi "tháng trước", "tháng 7"... sang YYYY-MM dựa vào KỲ HIỆN TẠI.
+- "building": chỉ dùng tên có trong danh sách tòa nhà.
+- Câu hỏi nối tiếp ("còn cái kia thì sao?") thì giữ ý định trong NGỮ CẢNH.
 Nếu không khớp ý định nào, trả {"intent":"unknown","params":{},"confidence":0}`;
 
-  async function classify(question, intents) {
+  async function classify(question, intents, extra) {
+    extra = extra || {};
     const list = intents.map(i => `- ${i.key}: ${i.desc}${i.params ? ' | tham số: ' + i.params : ''}`).join('\n');
+    const head = [
+      extra.today ? `KỲ HIỆN TẠI: ${extra.today}` : '',
+      extra.buildings && extra.buildings.length ? `TÒA NHÀ: ${extra.buildings.join('; ')}` : '',
+      extra.context ? `NGỮ CẢNH: ${extra.context}` : '',
+    ].filter(Boolean).join('\n');
     const raw = await call(CLASSIFY_SYS,
-      `DANH SÁCH Ý ĐỊNH:\n${list}\n\nCÂU HỎI: "${question}"`,
-      { json: true, temperature: 0, maxTokens: 160 });
+      `${head ? head + '\n\n' : ''}DANH SÁCH Ý ĐỊNH:\n${list}\n\nCÂU HỎI: "${question}"`,
+      { json: true, temperature: 0, maxTokens: 200 });
     try {
       const o = JSON.parse(raw);
       return { intent: o.intent || 'unknown', params: o.params || {}, confidence: +o.confidence || 0 };
