@@ -5,26 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>Happy Home — Khách thuê</title>
   <meta name="description" content="Ứng dụng khách thuê Happy Home">
-  <meta name="theme-color" content="#1eaa4e">
+  <meta name="theme-color" content="#0F5C5B">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Happy Home">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="../assets/logo-icon.svg">
+  <link rel="apple-touch-icon" href="../assets/logo-icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/tokens.css?v=11">
-  <link rel="stylesheet" href="css/tenant.css?v=11">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%20&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css?v=12">
+  <link rel="stylesheet" href="css/tenant.css?v=12">
 </head>
 <body>
   <div id="tapp"></div>
   <div class="t-toast-zone" id="ttoast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../js/nlu.js?v=11"></script>
-  <script src="../js/gemini.js?v=11"></script>
-  <script src="js/config.js?v=11" onerror="console.info('Chưa có js/config.js')"></script>
-  <script src="js/tenant.js?v=11"></script>
+  <script src="../js/nlu.js?v=12"></script>
+  <script src="../js/gemini.js?v=12"></script>
+  <script src="js/config.js?v=12" onerror="console.info('Chưa có js/config.js')"></script>
+  <script src="js/tenant.js?v=12"></script>
   <script>
     // PWA: cho phép cài về màn hình chính (chỉ chạy khi mở qua http/https)
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

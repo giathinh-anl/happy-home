@@ -29,6 +29,20 @@ def read(rel):
         return f.read()
 
 
+def data_uri(rel, mime):
+    """Nhúng tệp ảnh vào thẳng trang (bản gộp chỉ có 1 tệp, không kèm thư mục assets)."""
+    import base64
+    with open(os.path.join(ROOT, rel), 'rb') as f:
+        return 'data:%s;base64,%s' % (mime, base64.b64encode(f.read()).decode('ascii'))
+
+
+ASSETS = [
+    ('assets/logo-mark.svg', 'image/svg+xml'),
+    ('assets/logo-icon.svg', 'image/svg+xml'),
+    ('assets/logo-3d.webp', 'image/webp'),
+]
+
+
 def main():
     css = '\n\n'.join('/* ===== %s ===== */\n%s' % (n, read('css/' + n)) for n in CSS)
 
@@ -45,6 +59,8 @@ def main():
                 '<span class="mono">tenant-app</span> của mã nguồn.</p>')
         js_parts.append('/* ===== %s ===== */\n%s' % (rel, src))
     js = '\n\n'.join(js_parts)
+    for rel, mime in ASSETS:
+        js = js.replace(rel, data_uri(rel, mime))
 
     banner = (
         '<div class="demo-strip">'
@@ -60,6 +76,8 @@ def main():
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%%20&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="%s">
 <style>
 %s
 
@@ -96,7 +114,7 @@ window.HH = {};
   else boot();
 })();
 </script>
-''' % (css, banner, js)
+''' % (data_uri('assets/logo-icon.svg', 'image/svg+xml'), css, banner, js)
 
     if not os.path.isdir(OUT_DIR):
         os.makedirs(OUT_DIR)

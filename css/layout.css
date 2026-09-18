@@ -18,14 +18,19 @@
   border-right: 1px solid rgba(255,255,255,.14); flex: 0 0 auto; text-decoration: none; color: #fff;
 }
 .lz-logo:hover { text-decoration: none; color: #fff; }
+/* Logo: ngôi nhà mỉm cười trên ô nền kem (giữ đủ tương phản trên thanh xanh đậm) */
 .lz-logo .mark {
-  width: 38px; height: 38px; border-radius: 10px;
-  background: linear-gradient(140deg, #34d399, #10b981);
-  display: grid; place-items: center; font-weight: 800; font-size: 15px; color: #06301d;
-  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  width: 40px; height: 40px; border-radius: 11px; flex: 0 0 40px;
+  background: #FBF7F0; display: grid; place-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.22), inset 0 -2px 0 rgba(201,138,80,.18);
 }
+.lz-logo .mark img { width: 30px; height: auto; display: block; }
 .lz-logo .word { line-height: 1.15; }
-.lz-logo .word b { font-size: 17px; font-weight: 700; letter-spacing: -.01em; display: block; }
+/* Chữ "happy home" viết thường, nét tròn — đúng kiểu chữ trong logo */
+.lz-logo .word b {
+  font-family: 'Comfortaa', var(--font-sans); font-size: 18px; font-weight: 700;
+  letter-spacing: -.01em; display: block; color: #F3D2A6;
+}
 .lz-logo .word small { display: block; font-size: 9px; opacity: .62; letter-spacing: .14em; margin-top: 2px; text-transform: uppercase; }
 
 .lz-topnav { display: flex; align-items: stretch; gap: 2px; flex: 1; overflow-x: auto; }

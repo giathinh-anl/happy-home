@@ -345,9 +345,11 @@
       table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:10px 0;border-bottom:1px solid #eee;vertical-align:top}
       .basis{font-size:11px;color:#777;margin-top:2px}.tot{display:flex;justify-content:space-between;padding:6px 0}
       .grand{font-size:18px;font-weight:700;border-top:2px solid #333;margin-top:8px;padding-top:10px}
-      .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #16a34a;padding-bottom:12px}
-      .brand{font-weight:800;color:#16a34a}</style></head><body>
-      <div class="head"><div><div class="brand">HAPPY HOME</div><div class="muted">${U.esc(b.name || '')}</div><div class="muted" style="font-size:12px">${U.esc(b.address || '')}</div></div>
+      .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0F5C5B;padding-bottom:12px}
+      .brandrow{display:flex;gap:10px;align-items:center}.brandrow img{width:46px;height:auto}
+      .brand{font-weight:800;color:#0F5C5B;letter-spacing:.02em}</style></head><body>
+      <div class="head"><div class="brandrow"><img src="${U.asset('logo-mark.svg')}" alt="">
+        <div><div class="brand">HAPPY HOME</div><div class="muted">${U.esc(b.name || '')}</div><div class="muted" style="font-size:12px">${U.esc(b.address || '')}</div></div></div>
         <div class="r"><h1>HÓA ĐƠN</h1><div class="muted" style="font-family:monospace">${inv.id}</div></div></div>
       <div style="margin-top:14px"><b>Phòng ${U.esc(inv.roomCode)}</b> · ${U.esc(inv.tenantName)}<br>
         <span class="muted">Kỳ ${U.fmtDate(inv.periodStart)} – ${U.fmtDate(inv.periodEnd)} · Hạn ${U.fmtDate(inv.dueDate)}</span></div>
@@ -634,7 +636,8 @@
       .info td{border:none;padding:3px 0}.words{font-style:italic;margin-top:6px}
       .sign{display:flex;justify-content:space-around;margin-top:40px;text-align:center}.sign div{width:45%}
       .sign i{font-size:12px;color:#555}@media print{body{margin:0}}</style></head><body>
-      <div class="head"><div class="brand">${U.esc(b.name || 'HAPPY HOME')}</div>
+      <div class="head"><img src="${U.asset('logo-mark.svg')}" alt="" style="width:40px;height:auto;display:block;margin:0 auto 4px">
+        <div class="brand">${U.esc(b.name || 'HAPPY HOME')}</div>
         <div style="font-size:12px;color:#555">${U.esc(b.address || '')}</div>
         <h1>PHIẾU THU</h1><div class="no">Số: ${U.esc(p0.receiptNo)}</div></div>
       <table class="info">

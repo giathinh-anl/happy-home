@@ -56,9 +56,9 @@ HH.app = (function () {
         ${ic(t.ic)}<span class="lbl">${t.label}</span>${pill}</${tag}>`;
     }).join('');
     return h`<header class="lz-topbar"><div class="lz-topbar-inner">
-      <a class="lz-logo" href="#/buildings">
-        <span class="mark">HH</span>
-        <span class="word"><b>Happy Home</b><small>Quản lý nhà cho thuê</small></span>
+      <a class="lz-logo" href="#/buildings" aria-label="Happy Home — về trang quản lý nhà">
+        <span class="mark"><img src="assets/logo-mark.svg" alt="" width="30" height="26"></span>
+        <span class="word"><b>happy home</b><small>Quản lý nhà cho thuê</small></span>
       </a>
       <nav class="lz-topnav">${raw(tiles)}</nav>
     </div></header>`;

@@ -1,8 +1,9 @@
 /* Happy Home — Service worker cho app khách thuê (PWA)
    Chiến lược: mạng trước, có lỗi thì lấy bản đã lưu (để mở được khi mạng chập chờn).
    KHÔNG lưu cache lệnh gọi API Supabase — dữ liệu phải luôn mới. */
-const CACHE = 'hh-tenant-v1';
-const SHELL = ['./', './index.html', './css/tokens.css', './css/tenant.css', './js/tenant.js', './manifest.webmanifest'];
+const CACHE = 'hh-tenant-v2';
+const SHELL = ['./', './index.html', './css/tokens.css', './css/tenant.css', './js/tenant.js', './manifest.webmanifest',
+  '../js/nlu.js', '../js/gemini.js', '../assets/logo-mark.svg', '../assets/logo-icon.svg', '../assets/logo-3d.webp'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));

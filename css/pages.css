@@ -4,18 +4,30 @@
 
 /* ---------- Đăng nhập ---------- */
 .login-split { display: flex; min-height: 100vh; }
+/* Nửa trái: chính tấm biển logo gỗ, hòa vào nền tường sáng của ảnh */
 .login-brand {
-  flex: 1; background: linear-gradient(150deg, var(--brand-600), var(--brand-700) 70%, #0b5c56);
-  color: #fff; padding: var(--sp-16) var(--sp-12); display: flex; flex-direction: column; justify-content: center;
+  flex: 1; background: #EFEEEA; color: #0F5C5B; overflow: hidden;
+  padding: var(--sp-12); display: flex; flex-direction: column; justify-content: center; align-items: center;
 }
-.login-brand .logo-lg { font-size: 34px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; gap: var(--sp-3); }
-.login-brand .logo-lg .mark { width: 48px; height: 48px; border-radius: 12px; background: rgba(255,255,255,.15); display: grid; place-items: center; }
-.login-brand .tagline { font-size: var(--text-2xl); font-weight: 600; margin-top: var(--sp-8); line-height: 1.35; max-width: 360px; }
-.login-brand .sub { margin-top: var(--sp-3); opacity: .8; max-width: 340px; }
+.login-logo3d {
+  width: 100%; max-width: 640px; height: auto; display: block;
+  /* làm mờ mép ảnh để không lộ khung chữ nhật trên nền */
+  -webkit-mask-image: radial-gradient(ellipse 62% 58% at 48% 52%, #000 62%, transparent 100%);
+          mask-image: radial-gradient(ellipse 62% 58% at 48% 52%, #000 62%, transparent 100%);
+}
+.login-copy { max-width: 440px; text-align: center; margin-top: calc(-1 * var(--sp-6)); }
+.login-brand .tagline { font-size: var(--text-2xl); font-weight: 700; line-height: 1.3; letter-spacing: -.01em; text-wrap: balance; }
+.login-brand .sub { margin-top: var(--sp-2); color: #4F6664; text-wrap: balance; }
+
+/* Màn hẹp (ẩn nửa trái): hiện logo nhỏ trên form */
+.login-mini-logo { display: none; align-items: center; gap: 10px; margin-bottom: 4px; }
+.login-mini-logo span { font-family: 'Comfortaa', var(--font-sans); font-weight: 700; font-size: 22px; color: #B8773F; }
+@media (max-width: 820px){ .login-mini-logo { display: flex; } }
 .login-form-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--sp-8); background: var(--neutral-0); }
 .login-form { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: var(--sp-4); }
 .login-form h1 { font-size: var(--text-2xl); }
-.login-form .lead { color: var(--neutral-600); margin-top: -8px; }
+.login-form h1 { line-height: 1.25; }
+.login-form .lead { color: var(--neutral-600); margin-top: 2px; }
 .pw-field { position: relative; }
 .pw-field .toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--neutral-500,var(--neutral-600)); padding: 6px; font-size: 16px; }
 .login-hints { background: var(--neutral-50); border: 1px dashed var(--neutral-200); border-radius: var(--r-input); padding: var(--sp-3); font-size: var(--text-xs); color: var(--neutral-600); }

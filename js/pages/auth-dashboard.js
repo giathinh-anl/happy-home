@@ -22,12 +22,15 @@ HH.pages = HH.pages || {};
         : `<div class="login-hints">Bản demo: nhập email hợp lệ và mật khẩu bất kỳ. <a href="#" id="quickFill">Điền nhanh</a></div>`;
       return h`<div class="login-split">
         <div class="login-brand">
-          <div class="logo-lg"><span class="mark">H</span> HAPPY HOME</div>
-          <div class="tagline">Quản lý nhà cho thuê thông minh</div>
-          <div class="sub">Vận hành tòa nhà, hợp đồng, hóa đơn và công nợ trong một hệ thống duy nhất.</div>
+          <img class="login-logo3d" src="assets/logo-3d.webp" alt="Logo Happy Home" width="2000" height="1804">
+          <div class="login-copy">
+            <div class="tagline">Quản lý nhà cho thuê thông minh</div>
+            <div class="sub">Vận hành tòa nhà, hợp đồng, hóa đơn và công nợ trong một hệ thống duy nhất.</div>
+          </div>
         </div>
         <div class="login-form-wrap">
           <form class="login-form" id="loginForm" novalidate>
+            <div class="login-mini-logo"><img src="assets/logo-mark.svg" alt="" width="44" height="38"><span>happy home</span></div>
             <div><h1 id="authTitle">Đăng nhập</h1><p class="lead">${raw(backend ? 'Tài khoản của bạn' : 'Hệ thống quản lý')}</p></div>
             <div id="loginError" class="alert alert-danger hidden"><span class="ic">⚠</span><div id="loginErrText">Email hoặc mật khẩu không đúng</div></div>
             <div class="field" id="nameField" style="display:none">

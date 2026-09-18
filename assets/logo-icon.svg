@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Happy Home">
+  <!-- Biểu tượng ứng dụng / favicon: nền kem bo góc + ngôi nhà mỉm cười -->
+  <defs>
+    <linearGradient id="hhWoodI" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="86">
+      <stop offset="0" stop-color="#E4B07A"/>
+      <stop offset="1" stop-color="#C98A50"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#FBF7F0"/>
+  <g transform="translate(46 70) scale(4.2)">
+    <path d="M50.5 6 L4.5 40.5 H10.4 V81 Q10.4 85.3 14.7 85.3 H85.5 Q89.8 85.3 89.8 81 V40.5 H96.6 Z" fill="#0F5C5B"/>
+    <path d="M72.2 7.9 H82.1 V17" fill="none" stroke="#0F5C5B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M87 47 V82.5 H65.6" fill="none" stroke="#1C7571" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g fill="none" stroke="url(#hhWoodI)" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.8 39.6 L50.5 4.3 L98.2 39.6" stroke-width="6"/>
+      <path d="M13.2 47 V82.5 H54.4" stroke-width="5.4"/>
+      <path d="M35.6 56 Q50.5 70 63.7 56" stroke-width="5"/>
+      <path d="M83.2 57 V64.6" stroke-width="1.6"/>
+    </g>
+    <g fill="url(#hhWoodI)">
+      <circle cx="38.7" cy="44.8" r="4.4"/>
+      <circle cx="61.9" cy="44.8" r="4.4"/>
+      <circle cx="83.2" cy="55" r="2.5"/>
+    </g>
+    <circle cx="83.2" cy="55" r="0.95" fill="#0F5C5B"/>
+  </g>
+</svg>

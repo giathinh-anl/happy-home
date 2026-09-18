@@ -116,6 +116,14 @@ HH.util = (function () {
     });
   }
 
+  /* Đường dẫn TUYỆT ĐỐI tới 1 tệp trong thư mục assets — cần cho cửa sổ in
+     (cửa sổ mới mở bằng window.open('') không hiểu đường dẫn tương đối) */
+  const ASSET_URL = { 'logo-mark.svg': 'assets/logo-mark.svg' };
+  function asset(name) {
+    const rel = ASSET_URL[name] || ('assets/' + name);
+    try { return new URL(rel, location.href).href; } catch (e) { return rel; }
+  }
+
   return { currency, currencyShort, number, percent, parseNum, fmtDate, addMonths,
-           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV, compressImage };
+           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV, compressImage, asset };
 })();

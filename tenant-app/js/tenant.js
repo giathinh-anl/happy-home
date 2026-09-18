@@ -30,6 +30,9 @@
       + `&accountName=${encodeURIComponent(BANK.holder)}`;
   }
   const PHONE_KEY = 'hh_tenant_phone';
+  // Logo dùng chung với web quản trị (thư mục assets ở gốc dự án)
+  const LOGO = '../assets/logo-mark.svg', LOGO_3D = '../assets/logo-3d.webp';
+  const logoImg = (w) => `<img src="${LOGO}" alt="" width="${w}" height="${Math.round(w * 0.865)}">`;
 
   /* ---------- tiện ích ---------- */
   const viNum = new Intl.NumberFormat('vi-VN');
@@ -149,8 +152,8 @@
       ${x.key === 'invoices' && unpaid ? `<span class="nbadge">${unpaid}</span>` : ''}</button>`;
     const nm = d.tenant.fullName || '';
     return `<aside class="t-side">
-      <div class="s-brand"><span class="mark">H</span>
-        <span><b>Happy Home</b><small>Khách thuê</small></span></div>
+      <div class="s-brand"><span class="mark">${logoImg(28)}</span>
+        <span><b class="wordmark">happy home</b><small>Khách thuê</small></span></div>
       <div class="s-me"><span class="av">${esc((nm.trim().split(/\s+/).slice(-1)[0] || '?')[0])}</span>
         <span style="min-width:0"><span class="nm">${esc(nm)}</span>
           <span class="rm">Phòng ${esc(d.tenant.roomCode || '')}</span></span></div>
@@ -166,7 +169,8 @@
   /* ---------- màn hình: ĐĂNG NHẬP ---------- */
   function screenLogin() {
     el('tapp').innerHTML = `<div class="t-login">
-      <div class="logo"><div class="mark">H</div><h1>Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>
+      <div class="logo"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804">
+        <h1 class="sr-only">Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>
       <div id="loginErr"></div>
       <div class="t-field"><label>Số điện thoại</label>
         <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
@@ -201,7 +205,7 @@
   function screenOtp() {
     const masked = state.pendingPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1 *** $2');
     el('tapp').innerHTML = `<div class="t-login">
-      <div class="logo" style="margin-top:8px"><div class="mark">H</div></div>
+      <div class="logo" style="margin-top:8px"><div class="mark">${logoImg(46)}</div></div>
       <h1 style="font-size:22px">Nhập mã xác thực</h1>
       <p class="lead">Mã gồm 6 chữ số đã gửi tới<br><b>${masked}</b></p>
       <div id="otpErr"></div>
@@ -259,7 +263,7 @@
   function shell(title, body, opts) {
     opts = opts || {};
     const header = opts.home
-      ? `<div class="t-header"><div class="brand"><span class="mark">H</span> Happy Home</div>
+      ? `<div class="t-header"><div class="brand"><span class="mark">${logoImg(24)}</span><span class="wordmark">happy home</span></div>
            <button class="iconbtn" id="reload" title="Tải lại">⟳</button></div>`
       : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
