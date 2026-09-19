@@ -117,5 +117,20 @@ HH.chart = (function () {
       ${opt.label ? `<div class="ch-gauge-l">${esc(opt.label)}</div>` : ''}</div>`;
   }
 
-  return { donut, bars, area, progress, gauge, PALETTE };
+  /** Thanh ngang xếp chồng + chú giải — items: [{label, value, color}]
+   *  Dùng thay cho nhiều biểu đồ tròn khi chỉ cần thấy tỉ lệ các phần. */
+  function stack(items, opt) {
+    opt = opt || {};
+    const list = items.filter(x => x.value > 0);
+    const total = list.reduce((s, x) => s + x.value, 0);
+    if (!total) return `<div class="ch-stack-empty">${esc(opt.empty || 'Chưa có dữ liệu')}</div>`;
+    const seg = list.map((x, i) => `<span style="flex:${x.value};background:${x.color || PALETTE[i % PALETTE.length]}"
+      title="${esc(x.label)}: ${esc(opt.fmt ? opt.fmt(x.value) : x.value)}"></span>`).join('');
+    const leg = list.map((x, i) => `<li><i style="background:${x.color || PALETTE[i % PALETTE.length]}"></i>
+      <span>${esc(x.label)}</span><b>${esc(opt.fmt ? opt.fmt(x.value) : x.value)}</b></li>`).join('');
+    return `<div class="ch-stack"><div class="ch-stack-bar" role="img" aria-label="${esc(list.map(x => x.label + ' ' + x.value).join(', '))}">${seg}</div>
+      <ul class="ch-stack-leg">${leg}</ul></div>`;
+  }
+
+  return { donut, bars, area, progress, gauge, stack, PALETTE };
 })();

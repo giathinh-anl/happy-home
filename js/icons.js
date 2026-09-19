@@ -23,6 +23,7 @@ HH.icons = (function () {
     gauge:    '<path d="M12 20a8 8 0 1 1 8-8"/><path d="M12 12l4-3"/>',
     wallet:   '<path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
     wrench:   '<path d="M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.8 2.8 0 0 1-4-4l9-9z"/>',
+    menu:     '<path d="M4 7h16M4 12h16M4 17h10"/>',
     bolt:     '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
     drop:     '<path d="M12 2.7 6.9 8.3a7 7 0 1 0 10.2 0L12 2.7z"/>',
     bank:     '<path d="M3 10h18M5 10v9M9 10v9M15 10v9M19 10v9M2 21h20M12 2 3 7h18l-9-5z"/>',
@@ -54,6 +55,21 @@ HH.icons = (function () {
     clock:    '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     shield:   '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
     trend:    '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
+    chat:     '<path d="M21 12a8 8 0 0 1-11.8 7L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/>',
+    snow:     '<path d="M12 2v20M4.9 7l14.2 10M4.9 17 19.1 7M9 4l3 2 3-2M9 20l3-2 3 2"/>',
+    help:     '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+    pin:      '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+    copy:     '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    eye:      '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    unlock:   '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+    info:     '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+    external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>',
+    upload:   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+    undo:     '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
+    swap:     '<path d="M7 16V4M3 8l4-4 4 4M17 8v12M21 16l-4 4-4-4"/>',
+    square:   '<rect x="4" y="4" width="16" height="16" rx="3"/>',
+    checkSquare: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+    flame:    '<path d="M12 22c4 0 7-2.7 7-7 0-3-2-5.5-3.5-7-.3 2-1.3 3-2.5 3.5C13.5 8 12 5 9 2c.5 3-1.5 5.5-3 7.5A8 8 0 0 0 5 15c0 4.3 3 7 7 7z"/>',
   };
   const sizeDefault = 20;
   function icon(name, opt) {
@@ -66,6 +82,13 @@ HH.icons = (function () {
       fill="none" stroke="currentColor" stroke-width="${opt.sw || 1.7}"
       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
   }
-  return { icon, PATHS: P };
+  /* Icon "an toàn": dùng được cả trong khuôn mẫu h`` (không bị thoát ký tự)
+     lẫn chuỗi thường / nối chuỗi (tự đổi thành SVG). */
+  function safe(name, size) {
+    const svg = icon(name, size || 16);
+    return { __raw: true, value: svg, toString() { return svg; } };
+  }
+  return { icon, safe, PATHS: P };
 })();
 HH.icon = HH.icons.icon;
+HH.ic = HH.icons.safe;

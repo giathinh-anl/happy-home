@@ -459,23 +459,23 @@ HH.store = (function () {
       const list = [];
       buildings.forEach(b => {
         const overdue = invoices.filter(i => i.buildingId === b.id && i.status === 'overdue');
-        if (overdue.length) list.push({ icon: '🧾', tone: 'danger', title: `${overdue.length} hóa đơn quá hạn`,
+        if (overdue.length) list.push({ icon: HH.ic('receipt', 16), tone: 'danger', title: `${overdue.length} hóa đơn quá hạn`,
           sub: b.name, href: `#/b/${b.id}/invoices?status=overdue` });
         const expired = api.expiringContracts(b.id, -1);
-        if (expired.length) list.push({ icon: '⛔', tone: 'danger', title: `${expired.length} hợp đồng ĐÃ QUÁ HẠN`,
+        if (expired.length) list.push({ icon: HH.ic('alert', 16), tone: 'danger', title: `${expired.length} hợp đồng ĐÃ QUÁ HẠN`,
           sub: b.name + ' · cần gia hạn hoặc thanh lý ngay', href: `#/b/${b.id}/contracts?filter=expired` });
         const urgent = api.expiringContracts(b.id, 7).filter(c => api.daysToExpiry(c) >= 0);
-        if (urgent.length) list.push({ icon: '🔥', tone: 'danger', title: `${urgent.length} hợp đồng hết hạn trong 7 ngày`,
+        if (urgent.length) list.push({ icon: HH.ic('flame', 16), tone: 'danger', title: `${urgent.length} hợp đồng hết hạn trong 7 ngày`,
           sub: b.name + ' · ' + urgent.map(c => c.roomCode).join(', '), href: `#/b/${b.id}/contracts?filter=urgent` });
         const soon = api.expiringContracts(b.id, 30).filter(c => api.daysToExpiry(c) > 7);
-        if (soon.length) list.push({ icon: '📄', tone: 'warning', title: `${soon.length} hợp đồng sắp hết hạn (30 ngày)`,
+        if (soon.length) list.push({ icon: HH.ic('file', 16), tone: 'warning', title: `${soon.length} hợp đồng sắp hết hạn (30 ngày)`,
           sub: b.name + ' · ' + soon.map(c => c.roomCode).join(', '), href: `#/b/${b.id}/contracts?filter=soon` });
         const occ = rooms.filter(r => r.buildingId === b.id && (r.status === 'occupied' || r.status === 'notice'));
         const pending = occ.filter(r => { const rd = api.reading(b.id, r.code, CUR_PERIOD); return !(rd && rd.elecCurr != null); });
-        if (pending.length) list.push({ icon: '📉', tone: 'info', title: `${pending.length} phòng chưa ghi chỉ số kỳ này`,
+        if (pending.length) list.push({ icon: HH.ic('gauge', 16), tone: 'info', title: `${pending.length} phòng chưa ghi chỉ số kỳ này`,
           sub: b.name, href: `#/b/${b.id}/readings` });
         const inc = incidents.filter(x => x.buildingId === b.id && x.status !== 'done');
-        if (inc.length) list.push({ icon: '🧰', tone: 'purple', title: `${inc.length} sự cố phòng đang mở`,
+        if (inc.length) list.push({ icon: HH.ic('wrench', 16), tone: 'purple', title: `${inc.length} sự cố phòng đang mở`,
           sub: b.name, href: `#/b/${b.id}/incidents` });
       });
       return list;
@@ -970,7 +970,7 @@ HH.store = (function () {
         // không rõ kỳ -> trả cũ nhất trước (đúng nguyên tắc phân bổ)
         const oldest = list.slice().sort((a, b) => a.period.localeCompare(b.period))[0];
         return { status: 'ambiguous', invoice: oldest, candidates: list,
-          reason: `Phòng ${hit[0]} còn ${list.length} hóa đơn chưa thu — cần chọn kỳ` };
+          reason: `Phòng ${hit[0]} còn ${list.length} hóa đơn chưa thu, cần chọn kỳ` };
       }
       if (hit.length > 1) return { status: 'ambiguous', candidates: open.filter(i => hit.includes((i.roomCode || '').toUpperCase())),
         reason: 'Nội dung nhắc tới nhiều phòng' };
@@ -980,7 +980,7 @@ HH.store = (function () {
       if (byAmount.length === 1) return { status: 'matched', invoice: byAmount[0],
         reason: 'Chỉ có đúng 1 hóa đơn có số tiền này' };
       if (byAmount.length > 1) return { status: 'ambiguous', candidates: byAmount,
-        reason: `${byAmount.length} hóa đơn cùng số tiền — không rõ của ai` };
+        reason: `${byAmount.length} hóa đơn cùng số tiền, không rõ của ai` };
 
       return { status: 'unmatched', reason: 'Nội dung không có mã phòng/mã hóa đơn' };
     },

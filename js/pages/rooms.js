@@ -38,9 +38,9 @@
       { key: 'area', label: 'DT (m²)', align: 'right', render: r => U.number(r.area) },
       { key: 'price', label: 'Giá thuê', align: 'right', sortable: true, render: r => U.currency(r.price) },
       { key: 'status', label: 'Tình trạng', render: r => UI.statusBadge(r.status, 'room') },
-      { key: 'tenantName', label: 'Khách thuê', render: r => r.tenantName || '<span class="faint">—</span>' },
-      { key: 'contractEnd', label: 'Hạn hợp đồng', render: r => r.contractEnd ? U.fmtDate(r.contractEnd) : '<span class="faint">—</span>' },
-      { key: 'holdingDeposit', label: 'Cọc giữ chỗ', align: 'right', render: r => r.holdingDeposit ? U.currency(r.holdingDeposit) : '<span class="faint">—</span>' },
+      { key: 'tenantName', label: 'Khách thuê', render: r => r.tenantName || '<span class="faint">-</span>' },
+      { key: 'contractEnd', label: 'Hạn hợp đồng', render: r => r.contractEnd ? U.fmtDate(r.contractEnd) : '<span class="faint">-</span>' },
+      { key: 'holdingDeposit', label: 'Cọc giữ chỗ', align: 'right', render: r => r.holdingDeposit ? U.currency(r.holdingDeposit) : '<span class="faint">-</span>' },
       { key: 'debt', label: 'Tài chính', align: 'right', sortable: true, render: r => r.debt ? `<span style="color:var(--danger)">Nợ ${U.currency(r.debt)}</span>` : '<span style="color:var(--success)">Đủ</span>' },
     ];
   }
@@ -109,11 +109,11 @@
   }
 
   function roomActions(ctx, r) {
-    const items = [{ icon: '👁', label: 'Xem chi tiết', onClick: () => showRoom(ctx, r) }];
+    const items = [{ icon: HH.ic('eye', 16), label: 'Xem chi tiết', onClick: () => showRoom(ctx, r) }];
     if (r.status === 'vacant' || r.status === 'reserved')
       items.push({ icon: '▣', label: 'Lập hợp đồng', onClick: () => HH.router.go(`/b/${ctx.bid}/contracts/new`) });
     if (S.isOwner())
-      items.push({ sep: true }, { icon: '⇄', label: 'Đổi trạng thái', onClick: () => changeStatus(ctx, r) });
+      items.push({ sep: true }, { icon: HH.ic('swap', 16), label: 'Đổi trạng thái', onClick: () => changeStatus(ctx, r) });
     return items;
   }
 
@@ -135,8 +135,8 @@
       <div class="grid-2">
         <div class="field"><label>Giá thuê</label><div class="mono b">${U.currency(r.price)}</div></div>
         <div class="field"><label>Diện tích</label><div class="mono b">${r.area} m²</div></div>
-        <div class="field"><label>Khách thuê</label><div>${r.tenantName || '—'}</div></div>
-        <div class="field"><label>Hết hạn HĐ</label><div class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '—'}</div></div>
+        <div class="field"><label>Khách thuê</label><div>${r.tenantName || 'chưa có'}</div></div>
+        <div class="field"><label>Hết hạn HĐ</label><div class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '-'}</div></div>
         <div class="field"><label>Công nợ</label><div class="mono b" style="color:${raw(r.debt ? 'var(--danger)' : 'inherit')}">${U.currency(r.debt)}</div></div>
         <div class="field"><label>Số người tối đa</label><div>${r.maxOccupants}</div></div>
       </div>
@@ -149,7 +149,7 @@
         <label>Ảnh phòng (${photos.length}/6) <span class="hint" style="font-weight:400">· dùng cho đăng tin</span></label>
         ${raw(photoHtml)}
         ${raw(S.isOwner() && photos.length < 6 ? `<div style="margin-top:8px">
-          <label class="btn btn-outline btn-sm" style="width:fit-content">📷 Tải ảnh lên<input type="file" accept="image/*" multiple hidden id="roomPhotoInput"></label></div>` : '')}
+          <label class="btn btn-outline btn-sm" style="width:fit-content">${HH.ic('camera', 16)} Tải ảnh lên<input type="file" accept="image/*" multiple hidden id="roomPhotoInput"></label></div>` : '')}
       </div>
       <div class="field" style="margin-top:16px"><label>Mô tả (hiện trong tin đăng)</label>
         <textarea class="textarea" id="roomDesc" placeholder="VD: Phòng thoáng, có ban công, gần chợ...">${U.esc(r.description || '')}</textarea></div>`,
@@ -189,7 +189,7 @@
     let selected = valid[0] || all[0];
     const optHtml = all.map(s => {
       const invalid = !valid.includes(s);
-      return `<option value="${s}" ${s === selected ? 'selected' : ''}>${UI.STATUS.room[s].label}${invalid ? ' — ngoài trình tự' : ''}</option>`;
+      return `<option value="${s}" ${s === selected ? 'selected' : ''}>${UI.STATUS.room[s].label}${invalid ? ' (ngoài trình tự)' : ''}</option>`;
     }).join('');
     const body = h`
       <p class="muted" style="margin-bottom:12px">Phòng <b>${r.code}</b> hiện đang: ${raw(UI.statusBadge(r.status, 'room'))}</p>
@@ -200,7 +200,7 @@
       <div class="field" style="margin-top:12px"><label>Lý do (bắt buộc)</label>
         <textarea class="textarea" data-reason placeholder="Nhập lý do đổi trạng thái..."></textarea>
         <span class="hint">Tối thiểu 10 ký tự</span></div>`;
-    const head = `<div class="danger-head"><span class="warn-ic">⚠</span><h3>Đổi trạng thái phòng ${r.code}</h3></div>`;
+    const head = `<div class="danger-head"><span class="warn-ic">${HH.ic('alert', 16)}</span><h3>Đổi trạng thái phòng ${r.code}</h3></div>`;
     UI.modal({
       headHtml: head, bodyHtml: body,
       footHtml: `<button class="btn btn-outline" data-close>Quay lại</button><span class="spacer"></span><button class="btn btn-danger" data-confirm disabled>Xác nhận đổi</button>`,
@@ -211,7 +211,7 @@
         const btn = el.querySelector('[data-confirm]');
         const check = () => {
           const invalid = !valid.includes(sel.value);
-          warn.textContent = invalid ? '⚠ Chuyển đổi này không theo trình tự thông thường' : '';
+          warn.textContent = invalid ? 'Chuyển đổi này không theo trình tự thông thường.' : '';
           warn.style.color = invalid ? 'var(--danger)' : '';
           btn.disabled = ta.value.trim().length < 10;
         };
@@ -302,7 +302,7 @@
       <td><input class="input mono" data-i="${i}" data-k="area" value="${r.area}" style="width:70px" ${r.dup ? 'disabled' : ''}></td>
     </tr>`).join('');
     el.querySelector('[data-body]').innerHTML = `
-      ${dupCount ? `<div class="alert alert-warning" style="margin-bottom:12px"><span class="ic">⚠</span><div>${dupCount} phòng trùng mã đã có sẽ bị loại khỏi danh sách tạo.</div></div>` : ''}
+      ${dupCount ? `<div class="alert alert-warning" style="margin-bottom:12px"><span class="ic">${HH.ic('alert', 16)}</span><div>${dupCount} phòng trùng mã đã có sẽ bị loại khỏi danh sách tạo.</div></div>` : ''}
       <div class="dt-scroll" style="max-height:340px;overflow:auto"><table class="dt">
         <thead><tr><th>Mã phòng</th><th>Tầng</th><th class="num">Giá thuê</th><th class="num">DT</th></tr></thead>
         <tbody>${trs}</tbody></table></div>`;
@@ -370,7 +370,7 @@
       const view = S.prefs.roomView || 'table';
       if (rooms.length === 0) {
         return h`${raw(summaryCards(ctx))}
-          <div class="card"><div class="empty"><div class="ic">🏠</div>
+          <div class="card"><div class="empty"><div class="ic">${HH.ic('building', 30)}</div>
           <h4>Chưa có phòng nào trong tòa nhà này</h4>
           <p class="muted">Bắt đầu bằng cách tạo phòng hàng loạt theo tầng.</p>
           <div style="margin-top:16px"><button class="btn btn-primary" data-primary-new>Tạo phòng hàng loạt</button></div>
@@ -435,7 +435,7 @@
 
   function openColMenu(anchor, ctx) {
     const items = roomColumns(ctx).map(c => ({
-      icon: hiddenCols.has(c.key) ? '☐' : '☑', label: c.label,
+      icon: hiddenCols.has(c.key) ? HH.ic('square', 16) : HH.ic('checkSquare', 16), label: c.label,
       onClick: () => { if (hiddenCols.has(c.key)) hiddenCols.delete(c.key); else hiddenCols.add(c.key);
         if (S.prefs.roomView !== 'table') S.setPref('roomView', 'table'); HH.router.render(); },
     }));
@@ -450,8 +450,8 @@
         tip = document.createElement('div'); tip.className = 'rt-tip';
         tip.innerHTML = h`
           <div class="b" style="margin-bottom:4px">${r.code} · ${r.typeLabel}</div>
-          <div class="row"><span class="k">Khách thuê</span><span>${r.tenantName || '—'}</span></div>
-          <div class="row"><span class="k">Hết hạn HĐ</span><span class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '—'}</span></div>
+          <div class="row"><span class="k">Khách thuê</span><span>${r.tenantName || 'chưa có'}</span></div>
+          <div class="row"><span class="k">Hết hạn HĐ</span><span class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '-'}</span></div>
           <div class="row"><span class="k">Công nợ</span><span class="mono">${U.currency(r.debt)}</span></div>`;
         document.body.appendChild(tip);
       });

@@ -13,7 +13,7 @@
   ];
 
   const VEH_TYPES = ['Xe máy', 'Ô tô', 'Xe đạp', 'Xe điện', 'Khác'];
-  const vehIcon = (type) => ({ 'Xe máy': '🏍️', 'Ô tô': '🚗', 'Xe đạp': '🚲', 'Xe điện': '🛵' }[type] || '🚗');
+  const vehIcon = (type) => ({ 'Xe máy': HH.ic('car', 16), 'Ô tô': HH.ic('car', 16), 'Xe đạp': HH.ic('car', 16), 'Xe điện': HH.ic('car', 16) }[type] || HH.ic('car', 16));
 
   function tenantRow(t) {
     const doc = (ok, label) => ok ? `<span class="tn-doc-ok">✓ ${label}</span>` : `<span class="tn-doc-miss">✗ ${label}</span>`;
@@ -35,7 +35,7 @@
         <div class="ln"><span class="k">Nơi cấp:</span>${t.cccdIssuePlace}</div>
         <div class="ln"><span class="k">Hình:</span>${doc(t.cccdFront, 'Mặt trước')} | ${doc(t.cccdBack, 'Mặt sau')}</div></td>
       <td>${(() => { const vs = S.vehiclesOf(t); return vs.length
-        ? vs.map(v => `<div style="margin-bottom:2px"><span class="veh-chip">${vehIcon(v.type)} <b class="mono">${U.esc(v.plate || '—')}</b></span></div>`).join('')
+        ? vs.map(v => `<div style="margin-bottom:2px"><span class="veh-chip">${vehIcon(v.type)} <b class="mono">${U.esc(v.plate || 'chưa có biển số')}</b></span></div>`).join('')
         : '<span class="faint">Chưa có</span>'; })()}</td>
       <td class="col-actions"><button class="kebab" data-tn="${t.id}" aria-label="Thao tác">⋯</button></td>
     </tr>`;
@@ -54,7 +54,7 @@
 
   function renderGroups(ctx) {
     const list = filteredTenants(ctx);
-    if (list.length === 0) return { body: `<tr><td colspan="9"><div class="empty"><div class="ic">👤</div><h4>Không có khách thuê phù hợp</h4><p class="muted">Thử đổi từ khóa hoặc bộ lọc.</p></div></td></tr>`, pg: null };
+    if (list.length === 0) return { body: `<tr><td colspan="9"><div class="empty"><div class="ic">${HH.ic('user', 30)}</div><h4>Không có khách thuê phù hợp</h4><p class="muted">Thử đổi từ khóa hoặc bộ lọc.</p></div></td></tr>`, pg: null };
     const rooms = [...new Set(list.map(t => t.roomCode || '(chưa gắn phòng)'))].sort();
     const pg = UI.paginate(rooms, tnPage, { unit: 'phòng', sizes: [8, 16, 32] });
     const body = pg.items.map(rc => {
@@ -143,10 +143,10 @@
       e.stopPropagation();
       const t = S.tenantById(b.dataset.tn);
       UI.openMenu(b, [
-        { icon: '👁', label: 'Xem hồ sơ', onClick: () => showTenant(t) },
-        { icon: '🏍️', label: `Quản lý xe (${S.vehiclesOf(t).length})`, onClick: () => vehicleDialog(t) },
-        { icon: '🔐', label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
-        { icon: '📋', label: t.tamtru ? 'Đã đăng ký tạm trú' : 'Đánh dấu đã đăng ký tạm trú', onClick: () => { t.tamtru = !t.tamtru; S.persist(); UI.toast(t.tamtru ? 'Đã đánh dấu đăng ký tạm trú' : 'Đã bỏ đánh dấu', { type: 'ok' }); HH.router.render(); } },
+        { icon: HH.ic('eye', 16), label: 'Xem hồ sơ', onClick: () => showTenant(t) },
+        { icon: HH.ic('car', 16), label: `Quản lý xe (${S.vehiclesOf(t).length})`, onClick: () => vehicleDialog(t) },
+        { icon: HH.ic('lock', 16), label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
+        { icon: HH.ic('copy', 16), label: t.tamtru ? 'Đã đăng ký tạm trú' : 'Đánh dấu đã đăng ký tạm trú', onClick: () => { t.tamtru = !t.tamtru; S.persist(); UI.toast(t.tamtru ? 'Đã đánh dấu đăng ký tạm trú' : 'Đã bỏ đánh dấu', { type: 'ok' }); HH.router.render(); } },
       ]);
     });
   }
@@ -169,7 +169,7 @@
           </div>
           <div class="field" style="margin-top:10px"><label>Ghi chú</label><input class="input" data-v="${i}" data-f="note" value="${U.esc(v.note || '')}" placeholder="VD: gửi hầm B1"></div>
         </div></div>`).join('')
-        : `<div class="empty" style="padding:24px"><div class="ic">🏍️</div><h4>Chưa đăng ký xe nào</h4>
+        : `<div class="empty" style="padding:24px"><div class="ic">${HH.ic('car', 30)}</div><h4>Chưa đăng ký xe nào</h4>
             <p class="muted">Thêm xe để quản lý chỗ để xe và phí gửi xe.</p></div>`;
       el.querySelectorAll('[data-delveh]').forEach(b => b.onclick = () => {
         S.removeVehicle(t.id, +b.dataset.delveh); UI.toast('Đã xóa xe', { type: 'ok' }); draw(el);
@@ -180,9 +180,9 @@
     };
     UI.modal({
       title: `Xe của ${t.fullName}`, size: 'wide',
-      bodyHtml: `<p class="muted" style="margin-bottom:12px">Phòng <b>${U.esc(t.roomCode || '—')}</b> · thay đổi được lưu ngay khi rời ô nhập.</p>
+      bodyHtml: `<p class="muted" style="margin-bottom:12px">Phòng <b>${U.esc(t.roomCode || 'chưa có')}</b> · thay đổi được lưu ngay khi rời ô nhập.</p>
         <div data-vlist></div>
-        <button class="btn btn-outline" id="addVeh">＋ Thêm xe</button>`,
+        <button class="btn btn-outline" id="addVeh">${HH.ic('plus', 16)} Thêm xe</button>`,
       footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Xong</button>`,
       onMount(el, close) {
         draw(el);
@@ -211,10 +211,10 @@
         <div class="field"><label>Ngày cấp CCCD</label><div class="mono">${t.cccdIssueDate}</div></div>
         <div class="field"><label>Nơi cấp</label><div>${t.cccdIssuePlace}</div></div>
         <div class="field"><label>Nghề nghiệp</label><div>${t.occupation}</div></div>
-        <div class="field"><label>Phòng</label><div>${t.roomCode || '—'}</div></div>
+        <div class="field"><label>Phòng</label><div>${t.roomCode || 'chưa gắn phòng'}</div></div>
         <div class="field"><label>Địa chỉ thường trú</label><div>${t.address}</div></div>
         <div class="field"><label>Xe đã đăng ký</label><div>${raw(S.vehiclesOf(t).length
-          ? S.vehiclesOf(t).map(v => `<div class="mono">${vehIcon(v.type)} <b>${U.esc(v.plate || '—')}</b>${v.brand ? ' · ' + U.esc(v.brand) : ''}${v.color ? ' · ' + U.esc(v.color) : ''}</div>`).join('')
+          ? S.vehiclesOf(t).map(v => `<div class="mono">${vehIcon(v.type)} <b>${U.esc(v.plate || 'chưa có biển số')}</b>${v.brand ? ', ' + U.esc(v.brand) : ''}${v.color ? ', ' + U.esc(v.color) : ''}</div>`).join('')
           : '<span class="faint">Chưa có</span>')}</div></div>
       </div>
       <div class="grid-2" style="margin-top:12px">
@@ -240,7 +240,7 @@
           <div class="page-title">Thêm khách thuê</div></div></div>
         <div class="card card-pad" id="ocrCard">
           <div class="ocr-drop" id="ocrDrop">
-            <div class="big-ic">📷</div>
+            <div class="big-ic">${HH.ic('camera', 30)}</div>
             <h3 style="margin:8px 0">Chụp hoặc tải ảnh căn cước công dân</h3>
             <p class="muted">Hệ thống tự nhận diện và điền sẵn thông tin</p>
             <div style="margin-top:16px" class="row-gap-2" style="justify-content:center">
@@ -300,7 +300,7 @@
     const fieldsHtml = OCR_FIELDS.map(f => {
       const d = data[f.key] || { value: '', confidence: 1 };
       const low = d.confidence < 0.8;
-      const conf = low ? '<span class="conf warn" title="Độ tin cậy thấp">⚠</span>' : (d.value ? '<span class="conf ok">✓</span>' : '');
+      const conf = low ? '<span class="conf warn" title="Độ tin cậy thấp">' + HH.ic('alert', 16) + '</span>' : (d.value ? '<span class="conf ok">✓</span>' : '');
       return h`<div class="field ocr-field ${raw(low ? 'low' : '')}">
         <label>${f.label}</label>
         <input class="input" data-k="${f.key}" value="${d.value}">
@@ -309,12 +309,12 @@
       </div>`;
     }).join('');
 
-    const dupAlert = existing ? `<div class="alert alert-purple" style="margin-bottom:16px"><span class="ic">ℹ</span>
+    const dupAlert = existing ? `<div class="alert alert-purple" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
       <div>Khách thuê này đã có hồ sơ từ hợp đồng trước (${existing.fullName}).
       <button class="btn btn-sm btn-outline" id="reuseBtn" style="margin-left:8px">Dùng lại hồ sơ cũ</button></div></div>` : '';
 
     const imgPane = imgUrl
-      ? `<div class="ocr-img"><img src="${imgUrl}" style="width:100%"><button class="btn btn-sm btn-outline" style="position:absolute;bottom:8px;left:8px">🔍 Phóng to</button></div>`
+      ? `<div class="ocr-img"><img src="${imgUrl}" style="width:100%"><button class="btn btn-sm btn-outline" style="position:absolute;bottom:8px;left:8px">${HH.ic('search', 16)} Phóng to</button></div>`
       : `<div class="ocr-img" style="min-height:220px">Nhập thủ công<br>(không có ảnh)</div>`;
 
     card.innerHTML = h`
@@ -326,7 +326,7 @@
             <div class="field"><label>Điện thoại</label><input class="input mono" data-k="phone" placeholder="09xxxxxxxx"></div>
             <div class="field"><label>Ở phòng (tùy chọn)</label>
               <select class="select" data-k="roomCode">
-                <option value="">— Chưa gắn phòng —</option>
+                <option value="">Chưa gắn phòng</option>
                 ${raw(S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code))
                   .map(r => `<option value="${r.code}">${r.code} · ${U.esc(r.typeLabel)}${r.tenantName ? ' (đang có khách)' : ''}</option>`).join(''))}
               </select>

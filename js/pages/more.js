@@ -12,7 +12,7 @@
           <span class="ic alert-${raw(n.tone)}">${raw(n.icon)}</span>
           <span class="grow"><b>${n.title}</b><div class="muted text-xs">${n.sub}</div></span>
           <span class="chev">›</span></a>`).join('')
-        : `<div class="empty"><div class="ic">✅</div><h4>Không có thông báo nào</h4><p class="muted">Mọi việc đang được xử lý tốt.</p></div>`;
+        : `<div class="empty"><div class="ic">${HH.ic('check', 30)}</div><h4>Không có thông báo nào</h4><p class="muted">Mọi việc đang được xử lý tốt.</p></div>`;
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Thông báo</div><div class="page-sub">Việc cần xử lý trên toàn hệ thống · ${items.length} mục</div></div></div>
       </div>
@@ -39,9 +39,9 @@
         const code = lockCodes[r.code];
         return `<tr>
           <td><b>${r.code}</b></td>
-          <td>${t ? t.fullName : '<span class="faint">—</span>'}</td>
-          <td><span class="tn-ttlock ${on ? 'on' : ''}">${on ? '🔒 Đã kết nối' : '🔓 Chưa kết nối'}</span></td>
-          <td class="mono">${code ? `<b>${code}</b>` : '<span class="faint">—</span>'}</td>
+          <td>${t ? t.fullName : '<span class="faint">-</span>'}</td>
+          <td><span class="tn-ttlock ${on ? 'on' : ''}">${on ? '' + HH.ic('lock', 16) + ' Đã kết nối' : '' + HH.ic('unlock', 16) + ' Chưa kết nối'}</span></td>
+          <td class="mono">${code ? `<b>${code}</b>` : '<span class="faint">-</span>'}</td>
           <td class="col-actions"><button class="kebab" data-lock="${r.code}">⋯</button></td>
         </tr>`;
       }).join('');
@@ -49,11 +49,11 @@
         <div><div><div class="page-title-lg">Khóa thông minh</div>
           <div class="page-sub">${ctx.building.name} · đã kết nối ${connected}/${rooms.length} phòng</div></div></div>
       </div>
-      <div class="alert alert-info" style="margin-bottom:16px"><span class="ic">ℹ</span>
+      <div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
         <div>Quản lý khóa TTLock của từng phòng. Cấp mã mở cửa cho khách khi cần.</div></div>
       <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
         <thead><tr><th>Phòng</th><th>Khách đại diện</th><th>Trạng thái khóa</th><th>Mã mở cửa</th><th></th></tr></thead>
-        <tbody>${raw(rows || `<tr><td colspan="5"><div class="empty"><div class="ic">🔐</div><h4>Chưa có phòng đang thuê</h4></div></td></tr>`)}</tbody>
+        <tbody>${raw(rows || `<tr><td colspan="5"><div class="empty"><div class="ic">${HH.ic('lock', 30)}</div><h4>Chưa có phòng đang thuê</h4></div></td></tr>`)}</tbody>
       </table></div></div>`;
     },
     mount(ctx) {
@@ -62,13 +62,13 @@
         const t = repTenant(ctx.bid, code);
         const on = t && t.ttlock;
         const items = [];
-        if (t) items.push({ icon: on ? '🔓' : '🔒', label: on ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock',
+        if (t) items.push({ icon: on ? HH.ic('unlock', 16) : HH.ic('lock', 16), label: on ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock',
           onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } });
-        items.push({ icon: '🔢', label: 'Cấp mã mở cửa mới', onClick: () => {
+        items.push({ icon: HH.ic('key', 16), label: 'Cấp mã mở cửa mới', onClick: () => {
           lockCodes[code] = String(Math.floor(100000 + Math.random() * 900000));
           UI.toast(`Mã mở cửa phòng ${code}: ${lockCodes[code]}`, { type: 'ok', sticky: true }); HH.router.render();
         } });
-        if (lockCodes[code]) items.push({ icon: '🗑', label: 'Thu hồi mã', danger: true,
+        if (lockCodes[code]) items.push({ icon: HH.ic('trash', 16), label: 'Thu hồi mã', danger: true,
           onClick: () => { delete lockCodes[code]; UI.toast('Đã thu hồi mã', { type: 'ok' }); HH.router.render(); } });
         UI.openMenu(b, items);
       });
@@ -104,7 +104,7 @@
       <div class="card" style="border-color:#fecaca;margin-top:16px;max-width:520px"><div class="card-pad">
         <h3 style="color:var(--danger)">Vùng nguy hiểm</h3>
         <p class="muted text-sm" style="margin:6px 0 12px">Xóa tòa nhà sẽ xóa vĩnh viễn toàn bộ phòng, khách thuê, hợp đồng, hóa đơn… của tòa này.</p>
-        <button class="btn btn-danger" id="delBuilding">🗑 Xóa tòa nhà này</button>
+        <button class="btn btn-danger" id="delBuilding">${HH.ic('trash', 16)} Xóa tòa nhà này</button>
       </div></div>`;
     },
     mount(ctx) {
@@ -160,8 +160,8 @@
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Thu chi</div><div class="page-sub">${ctx.building.name} · ${txs.length} khoản</div></div></div>
         <div class="page-actions">
-          <button class="btn btn-success" id="addIncome">＋ Khoản thu</button>
-          <button class="btn btn-danger" id="addExpense">＋ Khoản chi</button>
+          <button class="btn btn-success" id="addIncome">${HH.ic('plus', 16)} Khoản thu</button>
+          <button class="btn btn-danger" id="addExpense">${HH.ic('plus', 16)} Khoản chi</button>
         </div>
       </div>
       <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin-bottom:16px">
@@ -171,14 +171,14 @@
       </div>
       <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
         <thead><tr><th>Ngày</th><th>Loại</th><th>Hạng mục</th><th>Ghi chú</th><th class="num">Số tiền</th><th></th></tr></thead>
-        <tbody>${raw(rows || `<tr><td colspan="6"><div class="empty"><div class="ic">📊</div><h4>Chưa có khoản thu chi nào</h4><p class="muted">Bấm "Khoản thu" hoặc "Khoản chi" để ghi nhận.</p></div></td></tr>`)}</tbody>
+        <tbody>${raw(rows || `<tr><td colspan="6"><div class="empty"><div class="ic">${HH.ic('sheet', 30)}</div><h4>Chưa có khoản thu chi nào</h4><p class="muted">Bấm "Khoản thu" hoặc "Khoản chi" để ghi nhận.</p></div></td></tr>`)}</tbody>
       </table></div></div>`;
     },
     mount(ctx) {
       const inc = document.getElementById('addIncome'); if (inc) inc.onclick = () => txForm(ctx, 'income');
       const exp = document.getElementById('addExpense'); if (exp) exp.onclick = () => txForm(ctx, 'expense');
       document.querySelectorAll('[data-txdel]').forEach(b => b.onclick = () => {
-        UI.openMenu(b, [{ icon: '🗑', label: 'Xóa khoản này', danger: true, onClick: () => {
+        UI.openMenu(b, [{ icon: HH.ic('trash', 16), label: 'Xóa khoản này', danger: true, onClick: () => {
           S.removeTransaction(b.dataset.txdel); UI.toast('Đã xóa', { type: 'ok' }); HH.router.render(); } }]);
       });
     },
@@ -246,7 +246,7 @@
 
       return h`<div class="page-head">
         <div><div class="page-title-lg">Khách chuyển khoản</div>
-          <div class="page-sub">Tiền về là tự khớp hóa đơn và xóa công nợ · ${pending.length} phiếu chờ · ${rows.length} giao dịch đã ghi thu</div></div>
+          <div class="page-sub">${pending.length} phiếu chờ duyệt, ${rows.length} giao dịch đã ghi thu</div></div>
       </div>
       <div class="metric-grid" style="grid-template-columns:repeat(4,1fr);max-width:1000px;margin-bottom:16px">
         ${raw(UI.metricCard({ label: 'Phiếu khách báo · chờ duyệt', value: pending.length, format: 'number', intent: pending.length ? 'warning' : 'default' }))}
@@ -299,8 +299,8 @@
       const runAll = document.getElementById('btnRunAll');
       if (runAll) runAll.onclick = () => {
         const r = S.autoReconcile();
-        if (r.done.length) UI.toast(`Đã tự động ghi thu ${r.done.length} giao dịch — công nợ tương ứng đã xóa`, { type: 'ok' });
-        else UI.toast(r.review.length ? 'Không có giao dịch nào khớp chắc chắn — xem cột "Kết quả dò"' : 'Không có giao dịch mới',
+        if (r.done.length) UI.toast(`Đã tự động ghi thu ${r.done.length} giao dịch. Công nợ tương ứng đã xóa.`, { type: 'ok' });
+        else UI.toast(r.review.length ? 'Không có giao dịch nào khớp chắc chắn. Xem cột "Kết quả dò".' : 'Không có giao dịch mới',
           { type: r.review.length ? 'warning' : 'info' });
         HH.router.render();
       };
@@ -324,7 +324,7 @@
           <b>${U.esc(c.tenantName || '')} · Phòng ${U.esc(c.roomCode || '')}</b>
           <span class="badge s-warning"><span class="dot"></span>Chờ đối soát</span></div>
         <div class="mono b text-lg" style="color:var(--brand-700)">${U.currency(c.amount)}</div>
-        <div class="muted text-sm">Hóa đơn <b class="mono">${U.esc(c.invoiceId || '—')}</b> · báo lúc ${U.fmtDate(c.createdAt)}</div>
+        <div class="muted text-sm">Hóa đơn <b class="mono">${U.esc(c.invoiceId || '-')}</b> · báo lúc ${U.fmtDate(c.createdAt)}</div>
         ${c.note ? `<div class="muted text-sm" style="margin-top:4px">"${U.esc(c.note)}"</div>` : ''}
         <div class="row-gap-2" style="margin-top:12px">
           <button class="btn btn-primary btn-sm" data-okclaim="${c.id}">${HH.icon('check', 15)} Xác nhận & ghi thu</button>
@@ -362,7 +362,7 @@
         <div>
           <b>Tiền về là tự xóa công nợ</b>
           <div class="muted text-sm" style="margin-top:4px;max-width:620px">
-            App đọc <b>nội dung chuyển khoản</b> để tìm đúng hóa đơn rồi ghi thu — hóa đơn chuyển sang
+            App đọc <b>nội dung chuyển khoản</b> để tìm đúng hóa đơn rồi ghi thu. Hóa đơn chuyển sang
             <b>Đã thu</b> và công nợ biến mất. Khách quét mã VietQR trong app khách thuê thì nội dung
             luôn đúng dạng <span class="mono">HD2608013</span> nên gần như khớp 100%.</div>
         </div>
@@ -384,9 +384,9 @@
     const trs = rows.map(r => `<tr>
       <td class="mono nowrap">${U.fmtDate(r.p.date)}</td>
       <td>${U.esc(r.b.name)}</td>
-      <td>${r.inv ? U.esc(r.inv.roomCode) : '—'}</td>
-      <td>${r.inv ? U.esc(r.inv.tenantName || '') : '—'}</td>
-      <td class="mono">${U.esc(r.p.invoiceId || '—')}</td>
+      <td>${r.inv ? U.esc(r.inv.roomCode) : '-'}</td>
+      <td>${r.inv ? U.esc(r.inv.tenantName || '') : '-'}</td>
+      <td class="mono">${U.esc(r.p.invoiceId || '-')}</td>
       <td class="num mono b">${U.currency(r.p.amount)}</td>
       <td>${r.p.auto
         ? '<span class="badge s-purple"><span class="dot"></span>Tự động</span>'
@@ -404,7 +404,7 @@
       size: 'wide', title: 'Dán sao kê ngân hàng',
       bodyHtml: h`<p class="muted text-sm" style="margin-bottom:10px">
           Mở app/web ngân hàng, sao chép các dòng giao dịch <b>tiền vào</b> rồi dán xuống dưới.
-          Mỗi dòng một giao dịch — app tự tách ngày, số tiền và nội dung.</p>
+          Mỗi dòng một giao dịch, app tự tách ngày, số tiền và nội dung.</p>
         <textarea class="textarea" id="stText" style="min-height:180px;font-family:var(--font-mono);font-size:13px"
           placeholder="03/09/2026  HD2608013 CHUYEN TIEN  3.943.000&#10;03/09/2026  P205 T8 2026  4.321.000"></textarea>
         <div id="stPreview" style="margin-top:12px"></div>`,
@@ -440,7 +440,7 @@
           let n = 0; parsed.forEach(t => { if (S.addBankTx(t)) n++; });
           close();
           const r = S.autoReconcile();
-          UI.toast(`Nạp ${n} giao dịch · tự ghi thu ${r.done.length}${r.review.length ? ` · ${r.review.length} cần kiểm tra` : ''}`,
+          UI.toast(`Đã nạp ${n} giao dịch, tự ghi thu ${r.done.length}${r.review.length ? `, ${r.review.length} cần kiểm tra` : ''}.`,
             { type: 'ok', sticky: true });
           trTab.tab = 'bank'; HH.router.render();
         };
@@ -505,7 +505,7 @@
     UI.modal({
       size: 'wide', title: 'Nối ngân hàng để chạy hoàn toàn tự động',
       bodyHtml: h`<p class="muted text-sm">Ngân hàng Việt Nam không mở API cho tài khoản cá nhân, nên cách chạy thật là
-          dùng một dịch vụ đọc biến động số dư (<b>SePay</b>, <b>Casso</b> — đều có gói miễn phí) rồi cho nó
+          dùng một dịch vụ đọc biến động số dư (<b>SePay</b>, <b>Casso</b>, đều có gói miễn phí) rồi cho nó
           bắn giao dịch về địa chỉ dưới đây. Tiền về là hóa đơn tự chuyển sang <b>Đã thu</b>.</p>
         <div class="field" style="margin-top:12px"><label>1. Địa chỉ webhook của bạn</label>
           <div class="row-gap-2"><input class="input mono" id="whUrl" readonly value="${url}">
@@ -531,7 +531,7 @@
         const sec = el.querySelector('#whSecret');
         el.querySelector('#whCopy').onclick = () => copyText(el.querySelector('#whUrl').value, 'địa chỉ webhook');
         el.querySelector('#whSCopy').onclick = () => sec.value
-          ? copyText(sec.value, 'secret') : UI.toast('Chưa có secret — bấm "Tạo secret" trước', { type: 'warning' });
+          ? copyText(sec.value, 'secret') : UI.toast('Chưa có secret. Bấm "Tạo secret" trước.', { type: 'warning' });
         el.querySelector('#whGen').onclick = async (e) => {
           if (!S.usingBackend()) { UI.toast('Cần kết nối Supabase mới tạo được secret', { type: 'error' }); return; }
           const btn = e.currentTarget; btn.classList.add('loading'); btn.disabled = true;
@@ -539,7 +539,7 @@
           btn.classList.remove('loading'); btn.disabled = false;
           if (error) { UI.toast(/function/i.test(error.message)
             ? 'Chưa chạy migration-bank-reconcile.sql' : error.message, { type: 'error' }); return; }
-          sec.value = data; UI.toast('Đã tạo secret — nhớ chép và giữ kín', { type: 'ok' });
+          sec.value = data; UI.toast('Đã tạo secret. Nhớ chép và giữ kín.', { type: 'ok' });
         };
       },
     });
@@ -586,35 +586,35 @@
         const photos = r.photos || [];
         const cover = photos.length
           ? `<div class="listing-cover"><img src="${photos[0]}" alt="${U.esc(r.code)}">
-              ${photos.length > 1 ? `<span class="pcount">📷 ${photos.length}</span>` : ''}</div>`
-          : `<div class="listing-cover empty"><span>📷</span><small>Chưa có ảnh</small></div>`;
+              ${photos.length > 1 ? `<span class="pcount">${HH.ic('camera', 16)} ${photos.length}</span>` : ''}</div>`
+          : `<div class="listing-cover empty"><span>${HH.ic('camera', 16)}</span><small>Chưa có ảnh</small></div>`;
         const am = roomAmenities(b, r);
         return `<div class="card listing-card">
           ${cover}
           <div class="card-pad">
             <div class="between"><b>${r.code} · ${U.esc(b.name)}</b>${UI.statusBadge(r.status, 'room')}</div>
             <div class="mono b text-lg" style="color:var(--brand-700);margin:6px 0">${U.currency(r.price)}<span class="text-xs muted">/tháng</span></div>
-            <div class="muted text-sm">${U.esc(r.typeLabel)} · ${r.area}m² · tối đa ${r.maxOccupants} người</div>
-            <div class="muted text-xs" style="margin:4px 0 8px">📍 ${U.esc(b.address || '(chưa có địa chỉ)')}</div>
+            <div class="muted text-sm">${U.esc(r.typeLabel)}, ${r.area} m², tối đa ${r.maxOccupants} người</div>
+            <div class="muted text-xs" style="margin:4px 0 8px">${HH.ic('pin', 14)} ${U.esc(b.address || '(chưa có địa chỉ)')}</div>
             ${am.length ? `<div class="room-assets" style="margin-bottom:10px">${am.slice(0, 4).map(x => `<span class="room-asset-chip">${U.esc(x)}</span>`).join('')}${am.length > 4 ? `<span class="room-asset-chip">+${am.length - 4}</span>` : ''}</div>` : ''}
             <div class="row-gap-2 wrap">
-              <button class="btn btn-primary btn-sm" data-preview="${b.id}|${r.code}">👁 Xem & đăng</button>
-              <button class="btn btn-outline btn-sm" data-quickcopy="${b.id}|${r.code}">📋 Chép</button>
+              <button class="btn btn-primary btn-sm" data-preview="${b.id}|${r.code}">${HH.ic('eye', 16)} Xem & đăng</button>
+              <button class="btn btn-outline btn-sm" data-quickcopy="${b.id}|${r.code}">${HH.ic('copy', 16)} Chép</button>
             </div>
           </div></div>`;
       }).join('');
 
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Đăng tin cho thuê</div>
-          <div class="page-sub">Phòng trống sẵn sàng cho thuê · ${items.length} phòng · ${withPhoto} phòng đã có ảnh</div></div></div>
+          <div class="page-sub">${items.length} phòng trống sẵn sàng cho thuê, ${withPhoto} phòng đã có ảnh</div></div></div>
         <div class="page-actions">
-          ${raw(items.length ? '<button class="btn btn-outline" id="copyAll">📋 Chép tất cả tin</button>' : '')}
+          ${raw(items.length ? '<button class="btn btn-outline" id="copyAll">' + HH.ic('copy', 16) + ' Chép tất cả tin</button>' : '')}
         </div>
       </div>
-      ${raw(items.length && withPhoto < items.length ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">💡</span>
+      ${raw(items.length && withPhoto < items.length ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
         <div>Tin có ảnh thu hút gấp nhiều lần. Thêm ảnh tại <b>Quản lý phòng → bấm vào phòng → Ảnh phòng</b>.</div></div>` : '')}
       ${raw(items.length ? `<div class="listing-grid">${cards}</div>` + ppg.html
-        : `<div class="card"><div class="empty"><div class="ic">📢</div><h4>Không có phòng trống</h4><p class="muted">Tất cả phòng đang được thuê hoặc giữ chỗ.</p></div></div>`)}`;
+        : `<div class="card"><div class="empty"><div class="ic">${HH.ic('megaphone', 30)}</div><h4>Không có phòng trống</h4><p class="muted">Tất cả phòng đang được thuê hoặc giữ chỗ.</p></div></div>`)}`;
     },
     mount() {
       if (HH.pages.post._pg) HH.pages.post._pg.attach(document, () => HH.router.render());
@@ -650,12 +650,12 @@
     const text = listingText(b, r);
     const gallery = photos.length
       ? `<div class="photo-strip" style="margin-bottom:12px">${photos.map(p => `<div class="photo-thumb" style="width:120px;height:92px"><img src="${p}"></div>`).join('')}</div>`
-      : `<div class="alert alert-warning" style="margin-bottom:12px"><span class="ic">📷</span><div>Phòng chưa có ảnh — tin đăng sẽ kém hấp dẫn. Thêm ảnh trong <b>Quản lý phòng</b>.</div></div>`;
+      : `<div class="alert alert-warning" style="margin-bottom:12px"><span class="ic">${HH.ic('camera', 16)}</span><div>Phòng chưa có ảnh nên tin đăng sẽ kém hấp dẫn. Thêm ảnh trong <b>Quản lý phòng</b>.</div></div>`;
     const amChips = AMENITIES.map(a => `<button type="button" class="lz-chip ${curAm.includes(a) ? 'on' : ''}" data-am="${a}">
       <span class="lz-chip-box">${curAm.includes(a) ? '✓' : ''}</span>${a}</button>`).join('');
 
     UI.modal({
-      size: 'wide', title: `Tin đăng — Phòng ${r.code}`,
+      size: 'wide', title: `Tin đăng phòng ${r.code}`,
       bodyHtml: h`
         ${raw(gallery)}
         <div class="field"><label>Tiện nghi (hiện trong tin)</label>
@@ -664,9 +664,9 @@
           <textarea class="textarea" id="listingText" style="min-height:220px;font-size:14px">${U.esc(text)}</textarea></div>
         <p class="muted text-xs" style="margin-top:8px">Mẹo: bấm <b>Chép nội dung</b> rồi dán vào Facebook/Zalo. Ảnh cần tải lên thủ công ở bài đăng.</p>`,
       footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
-        <button class="btn btn-outline" id="dlPhotos" ${photos.length ? '' : 'disabled'}>⬇ Tải ảnh</button>
-        <button class="btn btn-outline" id="shareFb">📘 Mở Facebook</button>
-        <button class="btn btn-primary" id="copyListing">📋 Chép nội dung</button>`,
+        <button class="btn btn-outline" id="dlPhotos" ${photos.length ? '' : 'disabled'}>${HH.ic('download', 16)} Tải ảnh</button>
+        <button class="btn btn-outline" id="shareFb">${HH.ic('external', 16)} Mở Facebook</button>
+        <button class="btn btn-primary" id="copyListing">${HH.ic('copy', 16)} Chép nội dung</button>`,
       onMount(el, close) {
         const ta = el.querySelector('#listingText');
         let list = curAm.slice();
@@ -699,7 +699,7 @@
         el.querySelector('#shareFb').onclick = () => {
           copyText(ta.value, 'nội dung tin');
           window.open('https://www.facebook.com/', '_blank', 'noopener');
-          UI.toast('Đã chép nội dung — dán vào ô đăng bài Facebook', { type: 'ok', sticky: true });
+          UI.toast('Đã chép nội dung. Dán vào ô đăng bài Facebook.', { type: 'ok', sticky: true });
         };
         const dl = el.querySelector('#dlPhotos');
         if (dl && photos.length) dl.onclick = () => {
@@ -744,7 +744,7 @@
 
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Công ty / nhóm</div><div class="page-sub">Thông tin tổ chức & tài khoản nhân viên</div></div></div>
-        ${raw(S.isOwner() ? '<div class="page-actions"><button class="btn btn-primary" data-primary-new>＋ Thêm nhân viên</button></div>' : '')}
+        ${raw(S.isOwner() ? '<div class="page-actions"><button class="btn btn-primary" data-primary-new>' + HH.ic('plus', 16) + ' Thêm nhân viên</button></div>' : '')}
       </div>
 
       <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin-bottom:16px">
@@ -767,13 +767,13 @@
             ${raw(staffRows)}
           </tbody></table></div>
         ${raw(list.length === 0 ? `<div class="card-pad"><div class="empty" style="padding:24px">
-            <div class="ic">🧑‍🤝‍🧑</div><h4>Chưa có nhân viên nào</h4>
+            <div class="ic">${HH.ic('users', 16)}</div><h4>Chưa có nhân viên nào</h4>
             <p class="muted">Thêm nhân viên và chọn quyền để họ đăng nhập vào hệ thống bằng tài khoản riêng.</p>
-            ${S.isOwner() ? '<div style="margin-top:14px"><button class="btn btn-primary" data-primary-new>＋ Thêm nhân viên</button></div>' : ''}
+            ${S.isOwner() ? '<div style="margin-top:14px"><button class="btn btn-primary" data-primary-new>' + HH.ic('plus', 16) + ' Thêm nhân viên</button></div>' : ''}
           </div></div>` : '')}
       </div>
 
-      <div class="alert alert-info"><span class="ic">ℹ</span><div>
+      <div class="alert alert-info"><span class="ic">${HH.ic('info', 16)}</span><div>
         <b>Cách nhân viên đăng nhập:</b> bạn thêm nhân viên bằng <b>email</b> → nhân viên vào trang đăng nhập,
         bấm <b>Đăng ký</b> bằng <u>đúng email đó</u> và tự đặt mật khẩu → hệ thống tự nhận diện và cấp đúng quyền bạn đã chọn.
         <div class="text-xs" style="margin-top:4px">Chủ trọ không thấy và không cần biết mật khẩu của nhân viên.</div>
@@ -785,12 +785,12 @@
       document.querySelectorAll('[data-staffmenu]').forEach(b => b.onclick = () => {
         const s = S.staffById(b.dataset.staffmenu);
         UI.openMenu(b, [
-          { icon: '✏️', label: 'Sửa quyền & thông tin', onClick: () => staffForm(s) },
-          { icon: s.status === 'active' ? '🔒' : '🔓', label: s.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa',
+          { icon: HH.ic('edit', 16), label: 'Sửa quyền & thông tin', onClick: () => staffForm(s) },
+          { icon: s.status === 'active' ? HH.ic('lock', 16) : HH.ic('unlock', 16), label: s.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa',
             onClick: () => { S.updateStaff(s.id, { status: s.status === 'active' ? 'disabled' : 'active' });
               UI.toast(s.status === 'active' ? 'Đã khóa tài khoản' : 'Đã mở khóa', { type: 'ok' }); HH.router.render(); } },
           { sep: true },
-          { icon: '🗑', label: 'Xóa nhân viên', danger: true, onClick: () => {
+          { icon: HH.ic('trash', 16), label: 'Xóa nhân viên', danger: true, onClick: () => {
             UI.dangerDialog({ title: `Xóa nhân viên "${s.fullName || s.email}"`,
               description: 'Nhân viên sẽ không còn truy cập được dữ liệu của bạn.',
               consequences: ['Tài khoản đăng nhập của họ vẫn tồn tại nhưng mất quyền truy cập', 'Thao tác được ghi vào nhật ký'],
@@ -814,7 +814,7 @@
       <input type="checkbox" data-bld="${b.id}" ${bids.has(b.id) ? 'checked' : ''}> ${U.esc(b.name)}</label>`).join('');
 
     UI.modal({
-      title: isNew ? 'Thêm nhân viên' : `Sửa nhân viên — ${existing.fullName || existing.email}`, size: 'xwide',
+      title: isNew ? 'Thêm nhân viên' : `Sửa nhân viên ${existing.fullName || existing.email}`, size: 'xwide',
       bodyHtml: h`
         <div class="grid-2">
           <div class="field"><label>Email đăng nhập *</label>
@@ -868,7 +868,7 @@
                 <li>Mở trang đăng nhập của hệ thống</li>
                 <li>Bấm <b>"Chưa có tài khoản? Đăng ký"</b></li>
                 <li>Đăng ký bằng <b class="mono">${U.esc(email)}</b> và tự đặt mật khẩu (≥6 ký tự)</li>
-                <li>Đăng nhập — hệ thống tự cấp đúng quyền bạn đã chọn</li>
+                <li>Đăng nhập, hệ thống tự cấp đúng quyền bạn đã chọn</li>
               </ol>`,
               footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Đã hiểu</button>` });
             else UI.toast('Đã lưu nhân viên', { type: 'ok' });
@@ -884,22 +884,22 @@
   function aiStatusHtml() {
     const G = window.HHGemini;
     const on = !!(G && G.configured());
-    const mode = on ? (G.viaProxy() ? 'Qua máy chủ trung gian (an toàn)' : 'Gọi thẳng từ trình duyệt') : '—';
+    const mode = on ? (G.viaProxy() ? 'Qua máy chủ trung gian (an toàn)' : 'Gọi thẳng từ trình duyệt') : '-';
     const left = on ? (G.quotaLimit - G.quotaUsed()) : 0;
     const nIntent = (HH.ai && HH.ai.INTENT_LIST.length) || 0;
     return `<div class="grid-2" style="align-items:start;gap:20px">
       <div>
-        <div class="field"><label>Tầng 1 — Tra cứu bằng luật từ khóa</label>
+        <div class="field"><label>Tầng 1: tra cứu tại chỗ</label>
           <div><span class="badge s-success"><span class="dot"></span>Luôn bật · miễn phí</span></div>
           <span class="hint" style="display:block;margin-top:6px">
             ${nIntent} nhóm câu hỏi thường gặp được nhận diện bằng từ khóa. Số liệu lấy trực tiếp
-            từ cơ sở dữ liệu rồi ghép vào câu mẫu — không gọi mạng, không tốn phí, không sai số.</span></div>
-        <div class="field" style="margin-top:14px"><label>Tầng 2 — Gemini Flash</label>
+            từ cơ sở dữ liệu rồi ghép vào câu mẫu. Không gọi mạng, không tốn phí, không sai số.</span></div>
+        <div class="field" style="margin-top:14px"><label>Tầng 2: Gemini Flash</label>
           <div>${on ? '<span class="badge s-purple"><span class="dot"></span>Đã bật</span>'
                     : '<span class="badge s-neutral"><span class="dot"></span>Chưa cấu hình</span>'}</div>
           <span class="hint" style="display:block;margin-top:6px">
             Chỉ chạy khi Tầng 1 không nhận ra ý định. Mô hình <b>chỉ phân loại ý định</b> rồi
-            <b>soạn lời văn từ số liệu code đã lấy</b> — không bao giờ tự nghĩ ra con số.</span></div>
+            <b>soạn lời văn từ số liệu code đã lấy</b>, không bao giờ tự nghĩ ra con số.</span></div>
       </div>
       <div>
         ${on ? `<div class="field"><label>Cách kết nối</label><div class="mono">${U.esc(mode)}</div></div>
@@ -929,7 +929,7 @@
         </div></div>
         <div class="card"><div class="card-head"><h3>Vai trò & quyền của bạn</h3></div><div class="card-pad">
           <div class="field"><label>Vai trò</label><div>${raw(S.isOwner()
-            ? '<span class="badge s-purple"><span class="dot"></span>Chủ trọ — toàn quyền</span>'
+            ? '<span class="badge s-purple"><span class="dot"></span>Chủ trọ, toàn quyền</span>'
             : '<span class="badge s-info"><span class="dot"></span>Nhân viên</span>')}</div></div>
           ${raw(S.isOwner() ? '' : `<div class="field" style="margin-top:12px"><label>Quyền được cấp (${S.myPermissions().length})</label>
             <div class="room-assets">${S.PERMISSIONS.filter(p => S.can(p.key))
@@ -937,7 +937,7 @@
             <span class="hint" style="margin-top:6px;display:block">Liên hệ chủ trọ nếu cần thêm quyền.</span></div>`)}
           <div class="field" style="margin-top:12px"><label>Chế độ lưu trữ</label><div>${raw(S.usingBackend() ? '<span class="badge s-success"><span class="dot"></span>Máy chủ Supabase</span>' : '<span class="badge s-warning"><span class="dot"></span>Cục bộ (trình duyệt)</span>')}</div></div>
           <div class="field" style="margin-top:12px"><label>Phiên bản</label><div class="mono">Happy Home v1.0</div></div>
-          ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">↺ Khôi phục dữ liệu mẫu</button></div>' : '')}
+          ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">' + HH.ic('refresh', 16) + ' Khôi phục dữ liệu mẫu</button></div>' : '')}
         </div></div>
         <div class="card" style="grid-column:1/-1"><div class="card-head"><h3>Trợ lý ảo (AI)</h3></div>
           <div class="card-pad">${raw(aiStatusHtml())}</div></div>

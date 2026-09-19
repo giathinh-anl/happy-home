@@ -21,8 +21,8 @@
         </div></div>
         <div id="periodSel" style="margin-bottom:16px"></div>
         <div class="tabs" style="margin-bottom:16px">
-          <button class="tab ${raw(ctx._tab === 'elec' ? 'active' : '')}" data-tab="elec">⚡ Điện</button>
-          <button class="tab ${raw(ctx._tab === 'water' ? 'active' : '')}" data-tab="water">💧 Nước</button>
+          <button class="tab ${raw(ctx._tab === 'elec' ? 'active' : '')}" data-tab="elec">${HH.ic('bolt', 16)} Điện</button>
+          <button class="tab ${raw(ctx._tab === 'water' ? 'active' : '')}" data-tab="water">${HH.ic('drop', 16)} Nước</button>
         </div>
         <div class="dt-wrap"><div class="dt-scroll"><table class="dt" id="readTable">
           <thead><tr><th>Phòng</th><th>Khách</th>
@@ -64,12 +64,12 @@
       const done = curr != null;
       return `<tr class="${rowCls}" data-code="${r.code}">
         <td><b>${r.code}</b></td>
-        <td>${r.tenantName}${isTenant ? ' <span class="self-tag">👤 khách tự ghi</span>' : ''}</td>
-        <td class="num">${prev != null ? U.number(prev) : '—'}</td>
+        <td>${r.tenantName}${isTenant ? ' <span class="self-tag">' + HH.ic('user', 16) + ' khách tự ghi</span>' : ''}</td>
+        <td class="num">${prev != null ? U.number(prev) : '-'}</td>
         <td class="num"><input class="input reading-input mono" data-read="${idx}" data-code="${r.code}" value="${curr != null ? curr : ''}" ${isTenant ? 'style="background:var(--info-bg)"' : ''}></td>
         <td class="num"><span class="consume" data-use="${r.code}" style="${abnormal ? 'color:var(--warning)' : ''}">${use != null ? U.number(use) : ''}</span>
           ${abnormal ? `<div class="reading-note" data-note="${r.code}">Cao gấp ${(use / avg).toFixed(1)} lần</div>` : ''}</td>
-        <td class="center"><button class="photo-btn" title="Ảnh đồng hồ">${done ? '📷' : '＋'}</button></td>
+        <td class="center"><button class="photo-btn" title="Ảnh đồng hồ">${done ? HH.ic('camera', 16) : HH.ic('plus', 16)}</button></td>
         <td class="center">${isTenant ? `<button class="btn btn-sm btn-outline" data-approve="${r.code}">Duyệt</button>` : (done ? '<span style="color:var(--success)">✓</span>' : '')}</td>
       </tr>`;
     }).join('');
@@ -87,7 +87,7 @@
       const curr = rd[kind + 'Curr'], prev = rd[kind + 'Prev'];
       if (curr == null) { useEl.textContent = ''; useEl.style.color = ''; tr.classList.remove('warn-row'); return; }
       if (curr < prev) {   // chỉ nhắc nhẹ khi đang gõ, KHÔNG mở hộp thoại
-        useEl.textContent = '—'; useEl.style.color = 'var(--danger)';
+        useEl.textContent = '-'; useEl.style.color = 'var(--danger)';
         const note = document.createElement('div');
         note.className = 'reading-note'; note.dataset.note = code;
         note.style.color = 'var(--danger)'; note.textContent = 'Nhỏ hơn kỳ trước';
@@ -152,7 +152,7 @@
     const wrapUse = (maxVal - prev) + curr;
     let handled = false;
     UI.modal({
-      title: `Chỉ số mới nhỏ hơn chỉ số cũ — ${code}`,
+      title: `Phòng ${code}: chỉ số mới nhỏ hơn chỉ số cũ`,
       bodyHtml: h`
         <p class="muted" style="margin-bottom:12px">Kỳ trước <b class="mono">${U.number(prev)}</b>, kỳ này <b class="mono">${U.number(curr)}</b>. Nguyên nhân?</p>
         <div class="col" style="gap:10px">
@@ -163,7 +163,7 @@
             <span>Đã thay đồng hồ mới
               <div class="muted text-xs">Khai chỉ số cuối của đồng hồ cũ và chỉ số đầu của đồng hồ mới</div></span></label>
           <label class="check"><input type="radio" name="rollover" value="fix">
-            <span>Nhập nhầm — để tôi sửa lại
+            <span>Nhập nhầm, để tôi sửa lại
               <div class="muted text-xs">Xóa giá trị vừa nhập để gõ lại</div></span></label>
         </div>
         <div id="replaceBox" class="hidden" style="margin-top:14px">
@@ -221,7 +221,7 @@
   function importExcel(ctx) {
     UI.modal({ title: 'Nhập chỉ số từ Excel', bodyHtml: h`
       <p class="muted" style="margin-bottom:12px">Tải file mẫu, điền chỉ số rồi dán vào ô dưới. Hệ thống đối chiếu theo mã phòng.</p>
-      <a href="#" class="btn btn-outline btn-sm" style="margin-bottom:12px">⬇ Tải file mẫu</a>
+      <a href="#" class="btn btn-outline btn-sm" style="margin-bottom:12px">${HH.ic('download', 16)} Tải file mẫu</a>
       <textarea class="textarea mono" placeholder="P101\t12680\nP102\t8512\n..." style="min-height:120px"></textarea>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" data-close>Xem trước & ghi nhận</button>` });
   }
@@ -259,7 +259,7 @@
         selectable: true, initialFilter: initStatus,
         filterFn: (r, f) => r.status === f,
         toolbarLeft: statusFilter,
-        toolbarRight: `<button class="btn btn-outline" id="genInv">Sinh hóa đơn</button><button class="btn btn-success" id="invExport">📊 Xuất Excel</button>`,
+        toolbarRight: `<button class="btn btn-outline" id="genInv">Sinh hóa đơn</button><button class="btn btn-success" id="invExport">${HH.ic('sheet', 16)} Xuất Excel</button>`,
         bulkActions: [
           { label: 'Phát hành', primary: true, onClick: (ids, clear) => issueFlow(ctx, ids, clear) },
           { label: 'Xuất Excel', onClick: (ids) => exportInvoices(ctx, list.filter(i => ids.includes(i.id))) },
@@ -279,14 +279,14 @@
       const drafts = list.filter(i => i.status === 'draft');
       const unpaid = list.filter(i => i.status !== 'paid' && i.status !== 'cancelled' && i.status !== 'draft');
       const draftBanner = drafts.length ? `<div class="reminder-box" style="border-color:var(--info);border-left-color:var(--info)">
-        <div class="rem-head"><span>📤</span><b>Có ${drafts.length} hóa đơn nháp chờ phát hành</b></div>
-        <div class="rem-line"><span class="rem-ic" style="background:var(--info-bg)">🧾</span>
+        <div class="rem-head"><span>${HH.ic('send', 16)}</span><b>Có ${drafts.length} hóa đơn nháp chờ phát hành</b></div>
+        <div class="rem-line"><span class="rem-ic" style="background:var(--info-bg)">${HH.ic('receipt', 16)}</span>
           <div class="grow">Rà soát rồi phát hành để gửi tới khách thuê. Sau khi phát hành mới thu tiền được.
             <div class="muted text-xs">${drafts.slice(0, 8).map(i => i.roomCode).join(' · ')}${drafts.length > 8 ? ' …' : ''}</div></div>
-          <button class="btn btn-primary btn-sm" id="issueAll">📤 Phát hành tất cả</button></div>
+          <button class="btn btn-primary btn-sm" id="issueAll">${HH.ic('send', 16)} Phát hành tất cả</button></div>
       </div>` : '';
       const collectBanner = (!drafts.length && unpaid.length) ? `<div class="alert alert-warning" style="margin-bottom:16px">
-        <span class="ic">₫</span><div><b>${unpaid.length} hóa đơn chưa thu đủ</b> — vào
+        <span class="ic">₫</span><div><b>${unpaid.length} hóa đơn chưa thu đủ.</b> Vào
         <a href="#/b/${ctx.bid}/payments">Thanh toán & công nợ</a> để thu tiền và in phiếu thu.</div></div>` : '';
 
       return h`<div class="page-head">
@@ -352,7 +352,7 @@
         <div><div class="brand">HAPPY HOME</div><div class="muted">${U.esc(b.name || '')}</div><div class="muted" style="font-size:12px">${U.esc(b.address || '')}</div></div></div>
         <div class="r"><h1>HÓA ĐƠN</h1><div class="muted" style="font-family:monospace">${inv.id}</div></div></div>
       <div style="margin-top:14px"><b>Phòng ${U.esc(inv.roomCode)}</b> · ${U.esc(inv.tenantName)}<br>
-        <span class="muted">Kỳ ${U.fmtDate(inv.periodStart)} – ${U.fmtDate(inv.periodEnd)} · Hạn ${U.fmtDate(inv.dueDate)}</span></div>
+        <span class="muted">Kỳ ${U.fmtDate(inv.periodStart)} đến ${U.fmtDate(inv.periodEnd)} · Hạn ${U.fmtDate(inv.dueDate)}</span></div>
       <table><tbody>${rows}</tbody></table>
       <div class="tot"><span>Đã thanh toán</span><span class="r">${U.currency(inv.paid)}</span></div>
       <div class="tot"><span>Còn lại</span><span class="r">${U.currency(inv.total - inv.paid)}</span></div>
@@ -364,11 +364,11 @@
 
   function invoiceActions(ctx, i) {
     const items = [
-      { icon: '👁', label: 'Xem chi tiết', onClick: () => HH.router.go(`/b/${ctx.bid}/invoices/${i.id}`) },
-      { icon: '🖨', label: 'In hóa đơn', onClick: () => printInvoice(ctx, i) },
+      { icon: HH.ic('eye', 16), label: 'Xem chi tiết', onClick: () => HH.router.go(`/b/${ctx.bid}/invoices/${i.id}`) },
+      { icon: HH.ic('print', 16), label: 'In hóa đơn', onClick: () => printInvoice(ctx, i) },
     ];
     if (i.status === 'draft')
-      items.push({ icon: '📤', label: 'Phát hành hóa đơn này', onClick: () => issueFlow(ctx, [i.id], null) });
+      items.push({ icon: HH.ic('send', 16), label: 'Phát hành hóa đơn này', onClick: () => issueFlow(ctx, [i.id], null) });
     if (i.status !== 'paid' && i.status !== 'cancelled' && i.status !== 'draft')
       items.push({ icon: '₫', label: 'Thu tiền / ghi nhận thanh toán', onClick: () => paymentDialog(ctx, i) });
     if (S.isOwner() && i.status !== 'cancelled' && i.status !== 'draft')
@@ -387,16 +387,16 @@
     UI.modal({ title: `Sinh hóa đơn kỳ ${S.periodLabel(period)}`, bodyHtml: h`
       <p class="muted" style="margin-bottom:12px">Có <b>${contracts.length}</b> hợp đồng đang hiệu lực${raw(already ? ` · <b>${already}</b> phòng đã có hóa đơn kỳ này` : '')}.</p>
       <div class="alert alert-success" style="margin-bottom:10px"><span class="ic">✓</span><div><b>${withReading.length}</b> phòng đủ chỉ số, sẽ được sinh hóa đơn</div></div>
-      ${raw(missing.length ? `<div class="alert alert-warning"><span class="ic">⚠</span><div><b>${missing.length}</b> phòng thiếu chỉ số: ${missing.map(c => c.roomCode).join(', ')}<br>
+      ${raw(missing.length ? `<div class="alert alert-warning"><span class="ic">${HH.ic('alert', 16)}</span><div><b>${missing.length}</b> phòng thiếu chỉ số: ${missing.map(c => c.roomCode).join(', ')}<br>
         <span class="text-sm">Các phòng thiếu chỉ số sẽ được bỏ qua. Bạn có thể bổ sung và sinh lại sau.</span></div></div>` : '')}
-      ${raw(withReading.length === 0 ? `<div class="alert alert-info"><span class="ic">ℹ</span><div>Không có phòng nào để sinh. Hãy ghi chỉ số trước.</div></div>` : '')}`,
+      ${raw(withReading.length === 0 ? `<div class="alert alert-info"><span class="ic">${HH.ic('info', 16)}</span><div>Không có phòng nào để sinh. Hãy ghi chỉ số trước.</div></div>` : '')}`,
       footHtml: `${missing.length ? `<button class="btn btn-outline" id="toReadings">Bổ sung chỉ số</button>` : '<span></span>'}<span class="spacer"></span><button class="btn btn-primary" data-go ${withReading.length === 0 ? 'disabled' : ''}>Sinh ${withReading.length} hóa đơn</button>`,
       onMount(el, close) {
         const tr = el.querySelector('#toReadings'); if (tr) tr.onclick = () => { close(); HH.router.go(`/b/${ctx.bid}/readings`); };
         el.querySelector('[data-go]').onclick = () => {
           const res = S.generateInvoices(ctx.bid, period);
           close();
-          UI.toast(res.created.length ? `Đã sinh ${res.created.length} hóa đơn nháp — hãy rà soát rồi phát hành` : 'Không có hóa đơn nào được sinh', { type: 'ok' });
+          UI.toast(res.created.length ? `Đã sinh ${res.created.length} hóa đơn nháp. Hãy rà soát rồi phát hành.` : 'Không có hóa đơn nào được sinh', { type: 'ok' });
           HH.router.render();
         };
       },
@@ -436,7 +436,7 @@
   HH.pages.invoiceDetail = {
     render(ctx) {
       const inv = S.invoice(ctx.params.iid);
-      if (!inv) return `<div class="alert alert-danger"><span class="ic">⚠</span><div>Không tìm thấy hóa đơn.</div></div>`;
+      if (!inv) return `<div class="alert alert-danger"><span class="ic">${HH.ic('alert', 16)}</span><div>Không tìm thấy hóa đơn.</div></div>`;
       ctx._inv = inv;
       const lines = inv.lines.map(l => `<div class="inv-line"><div class="l-main">
         <div class="l-name">${l.label}</div><div class="l-basis">${l.meta || ''}</div>
@@ -445,30 +445,30 @@
       const pays = S.paymentsOf(inv.id);
       const payRows = pays.length ? pays.map(p => `<div class="between" style="padding:10px 0;border-bottom:1px solid var(--neutral-100)">
         <div><span class="mono b">${U.esc(p.receiptNo || '')}</span>
-          <div class="muted text-xs mono">${U.fmtDate(p.date)} · ${U.esc(p.method || '')}${p.createdBy ? ' · ' + U.esc(p.createdBy) : ''}</div></div>
+          <div class="muted text-xs mono">${U.fmtDate(p.date)} · ${U.esc(p.method || '')}${p.createdBy ? ', ' + U.esc(p.createdBy) : ''}</div></div>
         <div class="row-gap-3"><span class="mono b" style="color:var(--success)">${U.currency(p.amount)}</span>
-          <button class="btn btn-sm btn-outline" data-printrc="${p.id}">🖨 Phiếu thu</button></div></div>`).join('')
+          <button class="btn btn-sm btn-outline" data-printrc="${p.id}">${HH.ic('print', 16)} Phiếu thu</button></div></div>`).join('')
         : '<p class="muted center" style="padding:12px">Chưa có thanh toán nào</p>';
       const remaining = inv.total - inv.paid;
-      const editedBanner = inv.edited ? `<div class="alert alert-purple" style="margin-bottom:16px"><span class="ic">✎</span>
+      const editedBanner = inv.edited ? `<div class="alert alert-purple" style="margin-bottom:16px"><span class="ic">${HH.ic('edit', 16)}</span>
         <div>Hóa đơn này đã được chỉnh sửa ngày ${U.fmtDate(inv.editedAt)} bởi ${inv.editedBy}. <a href="#/logs">Xem nhật ký</a></div></div>` : '';
 
       return h`<div class="inv-doc" style="margin:0 auto">
         <div class="page-head"><div><a class="back-link" href="#/b/${ctx.bid}/invoices">← Hóa đơn</a>
           <div class="page-title mono">${inv.id}</div></div>
           <div class="page-actions">
-            ${raw(inv.status === 'draft' ? '<button class="btn btn-primary" id="invIssue">📤 Phát hành</button>' : '')}
+            ${raw(inv.status === 'draft' ? '<button class="btn btn-primary" id="invIssue">' + HH.ic('send', 16) + ' Phát hành</button>' : '')}
             ${raw(remaining > 0 && inv.status !== 'draft' && inv.status !== 'cancelled'
               ? `<button class="btn btn-primary" id="invCollect">₫ Thu tiền</button>` : '')}
-            <button class="btn btn-outline" id="invPrint">🖨 In</button>
+            <button class="btn btn-outline" id="invPrint">${HH.ic('print', 16)} In</button>
             <button class="kebab" id="invMenu" style="border:1px solid var(--neutral-200)">⋯</button></div></div>
         ${raw(editedBanner)}
-        ${raw(inv.status === 'draft' ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">ℹ</span>
-          <div><b>Hóa đơn đang ở trạng thái nháp.</b> Hãy rà soát rồi bấm <b>Phát hành</b> — sau khi phát hành mới gửi khách & thu tiền được.</div></div>` : '')}
+        ${raw(inv.status === 'draft' ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
+          <div><b>Hóa đơn đang ở trạng thái nháp.</b> Hãy rà soát rồi bấm <b>Phát hành</b>. Sau khi phát hành mới gửi khách & thu tiền được.</div></div>` : '')}
         <div class="card inv-header-card">
           <div style="margin-bottom:12px">${raw(UI.statusBadge(inv.status, 'invoice'))}</div>
           <div class="b text-lg">Phòng ${inv.roomCode} · ${inv.tenantName}</div>
-          <div class="muted mono">Kỳ ${U.fmtDate(inv.periodStart)} – ${U.fmtDate(inv.periodEnd)}</div>
+          <div class="muted mono">Kỳ ${U.fmtDate(inv.periodStart)} đến ${U.fmtDate(inv.periodEnd)}</div>
           <div class="muted mono">Hạn thanh toán: ${U.fmtDate(inv.dueDate)}</div>
           <hr style="border:none;border-top:1px solid var(--neutral-200);margin:16px 0">
           ${raw(lines)}
@@ -485,8 +485,8 @@
       const inv = ctx._inv; if (!inv) return;
       const mb = document.getElementById('invMenu');
       if (mb) mb.onclick = () => UI.openMenu(mb, [
-        { icon: '🖨', label: 'In hóa đơn', onClick: () => printInvoice(ctx, inv) },
-        { icon: '✉', label: 'Gửi lại cho khách', onClick: () => { S.log('invoice.resend', `Gửi lại hóa đơn ${inv.id} cho khách`); UI.toast('Đã ghi nhận gửi lại cho khách', { type: 'ok' }); } },
+        { icon: HH.ic('print', 16), label: 'In hóa đơn', onClick: () => printInvoice(ctx, inv) },
+        { icon: HH.ic('send', 16), label: 'Gửi lại cho khách', onClick: () => { S.log('invoice.resend', `Gửi lại hóa đơn ${inv.id} cho khách`); UI.toast('Đã ghi nhận gửi lại cho khách', { type: 'ok' }); } },
         ...(inv.status !== 'paid' && inv.status !== 'cancelled' ? [{ icon: '₫', label: 'Ghi nhận thanh toán', onClick: () => paymentDialog(ctx, inv) }] : []),
         ...(S.isOwner() && inv.status !== 'cancelled' ? [{ sep: true }, { icon: '✕', label: 'Hủy hóa đơn', danger: true, onClick: () => cancelInvoice(ctx, inv) }] : []),
       ]);
@@ -499,7 +499,7 @@
       });
       const meter = document.querySelector('[data-meter]');
       if (meter) meter.onclick = (e) => { e.preventDefault();
-        UI.modal({ title: 'Ảnh đồng hồ điện', bodyHtml: `<div class="ocr-img" style="min-height:280px">🔌 Chưa có ảnh đồng hồ cho kỳ này</div>`,
+        UI.modal({ title: 'Ảnh đồng hồ điện', bodyHtml: `<div class="ocr-img" style="min-height:280px">${HH.ic('bolt', 16)} Chưa có ảnh đồng hồ cho kỳ này</div>`,
           footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` }); };
     },
   };
@@ -525,7 +525,7 @@
         <div class="field"><label>Ngày nhận</label><input class="input" type="date" id="payDate" value="2026-08-12"></div>
       </div>
       <div class="field" style="margin-top:12px"><label>Nội dung chuyển khoản</label><input class="input" id="payNote" placeholder="VD: ${invoice.roomCode} T8"></div>
-      <div class="field" style="margin-top:12px"><label>Chứng từ</label><label class="btn btn-outline btn-sm" style="width:fit-content">📎 Tải ảnh<input type="file" hidden></label></div>
+      <div class="field" style="margin-top:12px"><label>Chứng từ</label><label class="btn btn-outline btn-sm" style="width:fit-content">${HH.ic('upload', 16)} Tải ảnh<input type="file" hidden></label></div>
       <h4 style="margin:20px 0 8px">Phân bổ tự động <span class="muted text-xs" style="font-weight:400">· trả trước cho hóa đơn kỳ cũ nhất</span></h4>
       <div class="alloc-box" id="allocBox"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="doPay">Ghi nhận</button>`,
@@ -542,7 +542,7 @@
             const full = applied >= need;
             rows += `<div class="alloc-row"><span>${i.id} · ${i.period}</span>
               <span class="a-amt">${U.currency(need)}</span>
-              ${applied > 0 ? (full ? '<span class="a-check">✓</span>' : `<span class="a-partial">${U.currency(applied)} / ${U.currency(need)}</span>`) : '<span class="faint">—</span>'}</div>`;
+              ${applied > 0 ? (full ? '<span class="a-check">✓</span>' : `<span class="a-partial">${U.currency(applied)} / ${U.currency(need)}</span>`) : '<span class="faint">-</span>'}</div>`;
           });
           rows += `<div class="alloc-row" style="border-top:2px solid var(--neutral-200)"><b>Số dư chuyển kỳ sau</b>
             <b class="a-amt" style="color:${amt > 0 ? 'var(--info)' : 'inherit'}">${U.currency(amt)}</b></div>`;
@@ -596,7 +596,7 @@
             <b>Tiền thừa (ghi nhận cho kỳ sau)</b><b class="a-amt" style="color:var(--info)">${U.currency(credit)}</b></div>` : '')}
         </div>`,
       footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
-        <button class="btn btn-primary" id="printReceipt">🖨 In phiếu thu</button>`,
+        <button class="btn btn-primary" id="printReceipt">${HH.ic('print', 16)} In phiếu thu</button>`,
       onMount(el) { el.querySelector('#printReceipt').onclick = () => printReceipt(ctx, pays); },
     });
   }
@@ -720,7 +720,7 @@
             { key: 'room', label: 'Phòng', render: x => `<b>${x.c.roomCode}</b>` },
             { key: 'tenant', label: 'Khách thuê', render: x => U.esc(x.c.tenantName) },
             { key: 'count', label: 'Số HĐ nợ', align: 'right', render: x => x.count },
-            { key: 'oldest', label: 'Kỳ nợ cũ nhất', render: x => x.oldest ? S.periodLabel(x.oldest.period) : '—' },
+            { key: 'oldest', label: 'Kỳ nợ cũ nhất', render: x => x.oldest ? S.periodLabel(x.oldest.period) : '-' },
             { key: 'debt', label: 'Công nợ', align: 'right', sortable: true, sortVal: x => x.debt,
               render: x => `<span style="color:var(--danger);font-weight:700">${U.currency(x.debt)}</span>` },
             { key: 'st', label: '', render: x => x.overdue ? '<span class="badge s-danger"><span class="dot"></span>Quá hạn</span>' : '' },
@@ -734,20 +734,20 @@
         const dt = UI.DataTable({
           rows: pays, rowId: p => p.id, searchKeys: ['receiptNo', 'roomCode', 'tenantName', 'invoiceId'],
           searchPlaceholder: 'Tìm số phiếu, phòng, khách...',
-          emptyTitle: 'Chưa có phiếu thu nào trong kỳ', emptyIcon: '🧾',
-          toolbarRight: `<button class="btn btn-success" id="payExport">📊 Xuất excel</button>`,
+          emptyTitle: 'Chưa có phiếu thu nào trong kỳ', emptyIcon: HH.ic('receipt', 16),
+          toolbarRight: `<button class="btn btn-success" id="payExport">${HH.ic('sheet', 16)} Xuất excel</button>`,
           columns: [
             { key: 'receiptNo', label: 'Số phiếu', mono: true, render: p => `<b class="mono">${U.esc(p.receiptNo || p.id)}</b>` },
             { key: 'date', label: 'Ngày thu', sortable: true, sortVal: p => p.date, render: p => `<span class="mono">${U.fmtDate(p.date)}</span>` },
-            { key: 'roomCode', label: 'Phòng', render: p => p.roomCode || '—' },
+            { key: 'roomCode', label: 'Phòng', render: p => p.roomCode || '-' },
             { key: 'tenantName', label: 'Khách thuê', render: p => U.esc(p.tenantName || '') },
             { key: 'invoiceId', label: 'Hóa đơn', mono: true },
             { key: 'method', label: 'Hình thức' },
             { key: 'amount', label: 'Số tiền', align: 'right', sortable: true, render: p => `<b class="mono" style="color:var(--success)">${U.currency(p.amount)}</b>` },
           ],
           actions: p => [
-            { icon: '🖨', label: 'In phiếu thu', onClick: () => printReceipt(ctx, receiptGroup(ctx, p)) },
-            ...(S.isOwner() ? [{ sep: true }, { icon: '↩', label: 'Hủy phiếu thu', danger: true, onClick: () => cancelReceipt(ctx, p) }] : []),
+            { icon: HH.ic('print', 16), label: 'In phiếu thu', onClick: () => printReceipt(ctx, receiptGroup(ctx, p)) },
+            ...(S.isOwner() ? [{ sep: true }, { icon: HH.ic('undo', 16), label: 'Hủy phiếu thu', danger: true, onClick: () => cancelReceipt(ctx, p) }] : []),
           ],
         });
         ctx._dt = dt;
@@ -761,8 +761,8 @@
       <div id="periodSel" style="margin-bottom:16px"></div>
       ${raw(cards)}
       <div class="tabs" style="margin:16px 0">
-        <button class="tab ${raw(ctx._ptab === 'debt' ? 'active' : '')}" data-ptab="debt">📌 Công nợ cần thu (${rows.length})</button>
-        <button class="tab ${raw(ctx._ptab === 'receipt' ? 'active' : '')}" data-ptab="receipt">🧾 Phiếu thu (${pays.length})</button>
+        <button class="tab ${raw(ctx._ptab === 'debt' ? 'active' : '')}" data-ptab="debt">${HH.ic('wallet', 16)} Công nợ cần thu (${rows.length})</button>
+        <button class="tab ${raw(ctx._ptab === 'receipt' ? 'active' : '')}" data-ptab="receipt">${HH.ic('receipt', 16)} Phiếu thu (${pays.length})</button>
       </div>
       ${raw(body)}`;
     },

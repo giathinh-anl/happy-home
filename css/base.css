@@ -9,22 +9,25 @@ html, body { height: 100%; }
 body {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--neutral-900);
-  background: var(--neutral-50);
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Số: mono + tabular để thẳng cột */
+/* Số tiền, số lượng: chữ thường + chữ số thẳng cột (không dùng font lập trình) */
 .mono, .num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+  letter-spacing: -.005em;
 }
+/* Mã (hóa đơn, phiếu thu, biển số): font mã hóa, cỡ nhỏ hơn một chút */
+.code { font-family: var(--font-mono); font-size: .92em; letter-spacing: 0; }
 
-a { color: var(--brand-700); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: var(--teal-600); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 button { font-family: inherit; font-size: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
@@ -34,11 +37,14 @@ img { max-width: 100%; display: block; }
 /* Icon SVG: giữ đúng kích thước, không bị co giãn trong flexbox */
 .ic-svg { flex: 0 0 auto; display: inline-block; vertical-align: middle; }
 
-h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; }
+h1, h2, h3, h4 {
+  font-family: var(--font-display); font-weight: 650; line-height: 1.2;
+  letter-spacing: -.015em; text-wrap: balance; color: var(--ink);
+}
 
 /* Tiện ích */
-.muted { color: var(--neutral-600); }
-.faint { color: var(--neutral-400); }
+.muted { color: var(--ink-2); }
+.faint { color: var(--ink-3); }
 .right { text-align: right; }
 .center { text-align: center; }
 .nowrap { white-space: nowrap; }
@@ -59,23 +65,28 @@ h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; }
 .b { font-weight: 600; }
 .bb { font-weight: 700; }
 
-/* Viền tiêu điểm rõ ràng — §6.5 khả năng tiếp cận */
+/* Viền tiêu điểm rõ ràng — khả năng tiếp cận */
 :focus-visible {
-  outline: 2px solid var(--brand-500);
+  outline: 2px solid var(--teal-500);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
 }
 
 /* Thanh cuộn gọn */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--neutral-300); border-radius: 8px; border: 2px solid var(--neutral-50); }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; border: 2px solid var(--bg); }
 ::-webkit-scrollbar-thumb:hover { background: var(--neutral-400); }
 
-/* Khung xám (skeleton) — §6.1 */
+/* Khung xám (skeleton) */
 .skeleton {
-  background: linear-gradient(90deg, var(--neutral-100) 25%, var(--neutral-200) 37%, var(--neutral-100) 63%);
+  background: linear-gradient(90deg, var(--neutral-100) 25%, var(--line) 37%, var(--neutral-100) 63%);
   background-size: 400% 100%;
   animation: shimmer 1.3s ease infinite;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

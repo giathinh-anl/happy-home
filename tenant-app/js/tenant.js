@@ -36,10 +36,10 @@
 
   /* ---------- tiện ích ---------- */
   const viNum = new Intl.NumberFormat('vi-VN');
-  const vnd = (n) => (n == null || isNaN(n)) ? '—' : viNum.format(Math.round(n)) + ' ₫';
-  const num = (n) => (n == null || isNaN(n)) ? '—' : viNum.format(n);
+  const vnd = (n) => (n == null || isNaN(n)) ? '-' : viNum.format(Math.round(n)) + ' ₫';
+  const num = (n) => (n == null || isNaN(n)) ? '-' : viNum.format(n);
   const pad = (x) => String(x).padStart(2, '0');
-  const fmtDate = (d) => { const x = new Date(d); return isNaN(x) ? '—' : `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`; };
+  const fmtDate = (d) => { const x = new Date(d); return isNaN(x) ? '-' : `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`; };
   const daysLeft = (d) => Math.round((new Date(d) - TODAY) / 86400000);
   const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
   const el = (id) => document.getElementById(id);
@@ -107,10 +107,10 @@
 
   /* ---------- thanh tab dưới ---------- */
   const TABS = [
-    { key: 'home', hash: '#/home', ic: '🏠', label: 'Trang chủ' },
-    { key: 'invoices', hash: '#/invoices', ic: '🧾', label: 'Hóa đơn' },
-    { key: 'room', hash: '#/room', ic: '🚪', label: 'Phòng của tôi' },
-    { key: 'account', hash: '#/account', ic: '👤', label: 'Tài khoản' },
+    { key: 'home', hash: '#/home', ic: HH.ic('building', 16), label: 'Trang chủ' },
+    { key: 'invoices', hash: '#/invoices', ic: HH.ic('receipt', 16), label: 'Hóa đơn' },
+    { key: 'room', hash: '#/room', ic: HH.ic('door', 16), label: 'Phòng của tôi' },
+    { key: 'account', hash: '#/account', ic: HH.ic('user', 16), label: 'Tài khoản' },
   ];
   function tabbar(active) {
     const unpaid = (state.data.invoices || []).filter(i => (i.total - i.paid) > 0).length;
@@ -124,20 +124,20 @@
 
   /* ---------- Thanh bên (chỉ hiện trên máy tính) ---------- */
   const SIDE_MAIN = [
-    { hash: '#/home', ic: '🏠', label: 'Trang chủ', key: 'home' },
-    { hash: '#/invoices', ic: '🧾', label: 'Hóa đơn', key: 'invoices' },
-    { hash: '#/room', ic: '🚪', label: 'Phòng của tôi', key: 'room' },
-    { hash: '#/contract', ic: '📄', label: 'Hợp đồng', key: 'contract' },
+    { hash: '#/home', ic: HH.ic('building', 16), label: 'Trang chủ', key: 'home' },
+    { hash: '#/invoices', ic: HH.ic('receipt', 16), label: 'Hóa đơn', key: 'invoices' },
+    { hash: '#/room', ic: HH.ic('door', 16), label: 'Phòng của tôi', key: 'room' },
+    { hash: '#/contract', ic: HH.ic('file', 16), label: 'Hợp đồng', key: 'contract' },
   ];
   const SIDE_MORE = [
-    { hash: '#/readings', ic: '📷', label: 'Gửi chỉ số', key: 'readings' },
-    { hash: '#/repair', ic: '🔧', label: 'Báo hỏng', key: 'repair' },
-    { hash: '#/track', ic: '🛠️', label: 'Yêu cầu sửa chữa', key: 'track' },
-    { hash: '#/usage', ic: '📊', label: 'Lịch sử điện nước', key: 'usage' },
-    { hash: '#/history', ic: '💳', label: 'Lịch sử thanh toán', key: 'history' },
-    { hash: '#/services', ic: '🛎️', label: 'Bảng giá dịch vụ', key: 'services' },
-    { hash: '#/chat', ic: '💬', label: 'Trợ lý ảo', key: 'chat' },
-    { hash: '#/account', ic: '👤', label: 'Tài khoản', key: 'account' },
+    { hash: '#/readings', ic: HH.ic('camera', 16), label: 'Gửi chỉ số', key: 'readings' },
+    { hash: '#/repair', ic: HH.ic('wrench', 16), label: 'Báo hỏng', key: 'repair' },
+    { hash: '#/track', ic: HH.ic('wrench', 16), label: 'Yêu cầu sửa chữa', key: 'track' },
+    { hash: '#/usage', ic: HH.ic('sheet', 16), label: 'Lịch sử điện nước', key: 'usage' },
+    { hash: '#/history', ic: HH.ic('card', 16), label: 'Lịch sử thanh toán', key: 'history' },
+    { hash: '#/services', ic: HH.ic('concierge', 16), label: 'Bảng giá dịch vụ', key: 'services' },
+    { hash: '#/chat', ic: HH.ic('chat', 16), label: 'Trợ lý ảo', key: 'chat' },
+    { hash: '#/account', ic: HH.ic('user', 16), label: 'Tài khoản', key: 'account' },
   ];
 
   function sidebar() {
@@ -162,7 +162,7 @@
       <div class="s-label">Tiện ích</div>
       ${SIDE_MORE.map(item).join('')}
       <div class="s-foot"><button class="t-nav" id="sideLogout" style="color:var(--danger)">
-        <span class="nic">⎋</span><span>Đăng xuất</span></button></div>
+        <span class="nic">${HH.ic('logout', 16)}</span><span>Đăng xuất</span></button></div>
     </aside>`;
   }
 
@@ -176,7 +176,7 @@
         <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
       </div>
       <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
-      ${enabled ? '' : '<div class="t-hint">⚠ Chưa cấu hình máy chủ (js/config.js).</div>'}
+      ${enabled ? '' : '<div class="t-hint">' + HH.ic('alert', 16) + ' Chưa cấu hình máy chủ (js/config.js).</div>'}
       <div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>
       <div style="flex:1"></div>
       <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
@@ -199,7 +199,7 @@
       } finally { btn.classList.remove('loading'); btn.disabled = false; }
     };
   }
-  const errBox = (m) => `<div class="t-err"><span>⚠</span><div>${esc(m)}</div></div>`;
+  const errBox = (m) => `<div class="t-err"><span>${HH.ic('alert', 16)}</span><div>${esc(m)}</div></div>`;
 
   /* ---------- màn hình: OTP ---------- */
   function screenOtp() {
@@ -264,11 +264,11 @@
     opts = opts || {};
     const header = opts.home
       ? `<div class="t-header"><div class="brand"><span class="mark">${logoImg(24)}</span><span class="wordmark">happy home</span></div>
-           <button class="iconbtn" id="reload" title="Tải lại">⟳</button></div>`
+           <button class="iconbtn" id="reload" title="Tải lại">${HH.ic('refresh', 16)}</button></div>`
       : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
     // Nút trợ lý ảo nổi — hiện ở các màn hình chính (điện thoại)
-    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">💬</button>` : '';
+    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">${HH.ic('chat', 16)}</button>` : '';
     // Tiêu đề trang cho bố cục máy tính (điện thoại đã có thanh header riêng)
     const deskHead = `<div class="t-page-head"><h1>${esc(opts.deskTitle || title || 'Trang chủ')}</h1>
       ${opts.deskSub ? `<p>${esc(opts.deskSub)}</p>` : ''}</div>`;
@@ -282,7 +282,7 @@
       state.phone = null; state.data = null; go('#/login'); };
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
     const rl = el('reload'); if (rl) rl.onclick = async () => {
-      rl.textContent = '⏳';
+      rl.innerHTML = String(HH.ic('clock', 16)); rl.disabled = true;
       try { state.data = await loadData(state.phone); toast('Đã cập nhật'); } catch (e) { toast('Không tải được'); }
       render();
     };
@@ -315,18 +315,18 @@
     let ctWarn = '';
     if (c && c.end) {
       const dl = daysLeft(c.end);
-      if (dl < 0) ctWarn = `<div class="t-err" style="background:var(--danger-bg);border-color:#fecaca"><span>⛔</span>
+      if (dl < 0) ctWarn = `<div class="t-err" style="background:var(--danger-bg);border-color:#fecaca"><span>${HH.ic('alert', 16)}</span>
         <div><b>Hợp đồng đã hết hạn</b> ${fmtDate(c.end)}. Liên hệ chủ nhà để gia hạn.</div></div>`;
-      else if (dl <= 30) ctWarn = `<div class="t-err" style="background:var(--warning-bg);border-color:#fde68a;color:#92400e"><span>⚠</span>
-        <div><b>Hợp đồng sắp hết hạn</b> — còn ${dl} ngày (${fmtDate(c.end)}).</div></div>`;
+      else if (dl <= 30) ctWarn = `<div class="t-err" style="background:var(--warning-bg);border-color:#fde68a;color:#92400e"><span>${HH.ic('alert', 16)}</span>
+        <div><b>Hợp đồng sắp hết hạn,</b> còn ${dl} ngày (${fmtDate(c.end)}).</div></div>`;
     }
     // tiêu thụ kỳ gần nhất
     const usage = latestUsage();
     const usageCard = usage ? `<div class="t-card">
       <div class="t-section-head" style="margin-bottom:4px"><h3>Tiêu thụ ${esc(usage.label)}</h3>
         <a href="#/usage">Xem lịch sử →</a></div>
-      <div class="t-row"><span class="k">⚡ Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
-      <div class="t-row"><span class="k">💧 Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
+      <div class="t-row"><span class="k">${HH.ic('bolt', 16)} Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
+      <div class="t-row"><span class="k">${HH.ic('drop', 16)} Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
     </div>` : '';
 
     const contractCardHtml = c ? contractCard(c) : '';
@@ -339,10 +339,10 @@
           ${dueCard}
           <div class="section-title">Truy cập nhanh</div>
           <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
-            <button class="quick-item" data-nav="#/invoices"><div class="qic" style="background:var(--info-bg)">🧾</div><div class="qlabel">Hóa đơn</div></button>
-            <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">📷</div><div class="qlabel">Ghi chỉ số</div></button>
-            <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">🔧</div><div class="qlabel">Báo hỏng</div></button>
-            <button class="quick-item" data-nav="#/chat"><div class="qic" style="background:var(--purple-bg)">💬</div><div class="qlabel">Trợ lý ảo</div></button>
+            <button class="quick-item" data-nav="#/invoices"><div class="qic" style="background:var(--info-bg)">${HH.ic('receipt', 16)}</div><div class="qlabel">Hóa đơn</div></button>
+            <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">${HH.ic('camera', 16)}</div><div class="qlabel">Ghi chỉ số</div></button>
+            <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">${HH.ic('wrench', 16)}</div><div class="qlabel">Báo hỏng</div></button>
+            <button class="quick-item" data-nav="#/chat"><div class="qic" style="background:var(--purple-bg)">${HH.ic('chat', 16)}</div><div class="qlabel">Trợ lý ảo</div></button>
           </div>
           ${usageCard}
         </div>
@@ -397,7 +397,7 @@
         <span class="v mono" style="color:${unpaidTotal > 0 ? 'var(--danger)' : 'var(--success)'}">${vnd(unpaidTotal)}</span></div>
       <div class="t-row tap" data-nav="#/history"><span class="k">Lịch sử thanh toán</span><span class="v">›</span></div>
     </div>` : '';
-    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">🧾</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
+    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">${HH.ic('receipt', 16)}</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
   const vnPeriod = (p) => { if (!p) return ''; const [y, m] = p.split('-'); return 'T' + Number(m) + '/' + y; };
@@ -417,7 +417,7 @@
             <div style="color:var(--neutral-600);font-size:13px" class="mono">Phòng ${esc(state.data.room.code)}</div></div>
           ${badge(inv.status)}
         </div>
-        <div class="mono" style="color:var(--neutral-600);font-size:13px;margin-bottom:8px">Kỳ ${fmtDate(inv.periodStart)} – ${fmtDate(inv.periodEnd)} · Hạn ${fmtDate(inv.dueDate)}</div>
+        <div class="mono" style="color:var(--neutral-600);font-size:13px;margin-bottom:8px">Kỳ ${fmtDate(inv.periodStart)} đến ${fmtDate(inv.periodEnd)} · Hạn ${fmtDate(inv.dueDate)}</div>
         ${lines}
         <div class="inv-total"><span>Đã thanh toán</span><span class="mono" style="color:var(--success)">${vnd(inv.paid)}</span></div>
         <div class="inv-total"><span>Còn lại</span><span class="mono" style="color:${remain > 0 ? 'var(--danger)' : 'inherit'}">${vnd(remain)}</span></div>
@@ -444,17 +444,17 @@
         <img class="qr-img" alt="Mã VietQR" src="${vietQrUrl(remain, content)}"
           onerror="this.outerHTML='<div class=&quot;qr-fallback&quot;></div>'">
         <div style="color:var(--neutral-600);font-size:14px">
-          Quét mã bằng <b>app ngân hàng bất kỳ</b> — số tiền và nội dung tự điền sẵn.<br>
+          Quét mã bằng <b>app ngân hàng bất kỳ</b>, số tiền và nội dung tự điền sẵn.<br>
           <span style="color:var(--success);font-weight:600">Chuyển xong là hệ thống tự trừ công nợ.</span></div>
       </div>
       <div class="divider">hoặc</div>
       <div class="t-card">
         <div style="font-weight:700;margin-bottom:6px">Chuyển khoản thủ công</div>
         <div class="bank-row"><span class="bk">Ngân hàng</span><span class="bv">${BANK.name}</span></div>
-        <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${BANK.account}</span><button class="copybtn" data-copy="${BANK.account}" data-l="số tài khoản">📋</button></span></div>
+        <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${BANK.account}</span><button class="copybtn" data-copy="${BANK.account}" data-l="số tài khoản">${HH.ic('copy', 16)}</button></span></div>
         <div class="bank-row"><span class="bk">Chủ tài khoản</span><span class="bv">${BANK.holder}</span></div>
-        <div class="bank-row"><span class="bk">Số tiền</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${num(remain)}</span><button class="copybtn" data-copy="${remain}" data-l="số tiền">📋</button></span></div>
-        <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">📋</button></span></div>
+        <div class="bank-row"><span class="bk">Số tiền</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${num(remain)}</span><button class="copybtn" data-copy="${remain}" data-l="số tiền">${HH.ic('copy', 16)}</button></span></div>
+        <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div>
       </div>
       <div class="t-note" style="margin-top:10px">Ghi <b>đúng nội dung</b> ở trên thì hệ thống nhận ra hóa đơn
         và tự xóa công nợ. Ghi khác thì chủ nhà phải đối soát tay, sẽ lâu hơn.</div>
@@ -481,7 +481,7 @@
       <div class="t-field"><label>Ảnh chứng từ <span style="color:var(--neutral-400);font-weight:400">(biên lai ngân hàng)</span></label>
         <div id="pfPhotoBox">
           <label class="photo-slot" style="width:100%;height:170px;border-radius:14px">
-            <span style="text-align:center;color:var(--neutral-400)">📷<div style="font-size:13px;margin-top:6px">Chụp hoặc chọn ảnh biên lai</div></span>
+            <span style="text-align:center;color:var(--neutral-400)">${HH.ic('camera', 16)}<div style="font-size:13px;margin-top:6px">Chụp hoặc chọn ảnh biên lai</div></span>
             <input type="file" accept="image/*" id="pfPhoto" hidden></label>
         </div></div>
       <div class="t-hint" style="text-align:left">Chủ nhà sẽ đối chiếu và xác nhận. Hóa đơn được cập nhật sau khi chủ nhà xác nhận.</div>
@@ -494,7 +494,7 @@
              <button id="pfDel" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;
                background:rgba(0,0,0,.6);color:#fff;border:none;font-size:14px">✕</button></div>`
         : `<label class="photo-slot" style="width:100%;height:170px;border-radius:14px">
-             <span style="text-align:center;color:var(--neutral-400)">📷<div style="font-size:13px;margin-top:6px">Chụp hoặc chọn ảnh biên lai</div></span>
+             <span style="text-align:center;color:var(--neutral-400)">${HH.ic('camera', 16)}<div style="font-size:13px;margin-top:6px">Chụp hoặc chọn ảnh biên lai</div></span>
              <input type="file" accept="image/*" id="pfPhoto" hidden></label>`;
       const inp = el('pfPhoto');
       if (inp) inp.onchange = () => {
@@ -533,7 +533,7 @@
   }
 
   /* ---------- màn hình: BÁO HỎNG ---------- */
-  const CATS = [{ k: 'Điện', ic: '⚡' }, { k: 'Nước', ic: '💧' }, { k: 'Máy lạnh', ic: '❄️' }, { k: 'Khác', ic: '⋯' }];
+  const CATS = [{ k: 'Điện', ic: HH.ic('bolt', 16) }, { k: 'Nước', ic: HH.ic('drop', 16) }, { k: 'Máy lạnh', ic: HH.ic('snow', 16) }, { k: 'Khác', ic: '⋯' }];
   const TIMES = ['Sáng', 'Chiều', 'Tối', 'Bất kỳ'];
   function screenRepair() {
     const r = state.repair;
@@ -544,7 +544,7 @@
       <div class="t-field"><label>Mô tả sự cố</label><textarea class="t-textarea" id="desc" placeholder="Mô tả chi tiết sự cố bạn gặp...">${esc(r.desc || '')}</textarea></div>
       <div class="t-field"><label>Hình ảnh (tối đa 5)</label>
         <div class="photo-grid" id="photos">
-          <label class="photo-slot">＋<input type="file" accept="image/*" id="photoInput" hidden></label>
+          <label class="photo-slot">${HH.ic('plus', 16)}<input type="file" accept="image/*" id="photoInput" hidden></label>
         </div>
       </div>
       <div class="t-field"><label>Thời gian thuận tiện</label>
@@ -584,7 +584,7 @@
     function renderPhotos() {
       const box = el('photos');
       const thumbs = r.photos.map((p, i) => `<div class="photo-slot filled"><img src="${p}"></div>`).join('');
-      box.innerHTML = thumbs + (r.photos.length < 5 ? `<label class="photo-slot">＋<input type="file" accept="image/*" id="photoInput" hidden></label>` : '');
+      box.innerHTML = thumbs + (r.photos.length < 5 ? `<label class="photo-slot">${HH.ic('plus', 16)}<input type="file" accept="image/*" id="photoInput" hidden></label>` : '');
       const pin = el('photoInput'); if (pin) pin.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { r.photos.push(rd.result); renderPhotos(); }; rd.readAsDataURL(f); };
     }
   }
@@ -603,10 +603,10 @@
           <div style="font-weight:700">${esc(x.category)}: ${esc(x.title)}</div>
           <span class="t-badge ${x.status === 'done' ? 'success' : x.status === 'processing' ? 'info' : 'warning'}"><span class="d"></span>${incStatusLabel(x.status)}</span>
         </div>
-        <div class="timeline">${steps.map(s => `<div class="tl-item ${s.done ? 'done' : ''} ${s.active ? 'active' : ''}"><div class="tl-title">${s.t}</div><div class="tl-time">${s.done ? fmtDate(x.createdAt) : '—'}</div></div>`).join('')}</div>
+        <div class="timeline">${steps.map(s => `<div class="tl-item ${s.done ? 'done' : ''} ${s.active ? 'active' : ''}"><div class="tl-title">${s.t}</div><div class="tl-time">${s.done ? fmtDate(x.createdAt) : '-'}</div></div>`).join('')}</div>
       </div>`;
-    }).join('') : `<div class="t-empty"><div class="eic">🔧</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
-    shell('Yêu cầu sửa chữa', body + (incs.length ? `<button class="t-btn outline" id="newReq" style="margin-top:6px">＋ Tạo yêu cầu mới</button>` : ''));
+    }).join('') : `<div class="t-empty"><div class="eic">${HH.ic('wrench', 16)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
+    shell('Yêu cầu sửa chữa', body + (incs.length ? `<button class="t-btn outline" id="newReq" style="margin-top:6px">${HH.ic('plus', 16)} Tạo yêu cầu mới</button>` : ''));
     const nr = el('newReq'); if (nr) nr.onclick = () => go('#/repair');
   }
 
@@ -614,10 +614,10 @@
   function screenReadings() {
     shell('Ghi chỉ số', `
       <p style="color:var(--neutral-600);margin-bottom:16px">Tự ghi chỉ số điện, nước kỳ <b>${CUR_PERIOD_LABEL}</b>. Chủ trọ sẽ đối chiếu & duyệt.</p>
-      <div class="t-field"><label>⚡ Chỉ số điện (kWh)</label><input class="t-input mono" id="elec" inputmode="numeric" placeholder="VD: 12680"></div>
-      <div class="t-field"><label>💧 Chỉ số nước (m³)</label><input class="t-input mono" id="water" inputmode="numeric" placeholder="VD: 48"></div>
+      <div class="t-field"><label>${HH.ic('bolt', 16)} Chỉ số điện (kWh)</label><input class="t-input mono" id="elec" inputmode="numeric" placeholder="VD: 12680"></div>
+      <div class="t-field"><label>${HH.ic('drop', 16)} Chỉ số nước (m³)</label><input class="t-input mono" id="water" inputmode="numeric" placeholder="VD: 48"></div>
       <div class="t-field"><label>Ảnh đồng hồ (tùy chọn)</label>
-        <div class="photo-grid"><label class="photo-slot">📷<input type="file" accept="image/*" hidden></label></div></div>
+        <div class="photo-grid"><label class="photo-slot">${HH.ic('camera', 16)}<input type="file" accept="image/*" hidden></label></div></div>
       <button class="t-btn" id="submitR">Gửi chỉ số</button>
     `);
     el('submitR').onclick = async (e) => {
@@ -643,7 +643,7 @@
         <div class="t-section-head"><h3>Phòng ${esc(r.code || d.tenant.roomCode)}</h3>
           ${r.typeLabel ? `<span class="t-badge info"><span class="d"></span>${esc(r.typeLabel)}</span>` : ''}</div>
         <div class="t-row"><span class="k">Tòa nhà</span><span class="v">${esc(d.building.name || '')}</span></div>
-        <div class="t-row"><span class="k">Địa chỉ</span><span class="v" style="font-weight:500;font-size:13px">${esc(d.building.address || '—')}</span></div>
+        <div class="t-row"><span class="k">Địa chỉ</span><span class="v" style="font-weight:500;font-size:13px">${esc(d.building.address || 'chưa có địa chỉ')}</span></div>
         <div class="t-row"><span class="k">Giá thuê</span><span class="v mono">${vnd(r.price)}</span></div>
         ${r.area ? `<div class="t-row"><span class="k">Diện tích</span><span class="v mono">${r.area} m²</span></div>` : ''}
         ${r.maxOccupants ? `<div class="t-row"><span class="k">Số người tối đa</span><span class="v">${r.maxOccupants}</span></div>` : ''}
@@ -657,9 +657,9 @@
           ${a.icon || '📦'} ${esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>
         <p style="color:var(--neutral-500);font-size:12px;margin-top:10px">Vui lòng giữ gìn tài sản. Hư hỏng do lỗi sử dụng sẽ bồi thường theo giá trị còn lại.</p></div>` : ''}
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/usage"><span class="aic" style="background:var(--brand-50)">📊</span>Lịch sử điện nước<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/services"><span class="aic" style="background:var(--info-bg)">🛎️</span>Bảng giá dịch vụ<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">🔧</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/usage"><span class="aic" style="background:var(--brand-50)">${HH.ic('sheet', 16)}</span>Lịch sử điện nước<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/services"><span class="aic" style="background:var(--info-bg)">${HH.ic('concierge', 16)}</span>Bảng giá dịch vụ<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">${HH.ic('wrench', 16)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
       </div>
     `, { tab: 'room' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -692,7 +692,7 @@
   ];
   function screenContract() {
     const c = state.data.contract;
-    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">📄</div><p>Chưa có thông tin hợp đồng</p>
+    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">${HH.ic('file', 16)}</div><p>Chưa có thông tin hợp đồng</p>
       <p style="font-size:13px">Liên hệ chủ nhà để được cung cấp.</p></div>`); return; }
     const src = (c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
     const terms = src.map(t => ({ title: t.title, body: (t.body || '')
@@ -720,7 +720,7 @@
   /* ---------- màn hình: LỊCH SỬ ĐIỆN NƯỚC ---------- */
   function screenUsage() {
     const list = usageList();
-    if (!list.length) { shell('Lịch sử điện nước', `<div class="t-empty"><div class="eic">📊</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
+    if (!list.length) { shell('Lịch sử điện nước', `<div class="t-empty"><div class="eic">${HH.ic('sheet', 16)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
     const recent = list.slice(0, 6).reverse();
     const maxE = Math.max(1, ...recent.map(x => x.elec || 0));
     const maxW = Math.max(1, ...recent.map(x => x.water || 0));
@@ -729,13 +729,13 @@
       <div class="usage-bar ${cls}" style="height:${Math.round(((x[key] || 0) / max) * 78)}%"></div>
       <div class="cap">${esc(x.label)}</div></div>`).join('');
     shell('Lịch sử điện nước', `
-      <div class="t-card"><div class="t-section-head"><h3>⚡ Điện (kWh)</h3></div>
+      <div class="t-card"><div class="t-section-head"><h3>${HH.ic('bolt', 16)} Điện (kWh)</h3></div>
         <div class="usage-chart">${bars('elec', '', maxE)}</div></div>
-      <div class="t-card"><div class="t-section-head"><h3>💧 Nước (m³)</h3></div>
+      <div class="t-card"><div class="t-section-head"><h3>${HH.ic('drop', 16)} Nước (m³)</h3></div>
         <div class="usage-chart">${bars('water', 'water', maxW)}</div></div>
       <div class="t-card"><div class="t-section-head"><h3>Chi tiết theo kỳ</h3></div>
         ${list.map(x => `<div class="t-row"><span class="k">${esc(x.label)}</span>
-          <span class="v mono" style="font-size:13px">⚡ ${x.elec != null ? num(x.elec) : '—'} · 💧 ${x.water != null ? num(x.water) : '—'}</span></div>`).join('')}
+          <span class="v mono" style="font-size:13px">${HH.ic('bolt', 16)} ${x.elec != null ? num(x.elec) : '-'} · ${HH.ic('drop', 16)} ${x.water != null ? num(x.water) : '-'}</span></div>`).join('')}
       </div>`);
   }
 
@@ -749,7 +749,7 @@
           <span class="v mono">${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</span></div>`).join('')}
       </div>
       <p style="color:var(--neutral-500);font-size:12px;text-align:center">Đơn giá do chủ nhà niêm yết, áp dụng cho kỳ hiện hành.</p>`
-      : `<div class="t-empty"><div class="eic">🛎️</div><p>Chưa có bảng giá dịch vụ</p></div>`);
+      : `<div class="t-empty"><div class="eic">${HH.ic('concierge', 16)}</div><p>Chưa có bảng giá dịch vụ</p></div>`);
   }
 
   /* ---------- màn hình: LỊCH SỬ THANH TOÁN ---------- */
@@ -763,7 +763,7 @@
         <span class="k"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
           <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div></span>
         <span class="v mono" style="color:var(--success)">+${vnd(p.amount)}</span></div>`).join('')}</div>`
-      : `<div class="t-empty"><div class="eic">💳</div><p>Chưa có lịch sử thanh toán</p></div>`);
+      : `<div class="t-empty"><div class="eic">${HH.ic('card', 16)}</div><p>Chưa có lịch sử thanh toán</p></div>`);
   }
 
   /* ---------- màn hình: TÀI KHOẢN ---------- */
@@ -788,14 +788,14 @@
           : '<span class="t-badge warning"><span class="d"></span>Chưa đăng ký</span>'}</span></div>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/history"><span class="aic" style="background:var(--success-bg)">💳</span>Lịch sử thanh toán<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/contract"><span class="aic" style="background:var(--brand-50)">📄</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">🔧</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/chat"><span class="aic" style="background:var(--purple-bg)">💬</span>Trợ lý ảo<span class="chev">›</span></button>
-        <button class="t-action" id="helpBtn"><span class="aic" style="background:var(--info-bg)">❓</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/history"><span class="aic" style="background:var(--success-bg)">${HH.ic('card', 16)}</span>Lịch sử thanh toán<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/contract"><span class="aic" style="background:var(--brand-50)">${HH.ic('file', 16)}</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">${HH.ic('wrench', 16)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/chat"><span class="aic" style="background:var(--purple-bg)">${HH.ic('chat', 16)}</span>Trợ lý ảo<span class="chev">›</span></button>
+        <button class="t-action" id="helpBtn"><span class="aic" style="background:var(--info-bg)">${HH.ic('help', 16)}</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action danger" id="logoutBtn"><span class="aic" style="background:var(--danger-bg)">⎋</span>Đăng xuất<span class="chev">›</span></button>
+        <button class="t-action danger" id="logoutBtn"><span class="aic" style="background:var(--danger-bg)">${HH.ic('logout', 16)}</span>Đăng xuất<span class="chev">›</span></button>
       </div>
       <p style="text-align:center;color:var(--neutral-400);font-size:12px;margin-top:12px">Happy Home · App khách thuê</p>
     `, { tab: 'account' });
@@ -922,7 +922,7 @@
       const late = termsList().find(t => /quá hạn|thanh toán/i.test(t.title + t.body));
       return { facts: { kỳ: vnPeriod(inv.period), hạn: fmtDate(inv.dueDate), còn_lại_ngày: dl, số_tiền: vnd(inv.total - inv.paid) },
         html: `Hóa đơn <b>${vnPeriod(inv.period)}</b> (${vnd(inv.total - inv.paid)}) có hạn <b>${fmtDate(inv.dueDate)}</b>.<br>
-          ${dl < 0 ? `<span class="b-warn">Đã quá hạn ${-dl} ngày</span> — anh/chị thanh toán sớm giúp em ạ.` : `Còn <b>${dl} ngày</b> nữa ạ.`}
+          ${dl < 0 ? `<span class="b-warn">Đã quá hạn ${-dl} ngày</span>, anh/chị thanh toán sớm giúp em ạ.` : `Còn <b>${dl} ngày</b> nữa ạ.`}
           ${late && dl < 3 ? `<div class="b-note">Theo hợp đồng: ${esc(late.body)}</div>` : ''}`,
         actions: [{ label: 'Thanh toán ngay', go: '#/pay/' + inv.id, solid: true }],
         suggest: ['Thông tin chuyển khoản'] };
@@ -945,9 +945,9 @@
       return { facts: { kỳ: u.label, điện_kWh: u.elec, nước_m3: u.water, tiền_điện: eAmt != null ? vnd(eAmt) : null, tiền_nước: wAmt != null ? vnd(wAmt) : null },
         html: `<div class="b-title">Điện nước ${esc(u.label)}</div>
           <table>
-            <tr><td>Điện</td><td>${u.elec != null ? num(u.elec) + ' kWh' : '—'}</td></tr>
+            <tr><td>Điện</td><td>${u.elec != null ? num(u.elec) + ' kWh' : '-'}</td></tr>
             ${eAmt != null ? `<tr><td>Tiền điện</td><td>${vnd(eAmt)}</td></tr>` : ''}
-            <tr><td>Nước</td><td>${u.water != null ? num(u.water) + ' m³' : '—'}</td></tr>
+            <tr><td>Nước</td><td>${u.water != null ? num(u.water) + ' m³' : '-'}</td></tr>
             ${wAmt != null ? `<tr><td>Tiền nước</td><td>${vnd(wAmt)}</td></tr>` : ''}
           </table>
           <div class="b-note">Số liệu lấy từ chỉ số chủ nhà đã ghi.</div>`,
@@ -1012,8 +1012,8 @@
             <tr><td>Đến ngày</td><td>${fmtDate(c.end)}</td></tr>
           </table>
           ${dl != null ? `<div class="b-note">${dl < 0
-            ? `<span class="b-warn">Hợp đồng đã hết hạn ${-dl} ngày</span> — vui lòng liên hệ chủ nhà để gia hạn.`
-            : (dl <= 30 ? `<span class="b-warn">Sắp hết hạn — còn ${dl} ngày.</span>` : `Còn <b>${dl} ngày</b>.`)}</div>` : ''}`,
+            ? `<span class="b-warn">Hợp đồng đã hết hạn ${-dl} ngày</span>. Vui lòng liên hệ chủ nhà để gia hạn.`
+            : (dl <= 30 ? `<span class="b-warn">Sắp hết hạn, còn ${dl} ngày.</span>` : `Còn <b>${dl} ngày</b>.`)}</div>` : ''}`,
         actions: [{ label: 'Xem điều khoản', go: '#/contract' }],
         suggest: ['Muốn dọn đi thì báo trước bao lâu?', 'Tiền cọc có được trả lại không?'] };
     },
@@ -1158,7 +1158,7 @@
       return { facts: { tài_sản: a.map(x => x.name) },
         html: `Phòng <b>${esc(state.data.tenant.roomCode)}</b> có <b>${a.length}</b> tài sản:<br>
           ${a.map(x => `• ${esc(x.name)}${(x.quantity || 1) > 1 ? ' ×' + x.quantity : ''}`).join('<br>')}
-          <div class="b-note">Vui lòng giữ gìn giúp em ạ — hư hỏng do sử dụng sai sẽ phải bồi thường theo hợp đồng.</div>`,
+          <div class="b-note">Vui lòng giữ gìn giúp em ạ. Hư hỏng do sử dụng sai sẽ phải bồi thường theo hợp đồng.</div>`,
         actions: [{ label: 'Xem phòng của tôi', go: '#/room' }] };
     },
   };
@@ -1314,8 +1314,8 @@
     const sugg = (lastBot && lastBot.suggest && lastBot.suggest.length) ? lastBot.suggest : SUGGESTIONS;
     const body = chat.msgs.map((m, i) => `
       <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
-        <div class="bubble">${m.note ? `<div class="b-ctx">↻ ${esc(m.note)}</div>` : ''}${m.html}
-          ${m.ai ? '<span class="b-ai">✦ lời văn do Gemini soạn · số liệu lấy từ hệ thống</span>' : ''}
+        <div class="bubble">${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}
+          ${m.ai ? '<span class="b-ai">' + HH.ic('sparkles', 16) + ' lời văn do Gemini soạn · số liệu lấy từ hệ thống</span>' : ''}
           ${(m.actions || []).length ? `<div class="b-actions">${m.actions.map((a, j) =>
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
         </div></div>`).join('');
@@ -1328,7 +1328,7 @@
       <div class="chat-sugg">${sugg.map(s => `<button data-sugg="${esc(s)}">${esc(s)}</button>`).join('')}</div>
       <div class="chat-input">
         <textarea id="chatIn" rows="1" placeholder="Hỏi về tiền phòng, điện nước, hợp đồng…"></textarea>
-        <button class="chat-send" id="chatSend" aria-label="Gửi">➤</button>
+        <button class="chat-send" id="chatSend" aria-label="Gửi">${HH.ic('send', 16)}</button>
       </div></div></div>`;
 
     wireTabs();

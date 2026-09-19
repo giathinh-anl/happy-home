@@ -77,7 +77,7 @@ HH.ui = (function () {
     const z = toastZone();
     const el = document.createElement('div');
     el.className = 'toast ' + (opt.type === 'error' ? 'err' : opt.type === 'ok' ? 'ok' : '');
-    const ic = opt.type === 'error' ? '⚠' : opt.type === 'ok' ? '✓' : 'ℹ';
+    const ic = HH.ic(opt.type === 'error' ? 'alert' : opt.type === 'ok' ? 'check' : 'info', 16);
     el.innerHTML = h`<span class="ic">${ic}</span><div class="t-body">${msg}</div>`;
     if (opt.action) {
       const b = document.createElement('button'); b.className = 't-action'; b.textContent = opt.action.label;
@@ -127,7 +127,7 @@ HH.ui = (function () {
       <button class="btn btn-outline" data-close>${esc(o.cancelLabel || 'Quay lại')}</button>
       <span class="spacer"></span>
       <button class="btn btn-danger" data-confirm disabled>${esc(o.confirmLabel || 'Xác nhận')}</button>`;
-    const head = `<div class="danger-head"><span class="warn-ic">⚠</span><h3>${esc(o.title)}</h3></div>`;
+    const head = `<div class="danger-head"><span class="warn-ic">${HH.ic('alert', 16)}</span><h3>${esc(o.title)}</h3></div>`;
     const body = h`
       ${raw(o.description ? `<p class="muted" style="margin-bottom:12px">${o.description}</p>` : '')}
       ${raw(conseq ? `<p class="b" style="margin-bottom:4px">Sau khi thực hiện:</p><ul class="consequence">${conseq}</ul>` : '')}
@@ -257,7 +257,7 @@ HH.ui = (function () {
       if (opt.selectable) tds += `<td class="col-check"><input type="checkbox" data-row-check="${esc(rid)}" ${state.selected.has(rid) ? 'checked' : ''}></td>`;
       opt.columns.forEach(c => {
         const cls = (c.align === 'right' || c.mono) ? 'num' : '';
-        const content = c.render ? c.render(r) : esc(r[c.key] ?? '—');
+        const content = c.render ? c.render(r) : esc(r[c.key] ?? '-');
         tds += `<td class="${cls} ${c.tdClass ? c.tdClass(r) : ''}">${content}</td>`;
       });
       if (opt.actions) tds += `<td class="col-actions"><button class="kebab" data-kebab="${esc(rid)}" aria-label="Thao tác">⋯</button></td>`;
@@ -269,7 +269,7 @@ HH.ui = (function () {
       const rows = allRows();
       if (rows.length === 0 && !opt.loading) {
         const total = opt.rows.length;
-        return `<div class="empty"><div class="ic">${opt.emptyIcon || '📋'}</div>
+        return `<div class="empty"><div class="ic">${opt.emptyIcon || HH.ic('copy', 30)}</div>
           <h4>${esc(total === 0 ? (opt.emptyTitle || 'Chưa có dữ liệu') : 'Không có kết quả phù hợp')}</h4>
           <p class="muted">${esc(total === 0 ? (opt.emptyDesc || '') : 'Thử đổi từ khóa hoặc bộ lọc.')}</p>
           ${total === 0 && opt.emptyAction ? `<div style="margin-top:16px"><button class="btn btn-primary" data-empty-action>${esc(opt.emptyAction.label)}</button></div>` : ''}
@@ -298,14 +298,14 @@ HH.ui = (function () {
         pager += `<button data-pg="${p}" class="${p === state.page ? 'active' : ''}">${p}</button>`;
       }
       pager += `<button data-pg="next" ${state.page >= pages ? 'disabled' : ''}>›</button>`;
-      return `<div class="dt-foot"><span>Hiển thị <b class="mono">${start}–${end}</b> trong <b class="mono">${total}</b></span>
+      return `<div class="dt-foot"><span>Hiển thị <b class="mono">${start}-${end}</b> trong <b class="mono">${total}</b></span>
         <div class="pager">${pager}</div></div>`;
     }
 
     function toolbarHtml() {
       let left = '';
       if (opt.searchable !== false) {
-        left = `<div class="dt-search"><span class="ic">🔍</span>
+        left = `<div class="dt-search"><span class="ic">${HH.ic('search', 16)}</span>
           <input class="input" data-search placeholder="${esc(opt.searchPlaceholder || 'Tìm kiếm...')}" value="${esc(state.q)}"></div>`;
       }
       return `<div class="dt-toolbar">${left}${opt.toolbarLeft || ''}<div class="grow"></div>${opt.toolbarRight || ''}</div>`;
@@ -425,7 +425,7 @@ HH.ui = (function () {
 
     const html = (total <= (opts.sizes ? opts.sizes[0] : 12) && pages === 1) ? '' : `
       <div class="pg-bar">
-        <span class="muted text-sm">Hiển thị <b class="mono">${total ? start + 1 : 0}–${Math.min(total, start + size)}</b> trong <b class="mono">${total}</b> ${opts.unit || 'mục'}</span>
+        <span class="muted text-sm">Hiển thị <b class="mono">${total ? start + 1 : 0}-${Math.min(total, start + size)}</b> trong <b class="mono">${total}</b> ${opts.unit || 'mục'}</span>
         <div class="row-gap-2">
           <select class="select pg-size" style="width:auto;padding:6px 26px 6px 10px">${sizeSel}</select>
           <div class="pager">${btns}</div>

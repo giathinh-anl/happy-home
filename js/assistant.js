@@ -56,7 +56,7 @@ HH.assistant = (function () {
       : `<span class="as-badge">Tra cứu tại chỗ</span>`;
     state.msgs.push({ who: 'bot', html: `Chào anh/chị! Em là trợ lý Happy Home ${mode}<br>
       Em đọc <b>số liệu thật</b> và hiểu được tháng, tòa, phòng trong câu hỏi.
-      Hỏi nối tiếp cũng được — ví dụ hỏi về P101 rồi hỏi <i>“còn nợ bao nhiêu?”</i>.`,
+      Hỏi nối tiếp cũng được, ví dụ hỏi về P101 rồi hỏi <i>“còn nợ bao nhiêu?”</i>.`,
       suggest: HH.ai.SUGGESTIONS });
   }
 
@@ -108,7 +108,7 @@ HH.assistant = (function () {
         <div class="as-head">
           <span class="as-avt">${ic('bot', 18)}</span>
           <div class="as-ttl"><b>Trợ lý Happy Home</b>
-            <span>${G && G.configured() ? 'Gemini Flash · còn ' + (G.quotaLimit - G.quotaUsed()) + ' lượt hôm nay' : 'Tra cứu dữ liệu thật · không tốn phí'}</span></div>
+            <span>${G && G.configured() ? 'Gemini Flash, còn ' + (G.quotaLimit - G.quotaUsed()) + ' lượt hôm nay' : 'Tra cứu dữ liệu thật, không tốn phí'}</span></div>
           <button class="as-x" id="asReset" title="Bắt đầu hội thoại mới" aria-label="Bắt đầu hội thoại mới">${ic('refresh', 15)}</button>
           <button class="as-x" id="asClose" aria-label="Đóng">${ic('x', 16)}</button>
         </div>
@@ -127,7 +127,7 @@ HH.assistant = (function () {
   }
 
   function copyText(text) {
-    const ok = () => HH.ui.toast('Đã chép — dán vào Zalo/tin nhắn để gửi khách', { type: 'ok' });
+    const ok = () => HH.ui.toast('Đã chép. Dán vào Zalo hoặc tin nhắn để gửi khách.', { type: 'ok' });
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(ok, () => fallbackCopy(text, ok));
     } else fallbackCopy(text, ok);

@@ -8,12 +8,12 @@ HH.util = (function () {
 
   /** 1250000 -> "1.250.000 ₫" (dấu chấm nghìn, ký hiệu đồng ở cuối) */
   function currency(n) {
-    if (n === null || n === undefined || n === '' || isNaN(n)) return '—';
+    if (n === null || n === undefined || n === '' || isNaN(n)) return '-';
     return viNum.format(Math.round(n)) + ' ₫';
   }
   /** Rút gọn cho thẻ chỉ số: > 1 tỷ -> "1,25 tỷ ₫" */
   function currencyShort(n) {
-    if (n === null || n === undefined || isNaN(n)) return '—';
+    if (n === null || n === undefined || isNaN(n)) return '-';
     if (Math.abs(n) >= 1e9) {
       return (n / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + ' tỷ ₫';
     }
@@ -21,11 +21,11 @@ HH.util = (function () {
   }
   /** Số thường (chỉ số điện nước): 12450 -> "12.450" */
   function number(n) {
-    if (n === null || n === undefined || n === '' || isNaN(n)) return '—';
+    if (n === null || n === undefined || n === '' || isNaN(n)) return '-';
     return viNum.format(n);
   }
   function percent(n) {
-    if (n === null || n === undefined || isNaN(n)) return '—';
+    if (n === null || n === undefined || isNaN(n)) return '-';
     return Math.round(n * 100) + '%';
   }
   /** Bỏ mọi ký tự không phải số -> Number */
@@ -39,7 +39,7 @@ HH.util = (function () {
   const pad = (x) => String(x).padStart(2, '0');
   function fmtDate(d) {
     const x = (d instanceof Date) ? d : new Date(d);
-    if (isNaN(x)) return '—';
+    if (isNaN(x)) return '-';
     return `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`;
   }
   function addMonths(d, m) { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; }

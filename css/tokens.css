@@ -1,91 +1,130 @@
 /* ============================================================
-   Happy Home — Design tokens
-   Nguồn: Đặc tả §1.2 (màu), §1.3 (chữ), §1.4 (bố cục)
+   Happy Home — Design tokens (bản làm lại theo logo gỗ + xanh ngọc)
+   ------------------------------------------------------------
+   MÀU      Xanh ngọc (#0F5C5B, màu thân nhà trong logo) là màu chủ đạo
+            DUY NHẤT cho hành động. Gỗ (#C98A50) chỉ dùng điểm xuyết:
+            mục đang chọn, số tiền nổi bật, chi tiết thương hiệu.
+            Trạng thái (đã thu / chờ / quá hạn) có màu riêng, không lẫn màu chủ đạo.
+            Nền trung tính hơi ngả xanh để ăn nhập với màu ngọc, không dùng
+            trắng tinh hay đen tuyền.
+   CHỮ      Bricolage Grotesque: tiêu đề và con số lớn.
+            Be Vietnam Pro: toàn bộ chữ thường (thiết kế cho tiếng Việt).
+            JetBrains Mono: CHỈ cho mã (mã hóa đơn, số phiếu), không cho tiền.
+   BO GÓC   Một thang duy nhất: 6 (nhãn nhỏ) · 10 (nút, ô nhập, menu) ·
+            14 (thẻ, bảng) · 20 (hộp thoại). Tròn hẳn chỉ cho ảnh đại diện.
    ============================================================ */
 :root {
-  /* Thương hiệu — xanh lá (theo LOZIDO) */
-  --brand-50:  #f0fdf4;
-  --brand-100: #dcfce7;
-  --brand-200: #bbf7d0;
-  --brand-400: #4ade80;
-  --brand-500: #22c55e;   /* màu chính, nút hành động */
-  --brand-600: #16a34a;   /* hover */
-  --brand-700: #15803d;   /* active, tiêu đề nhấn */
+  /* ---- Xanh ngọc (chủ đạo) ---- */
+  --teal-50:  #EEF5F4;
+  --teal-100: #D6E9E7;
+  --teal-200: #AFD3CF;
+  --teal-300: #7DB6B1;
+  --teal-400: #3F8E89;
+  --teal-500: #1D6E6B;
+  --teal-600: #0F5C5B;   /* đúng màu logo */
+  --teal-700: #0C4948;
+  --teal-800: #0A3A39;
+  --teal-900: #072B2A;
 
-  /* Thanh điều hướng — xanh đậm sang trọng */
-  --nav-bg:      #0f5132;   /* nền thanh nav (deep green) */
-  --nav-bg-2:    #0b3f27;   /* gradient đậm hơn */
-  --nav-hover:   rgba(255,255,255,.10);
-  --nav-active:  rgba(255,255,255,.16);
-  --nav-accent:  #4ade80;   /* gạch chân mục đang chọn */
+  /* ---- Gỗ (điểm xuyết) ---- */
+  --wood-50:  #FBF4EC;
+  --wood-100: #F4E4D1;
+  --wood-300: #E4B07A;
+  --wood-500: #C98A50;   /* đúng màu logo */
+  --wood-700: #8C5627;   /* dùng khi làm chữ trên nền sáng (đủ tương phản) */
 
-  /* Nhấn vàng đồng — dùng cho tiêu đề mục, số liệu nổi bật */
-  --gold-50:  #fffbeb;
-  --gold-200: #fde68a;
-  --gold-500: #d4a017;
-  --gold-600: #b8860b;
+  /* ---- Trung tính ngả xanh ---- */
+  --ink:        #142120;   /* chữ chính */
+  --ink-2:      #455654;   /* chữ phụ */
+  --ink-3:      #687876;   /* chữ mờ, gợi ý (vẫn đạt AA trên nền trắng) */
+  --line:       #DEE5E3;   /* đường kẻ mảnh */
+  --line-2:     #C8D2CF;   /* viền ô nhập */
+  --bg:         #F1F4F3;   /* nền ứng dụng */
+  --surface:    #FDFEFE;   /* nền thẻ */
+  --surface-2:  #F6F8F7;   /* nền phụ: đầu bảng, hover */
 
-  /* Trung tính */
-  --neutral-0:   #ffffff;
-  --neutral-50:  #fafaf9;   /* nền trang */
-  --neutral-100: #f5f5f4;   /* nền vùng phụ */
-  --neutral-200: #e7e5e4;   /* đường kẻ */
-  --neutral-300: #d6d3d1;
-  --neutral-400: #a8a29e;   /* chữ mờ */
-  --neutral-600: #57534e;   /* chữ phụ */
-  --neutral-700: #44403c;
-  --neutral-900: #1c1917;   /* chữ chính */
+  /* ---- Trạng thái ---- */
+  --success: #2D7A4E;  --success-bg: #E7F2EB;  --success-line: #BFDDCA;
+  --warning: #98600F;  --warning-bg: #FBF0DF;  --warning-line: #EDCF9F;
+  --danger:  #B3402F;  --danger-bg:  #FAE9E5;  --danger-line:  #EFC3BA;
+  --info:    #2F5F95;  --info-bg:    #E8EFF8;  --info-line:    #C3D4EA;
 
-  /* Trạng thái */
-  --success: #059669;   /* đã thanh toán, phòng trống, hoàn tất */
-  --warning: #d97706;   /* sắp đến hạn, chờ duyệt, trả một phần */
-  --danger:  #dc2626;   /* quá hạn, hỏng, cảnh báo */
-  --info:    #2563eb;   /* đang xử lý, thông tin */
-  --purple:  #7c3aed;   /* ghi đè của chủ trọ, đánh dấu đặc biệt */
+  /* ---- Tên cũ (các trang đang dùng) trỏ sang bảng màu mới ---- */
+  --brand-50:  var(--teal-50);
+  --brand-100: var(--teal-100);
+  --brand-200: var(--teal-200);
+  --brand-400: var(--teal-400);
+  --brand-500: var(--teal-500);
+  --brand-600: var(--teal-600);
+  --brand-700: var(--teal-700);
 
-  /* Nền nhạt cùng tông (dùng cho badge, dải cảnh báo) */
-  --success-bg: #ecfdf5;
-  --warning-bg: #fffbeb;
-  --danger-bg:  #fef2f2;
-  --info-bg:    #eff6ff;
-  --purple-bg:  #f5f3ff;
-  --neutral-bg: #f5f5f4;
+  --nav-bg:     var(--teal-800);
+  --nav-bg-2:   var(--teal-900);
+  --nav-hover:  rgba(255,255,255,.07);
+  --nav-active: rgba(255,255,255,.11);
+  --nav-accent: var(--wood-300);
 
-  /* Chữ */
-  --font-sans: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --gold-50:  var(--wood-50);
+  --gold-200: var(--wood-100);
+  --gold-500: var(--wood-500);
+  --gold-600: var(--wood-700);
+
+  --neutral-0:   var(--surface);
+  --neutral-50:  var(--bg);
+  --neutral-100: #EAEFED;
+  --neutral-200: var(--line);
+  --neutral-300: var(--line-2);
+  --neutral-400: #93A19F;
+  --neutral-500: var(--ink-3);
+  --neutral-600: var(--ink-2);
+  --neutral-700: #2E3E3C;
+  --neutral-900: var(--ink);
+
+  /* "Tím" cũ (đánh dấu đặc biệt) nay dùng tông gỗ: 1 màu nhấn duy nhất */
+  --purple:     var(--wood-700);
+  --purple-bg:  var(--wood-50);
+  --neutral-bg: #EAEFED;
+
+  /* ---- Chữ ---- */
+  --font-sans:    'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 
   --text-xs:   12px;
   --text-sm:   14px;
-  --text-base: 16px;
-  --text-lg:   18px;
+  --text-base: 15px;
+  --text-lg:   17px;
   --text-xl:   20px;
-  --text-2xl:  24px;
-  --text-3xl:  30px;
+  --text-2xl:  26px;
+  --text-3xl:  32px;
 
-  /* Khoảng cách — bội số 4 */
+  /* ---- Khoảng cách (bội số 4) ---- */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
+  --sp-5: 20px;
   --sp-6: 24px;
   --sp-8: 32px;
+  --sp-10: 40px;
   --sp-12: 48px;
   --sp-16: 64px;
 
-  /* Bo góc — mềm mại, hiện đại */
-  --r-card:  12px;
-  --r-input: 8px;
-  --r-lg:    16px;
-  --r-pill:  9999px;
+  /* ---- Bo góc: 1 thang duy nhất ---- */
+  --r-sm:    6px;
+  --r-input: 10px;
+  --r-card:  14px;
+  --r-lg:    20px;
+  --r-pill:  999px;
 
-  /* Bóng — nhiều lớp, rất nhẹ (cảm giác cao cấp) */
-  --shadow-xs:     0 1px 2px rgba(16,24,40,.05);
-  --shadow-card:   0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
-  --shadow-pop:    0 8px 24px rgba(16,24,40,.10), 0 2px 6px rgba(16,24,40,.05);
-  --shadow-dialog: 0 24px 56px rgba(16,24,40,.18), 0 6px 16px rgba(16,24,40,.10);
-  --ring:          0 0 0 4px rgba(34,197,94,.12);
+  /* ---- Bóng: nhuộm xanh ngọc, không dùng đen ---- */
+  --shadow-xs:     0 1px 2px rgba(10,58,57,.06);
+  --shadow-card:   0 1px 2px rgba(10,58,57,.05), 0 2px 8px rgba(10,58,57,.05);
+  --shadow-pop:    0 10px 30px rgba(10,58,57,.12), 0 2px 6px rgba(10,58,57,.06);
+  --shadow-dialog: 0 28px 64px rgba(7,43,42,.22), 0 8px 18px rgba(7,43,42,.10);
+  --ring:          0 0 0 3px rgba(29,110,107,.22);
 
-  --sidebar-w: 240px;
-  --content-max: 1440px;
+  --sidebar-w: 256px;
+  --content-max: 1360px;
+  --ease: cubic-bezier(.2,.7,.2,1);
 }

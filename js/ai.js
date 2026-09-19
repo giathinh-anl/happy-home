@@ -42,7 +42,7 @@ HH.ai = (function () {
   const lateDays = (i) => { const d = U.daysBetween(U.today(), i.dueDate); return d < 0 ? -d : 0; };
   // Kỳ so sánh không có số liệu thì nói thẳng, không ghi "tăng 100%" cho có
   const pctChange = (now, before) => {
-    if (!before) return now ? '—' : 'không đổi';
+    if (!before) return now ? 'mới có' : 'không đổi';
     const r = (now - before) / before;
     if (r === 0) return 'không đổi';
     if (Math.abs(r) < 0.01) return (r > 0 ? 'nhích lên ' : 'giảm nhẹ ') + (Math.abs(r) * 100).toFixed(1).replace('.', ',') + '%';
@@ -294,7 +294,7 @@ HH.ai = (function () {
       if (!scoped) list = list.filter((i) => i.status === 'overdue' || lateDays(i) > 0);
       if (!list.length) return { facts: {}, html: scoped
         ? `${esc(scopeText(sl))} không còn khoản nào cần nhắc ✓`
-        : `Không có phòng nào quá hạn${where(sl)} — chưa cần nhắc ai ✓` };
+        : `Không có phòng nào quá hạn${where(sl)}, chưa cần nhắc ai ✓` };
 
       // gom theo phòng
       const groups = {};
@@ -327,7 +327,7 @@ HH.ai = (function () {
           </div></div>`).join('');
 
       return { facts: { số_tin: msgs.length },
-        html: (scoped ? 'Tin nhắc nợ đã soạn sẵn — kiểm tra rồi chép gửi khách:'
+        html: (scoped ? 'Tin nhắc nợ đã soạn sẵn. Kiểm tra rồi chép gửi khách:'
           : `Có <b>${Object.keys(groups).length}</b> phòng quá hạn${where(sl)}. Tin nhắc đã soạn sẵn:`)
           + blocks + `<div class="as-muted" style="margin-top:6px">Em chỉ soạn sẵn, không tự gửi cho khách.</div>`,
         copies: msgs.map((m) => m.text),
@@ -394,7 +394,7 @@ HH.ai = (function () {
         const d = S.daysToExpiry(c);
         return { facts: { phòng: c.roomCode, khách: c.tenantName, từ: U.fmtDate(c.start), đến: U.fmtDate(c.end), còn_lại_ngày: d,
           giá_thuê: money(c.rent), tiền_cọc: money(c.deposit) },
-          html: `Hợp đồng phòng <b>${esc(c.roomCode)}</b> (${esc(c.tenantName || '')}) hết hạn <b>${U.fmtDate(c.end)}</b> — `
+          html: `Hợp đồng phòng <b>${esc(c.roomCode)}</b> (${esc(c.tenantName || '')}) hết hạn <b>${U.fmtDate(c.end)}</b>, `
             + (d < 0 ? `<span class="as-bad">đã quá hạn ${-d} ngày</span>` : `còn <b>${d}</b> ngày`) + '.',
           actions: [{ label: 'Mở hợp đồng', go: `#/b/${c.buildingId}/contracts/${c.id}` }] };
       }
@@ -407,7 +407,7 @@ HH.ai = (function () {
         html: `<b>${soon.length}</b> hợp đồng cần chú ý${where(sl)}:`,
         table: { head: ['Phòng', 'Khách', 'Hết hạn'],
           rows: soon.slice(0, 8).map((c) => { const d = S.daysToExpiry(c);
-            return [c.roomCode, c.tenantName || '', U.fmtDate(c.end) + (d < 0 ? ` · quá ${-d}n` : ` · còn ${d}n`)]; }) },
+            return [c.roomCode, c.tenantName || '', U.fmtDate(c.end) + (d < 0 ? `, quá ${-d} ngày` : `, còn ${d} ngày`)]; }) },
         actions: [{ label: 'Xem hợp đồng', go: `#/b/${bidFor(sl)}/contracts?filter=soon` }] };
     },
   };
@@ -522,7 +522,7 @@ HH.ai = (function () {
       if (!list.length && !bank.length) return { facts, html: 'Không có phiếu chuyển khoản hay giao dịch nào chờ đối soát ✓' };
       return { facts,
         html: [list.length ? `<b>${list.length}</b> phiếu khách báo đã chuyển khoản` : '',
-          bank.length ? `<b>${bank.length}</b> giao dịch ngân hàng chưa khớp` : ''].filter(Boolean).join(' · ') + ' — đang chờ bạn xử lý.',
+          bank.length ? `<b>${bank.length}</b> giao dịch ngân hàng chưa khớp` : ''].filter(Boolean).join(', ') + ' đang chờ bạn xử lý.',
         actions: [{ label: 'Mở đối soát', go: '#/transfers', solid: true }] };
     },
   };
@@ -563,7 +563,7 @@ HH.ai = (function () {
         hợp_đồng: ct ? { từ: U.fmtDate(ct.start), đến: U.fmtDate(ct.end), còn_lại_ngày: S.daysToExpiry(ct), tiền_cọc: money(ct.deposit) } : null,
         công_nợ: money(debt), số_tài_sản: assets.length, tài_sản: assets.slice(0, 10).map((x) => x.name), sự_cố_đang_mở: openInc };
       return { facts,
-        html: `<b>Phòng ${esc(room.code)}</b> · ${esc(b.name)} — <b>${ROOM_ST[room.status] || esc(room.status)}</b>`,
+        html: `<b>Phòng ${esc(room.code)}</b> · ${esc(b.name)}: <b>${ROOM_ST[room.status] || esc(room.status)}</b>`,
         table: { head: ['', ''], kv: true, rows: [
           ['Giá thuê', money(room.price) + (room.area ? ' · ' + room.area + ' m²' : '')],
           ct ? ['Khách', ct.tenantName || ''] : null,
@@ -593,9 +593,9 @@ HH.ai = (function () {
       const facts = { họ_tên: t.fullName, điện_thoại: t.phone, phòng: t.roomCode || (ct && ct.roomCode) || null, tòa: b.name,
         công_nợ: money(debt), xe: plates, hợp_đồng: ct ? { từ: U.fmtDate(ct.start), đến: U.fmtDate(ct.end), tiền_thuê: money(ct.rent) } : null };
       return { facts,
-        html: `<b>${esc(t.fullName)}</b> — phòng <b>${esc(t.roomCode || (ct && ct.roomCode) || '—')}</b> · ${esc(shortName(b))}`,
+        html: `<b>${esc(t.fullName)}</b>, phòng <b>${esc(t.roomCode || (ct && ct.roomCode) || 'chưa gắn phòng')}</b> · ${esc(shortName(b))}`,
         table: { head: ['', ''], kv: true, rows: [
-          ['Điện thoại', t.phone || '—'],
+          ['Điện thoại', t.phone || 'chưa có'],
           ['Công nợ', debt ? money(debt) : 'không nợ'],
           ct ? ['Hợp đồng', U.fmtDate(ct.start) + ' → ' + U.fmtDate(ct.end)] : null,
           plates.length ? ['Xe', plates.join(', ')] : null,
@@ -646,7 +646,7 @@ HH.ai = (function () {
     run() {
       return { facts: {},
         html: `Em đọc <b>số liệu thật</b> trong hệ thống và hiểu được <b>tháng</b>, <b>tòa nhà</b>, <b>phòng</b>, <b>tên khách</b>
-          trong câu hỏi. Hỏi nối tiếp cũng được — em nhớ đang nói về phòng/tháng nào.`,
+          trong câu hỏi. Hỏi nối tiếp cũng được, em nhớ đang nói về phòng/tháng nào.`,
         table: { head: ['Thử hỏi', ''], kv: true, rows: [
           ['Doanh thu', 'Tháng trước thu được bao nhiêu? · Doanh thu 6 tháng'],
           ['So sánh', 'So với tháng trước thì sao?'],
@@ -845,7 +845,7 @@ HH.ai = (function () {
       try {
         const composed = await G().compose(q, r.facts,
           'Xưng "em", gọi người dùng là "anh/chị". Người hỏi là chủ trọ hoặc nhân viên quản lý.'
-          + (r.table || r.chart ? ' Chỉ viết 1–2 câu tóm tắt, vì bảng chi tiết sẽ hiện ngay bên dưới.' : ''));
+          + (r.table || r.chart ? ' Chỉ viết 1 đến 2 câu tóm tắt, vì bảng chi tiết sẽ hiện ngay bên dưới.' : ''));
         if (!r.copies) html = composed.replace(/```[a-z]*|```/g, '').trim();
         else source = 'rule';
       } catch (e) { source = 'rule'; }
@@ -862,7 +862,7 @@ HH.ai = (function () {
   function notSupported() {
     return { source: 'fallback',
       html: `Câu này em chưa hiểu ạ. Em tra được doanh thu, công nợ, phòng trống, hóa đơn quá hạn, hợp đồng,
-        chỉ số điện nước, sự cố, chi phí, lợi nhuận — theo <b>tháng</b>, <b>tòa</b> hoặc <b>phòng</b>.`,
+        chỉ số điện nước, sự cố, chi phí, lợi nhuận, theo <b>tháng</b>, <b>tòa</b> hoặc <b>phòng</b>.`,
       suggest: ['Em làm được gì?', 'Hôm nay cần xử lý gì?'] };
   }
 

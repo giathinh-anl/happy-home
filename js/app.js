@@ -37,61 +37,96 @@ HH.app = (function () {
     { ic: 'settings', label: 'Cấu hình tòa nhà',     seg: 'config', perm: 'settings' },
   ];
 
-  /* ---------- Thanh trên ---------- */
-  function topbar(path) {
-    const inBuilding = path.startsWith('/b/');
-    const notiCount = S.notificationCount ? S.notificationCount() : 0;
-    const tiles = TOP_TILES.filter(t => !t.owner || S.isOwner()).map(t => {
-      let active = false;
-      if (t.key === 'home') active = inBuilding || path === '/buildings';
-      else if (t.path) active = path === t.path;
-      let pillText = t.pill, pillClass = t.pillClass;
-      if (t.key === 'noti') { pillText = String(notiCount); pillClass = notiCount > 0 ? '' : 'zero'; }
-      if (t.key === 'bank') { const n = S.pendingClaimCount ? S.pendingClaimCount() : 0;
-        pillText = n ? String(n) : null; pillClass = ''; }
-      const pill = pillText ? `<span class="pill ${pillClass || ''}">${pillText}</span>` : '';
-      const attr = t.action ? `data-act="${t.action}"` : `href="#${t.path}"`;
-      const tag = t.action ? 'button' : 'a';
-      return `<${tag} class="lz-tile ${active ? 'active' : ''}" ${attr} title="${t.label}">
-        ${ic(t.ic)}<span class="lbl">${t.label}</span>${pill}</${tag}>`;
+  /* ============================================================
+     KHUNG: thanh bên (tòa nhà đang quản lý + các mục) + thanh trên mỏng.
+     Tên các mục giữ nguyên như trước, chỉ đổi cách bày.
+     ============================================================ */
+  let lastBid = null;   // tòa đang làm việc — giữ lại khi sang trang cấp công ty
+
+  const cnt = (n, tone) => n ? `<span class="sb-cnt ${tone || ''}">${n > 99 ? '99+' : n}</span>` : '';
+
+  function sidebar(bid, path) {
+    const b = S.building(bid);
+    const seg = path.startsWith('/b/') ? (path.split('/')[3] || 'units') : null;
+    const rooms = b ? S.roomsOf(b.id) : [];
+    const occ = rooms.filter(r => r.status === 'occupied' || r.status === 'notice').length;
+    const overdue = b ? S.invoicesOf(b.id).filter(i => i.status === 'overdue').length : 0;
+    const openInc = b ? S.incidentsOf(b.id).length : 0;
+    const claims = S.pendingClaimCount ? S.pendingClaimCount() : 0;
+
+    const modItem = (m) => {
+      const n = m.seg === 'invoices' ? cnt(overdue, 'bad') : m.seg === 'incidents' ? cnt(openInc) : '';
+      return `<a class="sb-item ${seg === m.seg ? 'active' : ''}" href="#/b/${bid}/${m.seg}"
+        ${seg === m.seg ? 'aria-current="page"' : ''}>${ic(m.ic, 18)}<span>${m.label}</span>${n}</a>`;
+    };
+    const mods = MODULES.concat(MORE).filter(m => !m.perm || S.can(m.perm)).map(modItem).join('');
+
+    const company = TOP_TILES.filter(t => t.path && t.key !== 'noti' && (!t.owner || S.isOwner())).map(t => {
+      const active = t.key === 'home' ? path === '/buildings' : path === t.path;
+      const n = t.key === 'bank' ? cnt(claims, 'bad') : '';
+      return `<a class="sb-item ${active ? 'active' : ''}" href="#${t.path}" ${active ? 'aria-current="page"' : ''}>
+        ${ic(t.ic, 18)}<span>${t.label}</span>${n}</a>`;
     }).join('');
-    return h`<header class="lz-topbar"><div class="lz-topbar-inner">
-      <a class="lz-logo" href="#/buildings" aria-label="Happy Home — về trang quản lý nhà">
+
+    const name = (S.prefs && S.prefs.userName) || '';
+    return `<aside class="sb" id="sb" aria-label="Điều hướng">
+      <a class="sb-logo" href="#/buildings" aria-label="Happy Home, về trang quản lý nhà">
         <span class="mark"><img src="assets/logo-mark.svg" alt="" width="30" height="26"></span>
         <span class="word"><b>happy home</b><small>Quản lý nhà cho thuê</small></span>
       </a>
-      <nav class="lz-topnav">${raw(tiles)}</nav>
-    </div></header>`;
+      <button class="sb-bld" id="bCard" aria-haspopup="menu" aria-label="Đổi tòa nhà đang quản lý">
+        <span class="sb-bld-ring" aria-hidden="true"></span>
+        <span class="sb-bld-txt"><small>Đang quản lý</small><b>${U.esc(b ? b.name : 'Chưa có tòa nhà')}</b>
+          ${b ? `<em>${rooms.length} phòng, lấp đầy ${rooms.length ? Math.round(occ / rooms.length * 100) : 0}%</em>` : ''}</span>
+        ${ic('chevron', 16)}
+      </button>
+      <nav class="sb-nav" aria-label="Tòa nhà">${b ? mods : ''}</nav>
+      <div class="sb-group">Công ty</div>
+      <nav class="sb-nav" aria-label="Công ty">${company}</nav>
+      <button class="sb-user" data-act="account" aria-haspopup="menu">
+        <span class="av">${U.esc(U.initials(name || 'H'))}</span>
+        <span class="u-txt"><b>${U.esc(name)}</b><small>${S.isOwner() ? 'Chủ trọ' : 'Nhân viên'}</small></span>
+        ${ic('dots', 18)}
+      </button>
+    </aside>`;
   }
 
-  /* ---------- Hàng module ---------- */
-  function modulebar(bid, path) {
+  // Tên trang hiện tại cho thanh trên (lấy đúng nhãn menu)
+  function pageLabel(path, route) {
+    if (path.startsWith('/b/')) {
+      const seg = path.split('/')[3] || 'units';
+      const m = MODULES.concat(MORE).find(x => x.seg === seg);
+      return m ? m.label : ((route && route.meta && route.meta.title) || '');
+    }
+    const t = TOP_TILES.find(x => x.path === path);
+    return t ? t.label : ((route && route.meta && route.meta.title) || '');
+  }
+
+  function appbar(bid, path, route) {
     const b = S.building(bid);
-    const seg = path.split('/')[3] || 'units';
-    const mods = MODULES.filter(m => !m.perm || S.can(m.perm)).map(m => {
-      const active = seg === m.seg;
-      return `<a class="lz-module ${active ? 'active' : ''}" href="#/b/${bid}/${m.seg}" title="${m.label}">
-        ${ic(m.ic, 20)}<span>${m.label}</span></a>`;
-    }).join('');
-    const moreActive = MORE.some(m => m.seg === seg);
-    return h`<div class="lz-modulebar"><div class="lz-modulebar-inner">
-      <div class="lz-building-card" id="bCard">
-        <span class="home">${raw(ic('building', 19))}<span class="cnt">${S.buildings.length}</span></span>
-        <span class="b-info"><span class="k">Đang quản lý</span><span class="n">${b ? b.name : '—'}</span></span>
-        <button class="add" id="bAdd" title="Thêm tòa nhà">${raw(ic('plus', 16))}</button>
+    const noti = S.notificationCount ? S.notificationCount() : 0;
+    const label = pageLabel(path, route);
+    return `<header class="appbar">
+      <button class="appbar-btn sb-toggle" id="sbOpen" aria-label="Mở menu">${ic('menu', 20)}</button>
+      <div class="crumb">
+        ${path.startsWith('/b/') && b ? `<span class="c-b">${U.esc(b.name)}</span><span class="c-sep" aria-hidden="true">/</span>` : ''}
+        <span class="c-p">${U.esc(label)}</span>
       </div>
-      <div class="lz-modules">
-        ${raw(mods)}
-        <button class="lz-module ${raw(moreActive ? 'active' : '')}" id="moreBtn" title="Thêm">${raw(ic('dots', 20))}<span>Thêm</span></button>
+      <div class="appbar-right">
+        <a class="appbar-btn" href="#/noti" aria-label="Thông báo${noti ? ', ' + noti + ' mục' : ''}">
+          ${ic('bell', 19)}${noti ? `<span class="appbar-cnt">${noti > 9 ? '9+' : noti}</span>` : ''}</a>
       </div>
-    </div></div>`;
+    </header>`;
   }
 
-  function shellFrame(topHtml, moduleHtml, contentHtml) {
-    return h`<div class="lz-app">
-      ${raw(topHtml)}
-      ${raw(moduleHtml || '')}
-      <main class="lz-content"><div class="content-inner" id="pageRoot">${raw(contentHtml)}</div></main>
+  function shellFrame(sideHtml, barHtml, contentHtml) {
+    return `<div class="lz-app" id="lzApp">
+      ${sideHtml}
+      <div class="sb-scrim" id="sbScrim" aria-hidden="true"></div>
+      <div class="main-col">
+        ${barHtml}
+        <main class="lz-content"><div class="content-inner" id="pageRoot">${contentHtml}</div></main>
+      </div>
     </div>`;
   }
 
@@ -102,9 +137,11 @@ HH.app = (function () {
   }
 
   function renderShell(pageKey, params, route) {
-    const path = HH.router.current();
-    const top = topbar(path);
-    const modules = params.bid ? modulebar(params.bid, path) : '';
+    const path = HH.router.current().split('?')[0];
+    if (params.bid && S.building(params.bid)) lastBid = params.bid;
+    if (!lastBid || !S.building(lastBid)) lastBid = S.buildings[0] ? S.buildings[0].id : null;
+    const side = sidebar(lastBid, path);
+    const bar = appbar(lastBid, path, route);
     let contentHtml = '';
     const page = HH.pages[pageKey];
     const ctx = pageCtx(pageKey, params, route);
@@ -116,10 +153,10 @@ HH.app = (function () {
       else contentHtml = HH.pages.stub.render(ctx);
     } catch (e) {
       console.error(e);
-      contentHtml = `<div class="alert alert-danger"><span class="ic">⚠</span><div>Lỗi hiển thị trang: ${U.esc(e.message)}</div></div>`;
+      contentHtml = `<div class="alert alert-danger"><span class="ic">${HH.ic('alert', 16)}</span><div>Lỗi hiển thị trang: ${U.esc(e.message)}</div></div>`;
     }
-    document.getElementById('app').innerHTML = shellFrame(top, modules, contentHtml);
-    wireShell(params);
+    document.getElementById('app').innerHTML = shellFrame(side, bar, contentHtml);
+    wireShell(Object.assign({}, params, { bid: params.bid || lastBid }));
     try { if (page && page.mount && pageKey !== 'stub') page.mount(ctx);
           else if (pageKey === 'stub' && HH.pages.stub.mount) HH.pages.stub.mount(ctx); } catch (e) { console.error(e); }
     if (HH.assistant) HH.assistant.mount();   // khung chat trợ lý (nằm ngoài #app nên không bị vẽ lại)
@@ -141,50 +178,44 @@ HH.app = (function () {
       else if (a === 'account') openUserMenu(b);
     });
     const card = document.getElementById('bCard');
-    if (card) card.onclick = (e) => {
-      if (e.target.closest('#bAdd')) { e.stopPropagation(); addBuildingDialog(); return; }
-      openBuildingMenu(card, params.bid);
-    };
-    const more = document.getElementById('moreBtn');
-    if (more) more.onclick = () => openMoreMenu(more, params.bid);
+    if (card) card.onclick = () => openBuildingMenu(card, params.bid);
+    // Điện thoại: thanh bên là ngăn kéo
+    const appEl = document.getElementById('lzApp');
+    const setOpen = (on) => appEl && appEl.classList.toggle('sb-open', on);
+    const op = document.getElementById('sbOpen'); if (op) op.onclick = () => setOpen(true);
+    const sc = document.getElementById('sbScrim'); if (sc) sc.onclick = () => setOpen(false);
+    document.querySelectorAll('#sb .sb-item').forEach(a => a.addEventListener('click', () => setOpen(false)));
   }
   function UI() { return HH.ui; }
 
-  function openMoreMenu(anchor, bid) {
-    const items = MORE.filter(m => !m.perm || S.can(m.perm)).map(m => ({
-      icon: ic(m.ic, 17), label: m.label, onClick: () => HH.router.go(`/b/${bid}/${m.seg}`),
-    }));
-    if (!items.length) items.push({ icon: '🔒', label: 'Không có mục nào được cấp quyền', onClick: () => {} });
-    HH.ui.openMenu(anchor, items);
-  }
 
   function openUserMenu(anchor) {
     const roleLabel = S.isOwner() ? 'Chủ trọ (toàn quyền)'
-      : `Nhân viên · ${S.myPermissions().length} quyền`;
+      : `Nhân viên, ${S.myPermissions().length} quyền`;
     const items = [
-      { icon: '👤', label: `${S.prefs.userName}`, onClick: () => {} },
-      { icon: S.isOwner() ? '👑' : '🔑', label: roleLabel, onClick: () => HH.router.go('/config') },
+      { icon: ic('user', 16), label: `${S.prefs.userName}`, onClick: () => {} },
+      { icon: ic(S.isOwner() ? 'shield' : 'key', 16), label: roleLabel, onClick: () => HH.router.go('/config') },
       { sep: true },
     ];
     // Chỉ chế độ demo (không có máy chủ) mới cho đổi vai trò để xem thử
     if (!S.usingBackend()) items.push(
-      { icon: S.isOwner() ? '●' : '○', label: 'Xem thử: Chủ trọ', onClick: () => switchRole('owner') },
-      { icon: !S.isOwner() ? '●' : '○', label: 'Xem thử: Nhân viên', onClick: () => switchRole('staff') },
+      { icon: ic(S.isOwner() ? 'check' : 'user', 16), label: 'Xem thử: Chủ trọ', onClick: () => switchRole('owner') },
+      { icon: ic(!S.isOwner() ? 'check' : 'user', 16), label: 'Xem thử: Nhân viên', onClick: () => switchRole('staff') },
       { sep: true });
-    if (S.isOwner()) items.push({ icon: '🧑‍🤝‍🧑', label: 'Quản lý nhân viên', onClick: () => HH.router.go('/group') }, { sep: true });
+    if (S.isOwner()) items.push({ icon: ic('users', 16), label: 'Quản lý nhân viên', onClick: () => HH.router.go('/group') }, { sep: true });
     return HH.ui.openMenu(anchor, items.concat(userMenuTail()));
   }
   function userMenuTail() {
     // Nhân viên không được xóa/khôi phục toàn bộ dữ liệu
-    if (!S.isOwner()) return [{ icon: '🚪', label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } }];
+    if (!S.isOwner()) return [{ icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } }];
     return [
-      { icon: '↺', label: 'Khôi phục dữ liệu mẫu', onClick: () => {
+      { icon: ic('refresh', 16), label: 'Khôi phục dữ liệu mẫu', onClick: () => {
         HH.ui.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
           footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
           onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });
       } },
       { sep: true },
-      { icon: '🚪', label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } },
+      { icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } },
     ];
   }
   function switchRole(role) {
@@ -203,27 +234,29 @@ HH.app = (function () {
           if (!name) { HH.ui.toast('Vui lòng nhập tên tòa nhà', { type: 'error' }); return; }
           const b = S.addBuilding({ id: U.uid('b'), name, address: el.querySelector('#nbAddr').value.trim(), floors: 1, perFloor: 0 });
           S.log('building.add', `Thêm tòa nhà ${name}`);
-          close(); HH.ui.toast('Đã thêm tòa nhà — hãy tạo phòng', { type: 'ok' }); HH.router.go(`/b/${b.id}/units`);
+          close(); HH.ui.toast('Đã thêm tòa nhà. Giờ hãy tạo phòng.', { type: 'ok' }); HH.router.go(`/b/${b.id}/units`);
         };
       } });
   }
 
   function openBuildingMenu(anchor, curBid) {
     const path = HH.router.current();
-    const seg = path.split('/')[3] || 'units';
-    HH.ui.openMenu(anchor, S.buildings.map(b => ({
-      icon: b.id === curBid ? '●' : '○', label: b.name,
+    const seg = path.startsWith('/b/') ? (path.split('/')[3] || 'units') : 'units';
+    const items = S.buildings.map(b => ({
+      icon: ic(b.id === curBid ? 'check' : 'building', 16), label: b.name,
       onClick: () => HH.router.go(`/b/${b.id}/${seg}`),
-    })));
+    }));
+    if (S.isOwner()) items.push({ sep: true }, { icon: ic('plus', 16), label: 'Thêm tòa nhà', onClick: () => addBuildingDialog() });
+    HH.ui.openMenu(anchor, items);
   }
 
   function notFoundHtml() {
-    return `<div class="stub"><div class="big-ic">🧭</div><h3>Không tìm thấy trang</h3>
+    return `<div class="stub"><div class="big-ic">${ic('search', 34)}</div><h3>Không tìm thấy trang</h3>
       <p class="muted">Đường dẫn không tồn tại.</p>
       <div style="margin-top:16px"><a class="btn btn-primary" href="#/buildings">Về Quản lý nhà</a></div></div>`;
   }
   function forbiddenHtml() {
-    return `<div class="stub"><div class="big-ic">🔒</div><h3>Bạn không có quyền truy cập</h3>
+    return `<div class="stub"><div class="big-ic">${ic('lock', 34)}</div><h3>Bạn không có quyền truy cập</h3>
       <p class="muted">Mục này chỉ dành cho chủ trọ. Bạn đang ở vai trò nhân viên vận hành.</p>
       <div style="margin-top:16px"><a class="btn btn-outline" href="#/buildings">Quay lại</a></div></div>`;
   }

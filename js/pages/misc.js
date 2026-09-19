@@ -6,25 +6,25 @@
   const methodLabel = { per_kwh: 'Theo chỉ số điện', per_person: 'Theo số người', flat: 'Cố định theo tháng' };
 
   /* ---------------- DỊCH VỤ & ĐƠN GIÁ ---------------- */
-  const SVC_ICONS = { per_kwh: '⚡', per_person: '💧', flat: '📄' };
+  const SVC_ICONS = { per_kwh: HH.ic('bolt', 16), per_person: HH.ic('drop', 16), flat: HH.ic('file', 16) };
 
   HH.pages.services = {
     render(ctx) {
       const svcs = S.servicesOf(ctx.bid);
       const owner = S.isOwner();
       const rows = svcs.map(s => `<tr>
-        <td><span style="font-size:18px;margin-right:6px">${SVC_ICONS[s.method] || '🛎️'}</span><b>${U.esc(s.name)}</b></td>
+        <td><span style="font-size:18px;margin-right:6px">${SVC_ICONS[s.method] || HH.ic('concierge', 16)}</span><b>${U.esc(s.name)}</b></td>
         <td><span class="badge s-neutral"><span class="dot"></span>${methodLabel[s.method]}</span></td>
         <td class="num mono b">${U.number(s.unit)}</td>
         <td>${s.unitLabel}</td>
         ${owner ? `<td class="col-actions"><button class="kebab" data-svmenu="${s.id}">⋯</button></td>` : ''}
       </tr>`);
       const tbody = rows.length ? rows
-        : [`<tr><td colspan="${owner ? 5 : 4}"><div class="empty"><div class="ic">🛎️</div><h4>Chưa có dịch vụ nào</h4><p class="muted">Thêm dịch vụ để tính vào hóa đơn hằng tháng.</p></div></td></tr>`];
+        : [`<tr><td colspan="${owner ? 5 : 4}"><div class="empty"><div class="ic">${HH.ic('concierge', 30)}</div><h4>Chưa có dịch vụ nào</h4><p class="muted">Thêm dịch vụ để tính vào hóa đơn hằng tháng.</p></div></td></tr>`];
       return h`<div class="page-head">
-        <div><div><div class="page-title-lg">Dịch vụ & đơn giá</div><div class="page-sub">${ctx.building.name} · ${svcs.length} dịch vụ · đơn giá hiện hành</div></div></div>
-        <div class="page-actions"><button class="btn btn-success" id="svExport">📊 Xuất excel</button>
-        ${raw(owner ? '<button class="btn btn-primary" data-primary-new>＋ Thêm dịch vụ</button>' : '')}</div>
+        <div><div><div class="page-title-lg">Dịch vụ & đơn giá</div><div class="page-sub">${ctx.building.name}, ${svcs.length} dịch vụ theo đơn giá hiện hành</div></div></div>
+        <div class="page-actions"><button class="btn btn-success" id="svExport">${HH.ic('sheet', 16)} Xuất excel</button>
+        ${raw(owner ? '<button class="btn btn-primary" data-primary-new>' + HH.ic('plus', 16) + ' Thêm dịch vụ</button>' : '')}</div>
       </div>
       <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
         <thead><tr><th>Dịch vụ</th><th>Phương pháp tính</th><th class="num">Đơn giá</th><th>Đơn vị</th>${raw(owner ? '<th></th>' : '')}</tr></thead>
@@ -43,9 +43,9 @@
       document.querySelectorAll('[data-svmenu]').forEach(b => b.onclick = () => {
         const s = S.servicesOf(ctx.bid).find(x => x.id === b.dataset.svmenu);
         UI.openMenu(b, [
-          { icon: '✏️', label: 'Sửa dịch vụ', onClick: () => serviceForm(ctx, s) },
+          { icon: HH.ic('edit', 16), label: 'Sửa dịch vụ', onClick: () => serviceForm(ctx, s) },
           { sep: true },
-          { icon: '🗑', label: 'Xóa dịch vụ', danger: true, onClick: () => {
+          { icon: HH.ic('trash', 16), label: 'Xóa dịch vụ', danger: true, onClick: () => {
             UI.dangerDialog({ title: `Xóa dịch vụ "${s.name}"`,
               description: 'Dịch vụ sẽ không còn được tính vào hóa đơn các kỳ tới.',
               consequences: ['Không ảnh hưởng hóa đơn đã phát hành', 'Thao tác được ghi vào nhật ký'],
@@ -62,7 +62,7 @@
     const methods = { per_kwh: 'Theo chỉ số điện (₫/kWh)', per_person: 'Theo số người (₫/người)', flat: 'Cố định theo tháng (₫/tháng)' };
     const method = s ? s.method : 'flat';
     UI.modal({
-      title: isNew ? 'Thêm dịch vụ' : `Sửa dịch vụ — ${s.name}`,
+      title: isNew ? 'Thêm dịch vụ' : `Sửa dịch vụ ${s.name}`,
       bodyHtml: h`
         <div class="field"><label>Tên dịch vụ *</label><input class="input" id="svName" value="${s ? s.name : ''}" placeholder="VD: Phí giữ xe"></div>
         <div class="field" style="margin-top:12px"><label>Phương pháp tính *</label>
@@ -111,14 +111,14 @@
 
       const head = h`<div class="page-head">
         <div><div><div class="page-title-lg">Tài sản theo phòng</div>
-          <div class="page-sub">${ctx.building.name} · ${all.length} mục · ${inRoom} trong phòng · ${inStock} ở kho chung</div></div></div>
+          <div class="page-sub">${ctx.building.name}: ${all.length} tài sản, ${inRoom} trong phòng và ${inStock} ở kho chung</div></div></div>
         <div class="page-actions">
           <div class="view-toggle">
             <button class="${raw(assetView === 'room' ? 'active' : '')}" data-aview="room">▦ Theo phòng</button>
-            <button class="${raw(assetView === 'list' ? 'active' : '')}" data-aview="list">☰ Bảng</button>
+            <button class="${raw(assetView === 'list' ? 'active' : '')}" data-aview="list">${HH.ic('list', 16)} Bảng</button>
           </div>
-          <button class="btn btn-success" id="assetExport">📊 Xuất excel</button>
-          ${raw(S.isOwner() ? '<button class="btn btn-primary" data-primary-new>＋ Thêm tài sản</button>' : '')}
+          <button class="btn btn-success" id="assetExport">${HH.ic('sheet', 16)} Xuất excel</button>
+          ${raw(S.isOwner() ? '<button class="btn btn-primary" data-primary-new>' + HH.ic('plus', 16) + ' Thêm tài sản</button>' : '')}
         </div></div>
         <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin-bottom:16px">
           ${raw(UI.metricCard({ label: 'Tổng giá trị còn lại', value: totalValue, format: 'currency' }))}
@@ -131,7 +131,7 @@
           rows: assetRoomFilter ? all.filter(a => (a.roomCode || '') === (assetRoomFilter === '__stock__' ? '' : assetRoomFilter)) : all,
           rowId: a => a.id, searchKeys: ['id', 'name', 'roomCode'],
           searchPlaceholder: 'Tìm tài sản, phòng...',
-          emptyTitle: 'Chưa có tài sản', emptyIcon: '📦',
+          emptyTitle: 'Chưa có tài sản', emptyIcon: HH.ic('box', 16),
           emptyAction: { label: 'Thêm tài sản', onClick: () => assetForm(ctx, null) },
           columns: [
             { key: 'icon', label: '', width: '48px', render: a => `<span style="font-size:22px">${a.icon || '📦'}</span>` },
@@ -170,7 +170,7 @@
             <button class="kebab" data-akebab="${a.id}">⋯</button>
           </div>`).join('')
           : `<div class="muted text-sm" style="text-align:center;padding:14px 0">Chưa có tài sản
-              ${S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-addto="${g.key}">＋ Thêm vào ${g.key === '__stock__' ? 'kho' : g.title}</button></div>` : ''}</div>`;
+              ${S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-addto="${g.key}">${HH.ic('plus', 16)} Thêm vào ${g.key === '__stock__' ? 'kho' : g.title}</button></div>` : ''}</div>`;
         return `<div class="card asset-card">
           <div class="card-head" style="padding:12px 14px">
             <div><b>${g.title}</b> <span class="muted text-xs">${U.esc(g.sub)}</span></div>
@@ -182,7 +182,7 @@
               <span class="muted text-xs">${g.items.length} tài sản</span>
               <span class="mono b text-sm">${U.currency(value)}</span>
             </div>
-            ${g.items.length && S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-addto="${g.key}">＋ Thêm vào ${g.key === '__stock__' ? 'kho' : g.title}</button></div>` : ''}
+            ${g.items.length && S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-addto="${g.key}">${HH.ic('plus', 16)} Thêm vào ${g.key === '__stock__' ? 'kho' : g.title}</button></div>` : ''}
           </div></div>`;
       }).join('');
 
@@ -214,14 +214,14 @@
 
   function assetActions(ctx, a) {
     if (!a) return [];
-    const items = [{ icon: '✏️', label: 'Sửa tài sản', onClick: () => assetForm(ctx, a) },
-      { icon: '🏠', label: 'Chuyển sang phòng khác', onClick: () => moveAsset(ctx, a) }];
+    const items = [{ icon: HH.ic('edit', 16), label: 'Sửa tài sản', onClick: () => assetForm(ctx, a) },
+      { icon: HH.ic('building', 16), label: 'Chuyển sang phòng khác', onClick: () => moveAsset(ctx, a) }];
     const conds = { good: 'Tốt', wear: 'Hao mòn tự nhiên', broken: 'Hư hỏng' };
     items.push({ sep: true });
     Object.keys(conds).forEach(c => { if (c !== a.condition)
       items.push({ icon: '●', label: 'Đánh dấu: ' + conds[c], onClick: () => {
         S.updateAsset(a.id, { condition: c }); UI.toast('Đã cập nhật tình trạng', { type: 'ok' }); HH.router.render(); } }); });
-    if (S.isOwner()) items.push({ sep: true }, { icon: '🗑', label: 'Xóa tài sản', danger: true, onClick: () => {
+    if (S.isOwner()) items.push({ sep: true }, { icon: HH.ic('trash', 16), label: 'Xóa tài sản', danger: true, onClick: () => {
       UI.dangerDialog({ title: `Xóa tài sản "${a.name}"`,
         description: 'Tài sản sẽ bị xóa khỏi danh sách và biên bản bàn giao.',
         consequences: ['Không thể hoàn tác', 'Thao tác được ghi vào nhật ký'],
@@ -233,8 +233,8 @@
 
   function moveAsset(ctx, a) {
     const rooms = S.roomsOf(ctx.bid).slice().sort((x, y) => x.code.localeCompare(y.code));
-    const opts = `<option value="">— Kho chung (không gắn phòng) —</option>` +
-      rooms.map(r => `<option value="${r.code}" ${a.roomCode === r.code ? 'selected' : ''}>${r.code} · ${r.typeLabel}${r.tenantName ? ' · ' + U.esc(r.tenantName) : ''}</option>`).join('');
+    const opts = `<option value="">Kho chung (không gắn phòng)</option>` +
+      rooms.map(r => `<option value="${r.code}" ${a.roomCode === r.code ? 'selected' : ''}>${r.code} (${r.typeLabel})${r.tenantName ? ', ' + U.esc(r.tenantName) : ''}</option>`).join('');
     UI.modal({ title: `Chuyển "${a.name}" sang phòng`, bodyHtml: h`
       <p class="muted" style="margin-bottom:12px">Hiện tại: <b>${a.roomCode || 'Kho chung'}</b></p>
       <div class="field"><label>Chuyển tới</label><select class="select" id="mvRoom">${raw(opts)}</select></div>`,
@@ -256,12 +256,12 @@
     let icon = existing ? (existing.icon || '📦') : '❄️';
     const rooms = S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code));
     const curRoom = existing ? existing.roomCode : (presetRoom || null);
-    const roomOpts = `<option value="">— Kho chung (chưa gắn phòng) —</option>` +
-      rooms.map(r => `<option value="${r.code}" ${curRoom === r.code ? 'selected' : ''}>${r.code} · ${r.typeLabel}${r.tenantName ? ' · ' + U.esc(r.tenantName) : ''}</option>`).join('');
+    const roomOpts = `<option value="">Kho chung (chưa gắn phòng)</option>` +
+      rooms.map(r => `<option value="${r.code}" ${curRoom === r.code ? 'selected' : ''}>${r.code} (${r.typeLabel})${r.tenantName ? ', ' + U.esc(r.tenantName) : ''}</option>`).join('');
     const grid = ASSET_ICONS.map(ic => `<button type="button" class="icon-opt ${ic === icon ? 'sel' : ''}" data-ic="${ic}">${ic}</button>`).join('');
     UI.modal({
       size: 'wide',
-      headHtml: `<div class="row-gap-3"><span class="lz-home-ic" style="border:none">🎁</span><h3>${isNew ? 'Thêm mới tài sản' : 'Sửa tài sản'}</h3></div>`,
+      headHtml: `<div class="row-gap-3"><span class="lz-home-ic" style="border:none">${HH.ic('box', 30)}</span><h3>${isNew ? 'Thêm mới tài sản' : 'Sửa tài sản'}</h3></div>`,
       bodyHtml: h`
         <div class="grid-2">
           <div class="field"><label>Tên tài sản *</label><input class="input" data-a="name" value="${existing ? existing.name : ''}" placeholder="VD: Máy lạnh Panasonic"></div>
@@ -323,7 +323,7 @@
       const dt = UI.DataTable({
         rows, rowId: x => x.id, searchKeys: ['roomCode', 'title', 'category'],
         searchPlaceholder: 'Tìm phòng, sự cố...',
-        emptyTitle: 'Không có sự cố nào', emptyIcon: '✅', emptyDesc: 'Tất cả phòng đang hoạt động bình thường.',
+        emptyTitle: 'Không có sự cố nào', emptyIcon: HH.ic('check', 16), emptyDesc: 'Tất cả phòng đang hoạt động bình thường.',
         emptyAction: { label: 'Tạo yêu cầu', onClick: () => incidentForm(ctx) },
         columns: [
           { key: 'roomCode', label: 'Phòng', render: x => `<b>${U.esc(x.roomCode || '')}</b>` },
@@ -358,7 +358,7 @@
       return h`<div class="page-head">
         <div><a class="back-link" href="#/b/${ctx.bid}/units">← Quản lý phòng</a>
           <div class="page-title-lg">Sự cố & sửa chữa</div>
-          <div class="page-sub">${ctx.building.name} · ${open} chờ xử lý · ${doing} đang xử lý</div></div>
+          <div class="page-sub">${ctx.building.name}: ${open} chờ xử lý, ${doing} đang xử lý</div></div>
         <div class="page-actions">
           <button class="btn btn-outline" id="incToggle">${raw(HH.icon(incShowDone ? 'check' : 'list', 16))}
             ${raw(incShowDone ? 'Đang xem cả đã xong' : `Hiện cả đã xong (${done})`)}</button>
@@ -383,7 +383,7 @@
 
   function showIncPhotos(x) {
     if (!x || !x.photos || !x.photos.length) return;
-    UI.modal({ title: `Ảnh yêu cầu — ${x.roomCode}`, size: 'wide',
+    UI.modal({ title: `Ảnh yêu cầu phòng ${x.roomCode}`, size: 'wide',
       bodyHtml: `<p class="muted" style="margin-bottom:12px">${U.esc(x.title || '')}</p>
         <div class="photo-strip">${x.photos.map(p => `<div class="photo-thumb" style="width:100%;max-width:220px;height:170px"><img src="${p}"></div>`).join('')}</div>`,
       footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
@@ -395,7 +395,7 @@
     UI.modal({ title: 'Tạo yêu cầu sửa chữa', bodyHtml: h`
       <div class="grid-2">
         <div class="field"><label>Phòng *</label><select class="select" id="icRoom">
-          ${raw(rooms.map(r => `<option value="${r.code}">${r.code} · ${U.esc(r.typeLabel)}${r.tenantName ? ' · ' + U.esc(r.tenantName) : ''}</option>`).join(''))}
+          ${raw(rooms.map(r => `<option value="${r.code}">${r.code} (${U.esc(r.typeLabel)})${r.tenantName ? ', ' + U.esc(r.tenantName) : ''}</option>`).join(''))}
         </select></div>
         <div class="field"><label>Hạng mục</label><select class="select" id="icCat">
           ${raw(cats.map(c => `<option>${c}</option>`).join(''))}</select></div>

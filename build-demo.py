@@ -65,7 +65,7 @@ def main():
     banner = (
         '<div class="demo-strip">'
         '<b>Bản demo</b>'
-        '<span>Dữ liệu mẫu, lưu trong trình duyệt của bạn — thoải mái bấm thử, '
+        '<span>Dữ liệu mẫu, lưu trong trình duyệt của bạn. Thoải mái bấm thử, '
         'không ảnh hưởng ai. Đăng nhập bằng email bất kỳ.</span>'
         '</div>'
     )
@@ -75,7 +75,7 @@ def main():
 <title>Happy Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%%20&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="%s">
 <style>
@@ -85,7 +85,7 @@ def main():
 .demo-strip {
   display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
   padding: 9px 20px; font-size: 12.5px; line-height: 1.5;
-  background: var(--brand-700); color: #fff;
+  background: var(--teal-900); color: #E3EFEE;
 }
 .demo-strip b { font-weight: 700; letter-spacing: .01em; }
 .demo-strip span { opacity: .82; }
