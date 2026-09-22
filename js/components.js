@@ -84,7 +84,9 @@ HH.ui = (function () {
       b.onclick = () => { opt.action.onClick(); el.remove(); }; el.appendChild(b);
     }
     z.appendChild(el);
-    setTimeout(() => { el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }, opt.sticky ? 9000 : 4000);
+    // Thu tiền xong: bắn pháo giấy từ chỗ thông báo hiện ra
+    if (opt.celebrate && HH.fx) { const r = el.getBoundingClientRect(); HH.fx.confetti(r.left + r.width / 2, r.top); }
+    setTimeout(() => { el.style.transition = 'opacity .2s, transform .2s'; el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; setTimeout(() => el.remove(), 200); }, opt.sticky ? 9000 : 4000);
   }
 
   /* ---------- Modal chung ---------- */
@@ -105,7 +107,12 @@ HH.ui = (function () {
     </div>`;
     document.body.appendChild(overlay);
     openModals.push(overlay);
-    const close = () => { overlay.remove(); openModals = openModals.filter(m => m !== overlay); if (o.onClose) o.onClose(); };
+    // Đóng: gỡ ngay khỏi trang, để lại bản sao mờ dần cho mềm mắt
+    const close = () => {
+      if (!overlay.isConnected) return;
+      if (HH.fx) HH.fx.leave(overlay); else overlay.remove();
+      openModals = openModals.filter(m => m !== overlay); if (o.onClose) o.onClose();
+    };
     overlay.addEventListener('click', (e) => { if (e.target === overlay && o.dismissable !== false) close(); });
     overlay.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
     // bẫy tiêu điểm cơ bản

@@ -195,8 +195,36 @@ HH.app = (function () {
       path: HH.router.current(), go: HH.router.go };
   }
 
+  /* ---------- Chuyển trang ----------
+     Đổi sang trang khác: trang cũ trượt ra, trang mới trượt vào (đi tới thì
+     sang trái, quay lại thì sang phải). Vẽ lại CÙNG trang (lọc, đổi kỳ, vừa
+     lưu xong): không chạy hiệu ứng, giữ nguyên chỗ đang cuộn. */
+  let lastPath = null, fromBare = false, stuckIO = null;
+
+  // Thứ tự trang để biết hướng đi: mục công ty trước, rồi các mục của tòa nhà
+  function pageOrder(path) {
+    if (path.startsWith('/b/')) {
+      const parts = path.split('/');
+      const i = MODULES.concat(MORE).findIndex(m => m.seg === (parts[3] || 'units'));
+      return 100 + (i < 0 ? 50 : i) + (parts.length > 4 ? .5 : 0);   // trang con (…/new, …/:id) sâu hơn
+    }
+    const i = TOP_TILES.findIndex(t => t.path === path);
+    return i < 0 ? 90 : i;
+  }
+
   function renderShell(pageKey, params, route) {
     const path = HH.router.current().split('?')[0];
+    const same = path === lastPath && !fromBare;
+    const first = !lastPath && !fromBare;           // vừa mở ứng dụng: chỉ cần hiệu ứng trồi lên
+    const dir = fromBare ? 'fade' : (lastPath && pageOrder(path) < pageOrder(lastPath) ? 'back' : 'fwd');
+    lastPath = path; fromBare = false;
+    if (same || first) return paint(pageKey, params, route, same, false);
+    HH.fx.transition((vt) => paint(pageKey, params, route, false, vt), dir);
+  }
+
+  function paint(pageKey, params, route, same, inVT) {
+    const path = HH.router.current().split('?')[0];
+    const keepY = same ? window.scrollY : 0;
     if (params.bid && S.building(params.bid)) lastBid = params.bid;
     if (!lastBid || !S.building(lastBid)) lastBid = S.buildings[0] ? S.buildings[0].id : null;
     const c = counts(lastBid);
@@ -221,21 +249,37 @@ HH.app = (function () {
     try { if (page && page.mount && pageKey !== 'stub') page.mount(ctx);
           else if (pageKey === 'stub' && HH.pages.stub.mount) HH.pages.stub.mount(ctx); } catch (e) { console.error(e); }
     if (HH.assistant) HH.assistant.mount();   // khung chat trợ lý (nằm ngoài #app nên không bị vẽ lại)
-    window.scrollTo(0, 0);
-    // Chuyển động: chỉ báo trượt sang mục mới, nội dung trồi lên lần lượt
+    window.scrollTo(0, keepY);
+    // Chuyển động: chỉ báo trượt sang mục mới; nội dung trồi lên khi trình duyệt
+    // không có hiệu ứng chuyển trang (có rồi thì thôi, tránh chồng hai hiệu ứng)
     HH.fx.slide(document.getElementById('hdNav'), 'hd');
     HH.fx.slide(document.getElementById('mbNav'), 'mb');
     HH.fx.slide(document.getElementById('mTabs'), 'mtab');
-    HH.fx.enter(document.getElementById('pageRoot'));
+    if (!same && !inVT) HH.fx.enter(document.getElementById('pageRoot'));
+    watchStuck();
+  }
+
+  // Hàng mục tòa nhà đổ bóng khi đã dính lên đầu màn hình (không dùng sự kiện cuộn)
+  function watchStuck() {
+    if (stuckIO) { stuckIO.disconnect(); stuckIO = null; }
+    const hd = document.querySelector('.hd'), mb = document.querySelector('.mb');
+    if (!hd || !mb || !('IntersectionObserver' in window)) return;
+    stuckIO = new IntersectionObserver(([e]) => mb.classList.toggle('stuck', !e.isIntersecting));
+    stuckIO.observe(hd);
   }
 
   function renderBare(pageKey, params, route) {
     const page = HH.pages[pageKey];
     const ctx = pageCtx(pageKey, params, route);
-    if (HH.assistant) HH.assistant.unmount();  // màn hình đăng nhập không hiện trợ lý
-    document.body.classList.remove('has-shell');
-    document.getElementById('app').innerHTML = page.render(ctx);
-    if (page.mount) page.mount(ctx);
+    const fromShell = !!document.getElementById('lzApp');   // đang trong ứng dụng -> đăng xuất
+    lastPath = null; fromBare = true;
+    const run = () => {
+      if (HH.assistant) HH.assistant.unmount();  // màn hình đăng nhập không hiện trợ lý
+      document.body.classList.remove('has-shell');
+      document.getElementById('app').innerHTML = page.render(ctx);
+      if (page.mount) page.mount(ctx);
+    };
+    if (fromShell) HH.fx.transition(run, 'fade'); else run();
   }
 
   function wireShell(params) {

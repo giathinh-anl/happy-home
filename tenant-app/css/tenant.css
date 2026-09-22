@@ -659,3 +659,58 @@ button:hover > .pic, .quick-item:hover .pic, .t-nav:hover .pic, .t-action:hover 
   .t-hero + .t-grid2 .due-card { margin-left: 0; margin-right: 0; }
   .t-page-head h1 { font-weight: 800; color: var(--teal-900); }
 }
+
+/* ============================================================
+   Chuyển màn như ứng dụng (View Transitions)
+   Thanh trên, thanh tab, thanh bên, nút trợ lý đứng yên; phần nội dung
+   trượt: vào màn con thì từ phải sang, quay lại thì ngược lại.
+   ============================================================ */
+:root { --vt-d: 64px; }
+@media (max-width: 899px) { :root { --vt-d: 42%; } }
+
+.t-header { view-transition-name: t-head; }
+.t-tabbar { view-transition-name: t-tabs; }
+.t-side { view-transition-name: t-side; }
+.t-main, .chat-wrap { view-transition-name: page; }
+.chat-fab { view-transition-name: t-fab; }
+.t-toast-zone { view-transition-name: t-toasts; }
+
+html[data-vt="fwd"]::view-transition-old(root), html[data-vt="fwd"]::view-transition-new(root),
+html[data-vt="back"]::view-transition-old(root), html[data-vt="back"]::view-transition-new(root) { animation: none; }
+::view-transition-group(t-head), ::view-transition-group(t-tabs), ::view-transition-group(t-side),
+::view-transition-group(t-fab), ::view-transition-group(t-toasts) { animation: none; }
+::view-transition-old(t-head), ::view-transition-old(t-tabs), ::view-transition-old(t-side),
+::view-transition-old(t-fab), ::view-transition-old(t-toasts) { display: none; }
+::view-transition-new(t-head), ::view-transition-new(t-tabs), ::view-transition-new(t-side),
+::view-transition-new(t-fab), ::view-transition-new(t-toasts) { animation: none; }
+/* Thanh tab / nút trợ lý xuất hiện hoặc biến mất (màn con không có tab) */
+::view-transition-old(t-tabs):only-child, ::view-transition-old(t-fab):only-child { display: block; animation: vtSink .26s var(--ease) both; }
+::view-transition-new(t-tabs):only-child, ::view-transition-new(t-fab):only-child { animation: vtRise .4s var(--ease-out) both; }
+
+::view-transition-group(page) { animation: none; }
+html[data-vt="fwd"]::view-transition-old(page)  { animation: vtOutL .3s var(--ease) both; }
+html[data-vt="fwd"]::view-transition-new(page)  { animation: vtInR .5s var(--ease-out) .03s both; }
+html[data-vt="back"]::view-transition-old(page) { animation: vtOutR .3s var(--ease) both; }
+html[data-vt="back"]::view-transition-new(page) { animation: vtInL .5s var(--ease-out) .03s both; }
+html[data-vt="fade"]::view-transition-old(root) { animation: vtFadeOut .3s ease both; }
+html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--ease-out) both; }
+
+@keyframes vtOutL { to { opacity: 0; transform: translateX(calc(var(--vt-d) * -.5)) scale(.98); } }
+@keyframes vtOutR { to { opacity: 0; transform: translateX(calc(var(--vt-d) * .5)) scale(.98); } }
+@keyframes vtInR { from { opacity: 0; transform: translateX(var(--vt-d)); } }
+@keyframes vtInL { from { opacity: 0; transform: translateX(calc(var(--vt-d) * -1)); } }
+@keyframes vtSink { to { opacity: 0; transform: translateY(100%); } }
+@keyframes vtRise { from { opacity: 0; transform: translateY(100%); } }
+@keyframes vtFadeOut { to { opacity: 0; } }
+@keyframes vtZoomIn { from { opacity: 0; transform: scale(1.03); } }
+
+/* Vệt sáng theo con trỏ trên ô truy cập nhanh (máy có chuột) */
+@media (hover: hover) {
+  .quick-item { position: relative; --mx: 50%; --my: 50%; }
+  .quick-item::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+    background: radial-gradient(160px circle at var(--mx) var(--my), rgba(60,198,184,.16), transparent 65%);
+    transition: opacity .35s;
+  }
+  .quick-item:hover::after { opacity: 1; }
+}

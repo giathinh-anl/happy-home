@@ -563,7 +563,7 @@
             debts.forEach(i => { const need = i.total - i.paid; const applied = Math.min(need, amt);
               if (applied > 0) { made.push(S.recordPayment(i.id, applied, method, date, note, receiptNo)); amt -= applied; } });
             close();
-            UI.toast(`Đã thu ${U.currency(made.reduce((s, p) => s + p.amount, 0))} · phiếu ${receiptNo}`, { type: 'ok' });
+            UI.toast(`Đã thu ${U.currency(made.reduce((s, p) => s + p.amount, 0))} · phiếu ${receiptNo}`, { type: 'ok', celebrate: true });
             if (made.length) receiptDialog(ctx, made, amt);   // amt còn dư = tiền thừa
             HH.router.render();
           }, 500);

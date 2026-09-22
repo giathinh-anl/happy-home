@@ -271,7 +271,7 @@
         const p = S.recordPayment(inv.id, Math.min(c.amount, inv.total - inv.paid),
           'Chuyển khoản', new Date().toISOString(), c.note || 'Khách báo chuyển khoản');
         S.updateClaim(c.id, { status: 'confirmed' });
-        UI.toast(`Đã ghi thu ${U.currency(p ? p.amount : c.amount)} · phiếu ${p ? p.receiptNo : ''}`, { type: 'ok' });
+        UI.toast(`Đã ghi thu ${U.currency(p ? p.amount : c.amount)} · phiếu ${p ? p.receiptNo : ''}`, { type: 'ok', celebrate: true });
         HH.router.render();
       });
       document.querySelectorAll('[data-noclaim]').forEach(b => b.onclick = () => {
@@ -299,7 +299,7 @@
       const runAll = document.getElementById('btnRunAll');
       if (runAll) runAll.onclick = () => {
         const r = S.autoReconcile();
-        if (r.done.length) UI.toast(`Đã tự động ghi thu ${r.done.length} giao dịch. Công nợ tương ứng đã xóa.`, { type: 'ok' });
+        if (r.done.length) UI.toast(`Đã tự động ghi thu ${r.done.length} giao dịch. Công nợ tương ứng đã xóa.`, { type: 'ok', celebrate: true });
         else UI.toast(r.review.length ? 'Không có giao dịch nào khớp chắc chắn. Xem cột "Kết quả dò".' : 'Không có giao dịch mới',
           { type: r.review.length ? 'warning' : 'info' });
         HH.router.render();
@@ -488,7 +488,7 @@
             S.log('bank.manual', `Ghi thu thủ công ${U.currency(r.payment.amount)} cho ${btn.dataset.pick}`);
             close();
             UI.toast(`Đã ghi thu ${U.currency(r.payment.amount)} · phiếu ${r.payment.receiptNo}`
-              + (r.over ? ` · dư ${U.currency(r.over)}` : ''), { type: 'ok' });
+              + (r.over ? ` · dư ${U.currency(r.over)}` : ''), { type: 'ok', celebrate: true });
             HH.router.render();
           });
         };

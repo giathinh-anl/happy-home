@@ -79,7 +79,21 @@
 
   /* ---------- điều hướng ---------- */
   function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
-  window.addEventListener('hashchange', render);
+
+  /* Chuyển màn như ứng dụng điện thoại: vào màn con (chi tiết, thanh toán...) thì
+     màn mới trượt từ phải sang; quay lại thì trượt ngược; đổi tab theo thứ tự tab. */
+  const TAB_ORDER = ['#/home', '#/invoices', '#/room', '#/account'];
+  const depthOf = (h) => (!h || h === '#/' || TAB_ORDER.indexOf(h) > -1) ? 0 : /^#\/(pay|proof)/.test(h) ? 2 : 1;
+  let lastHash = location.hash, inVT = false;
+  window.addEventListener('hashchange', () => {
+    const from = lastHash, to = location.hash;
+    lastHash = to;
+    const auth = !state.phone || !state.data || /^#\/(otp|login)/.test(from || '') || /^#\/(otp|login)/.test(to);
+    const df = depthOf(from), dt = depthOf(to);
+    const dir = auth ? 'fade' : dt > df ? 'fwd' : dt < df ? 'back'
+      : (TAB_ORDER.indexOf(to) >= TAB_ORDER.indexOf(from) ? 'fwd' : 'back');
+    HH.fx.transition((vt) => { inVT = vt; try { render(); window.scrollTo(0, 0); } finally { inVT = false; } }, dir);
+  });
 
   function render() {
     const h = location.hash || '';
@@ -291,7 +305,7 @@
     if (opts.tab) wireTabs();
     // Chuyển động: viên chỉ báo trượt sang tab mới, các khối trồi lên, số tiền chạy
     HH.fx.slide(el('tTabs'), 't-tab');
-    HH.fx.enter(document.querySelector('.t-main'));
+    if (!inVT) HH.fx.enter(document.querySelector('.t-main'));
     HH.fx.countUp(el('tapp'), { vnd: (v) => vnd(v) });
   }
 
@@ -532,6 +546,7 @@
           p_amount: amount, p_note: note, p_photo: c.photo });
         state.claim = null;
         toast('Đã gửi xác nhận cho chủ nhà');
+        HH.fx.confetti();
         go('#/home');
       } catch (err) {
         // Máy chủ chưa có hàm mới -> vẫn báo cho chủ nhà theo cách cũ
