@@ -81,8 +81,13 @@
       safetySettings: [],
     };
 
+    return send(body, opt.timeout || 12000);
+  }
+
+  /* Gửi yêu cầu tới Gemini (qua proxy nếu có) và lấy phần chữ trả về */
+  async function send(body, timeout) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opt.timeout || 12000);
+    const timer = setTimeout(() => ctrl.abort(), timeout || 12000);
     let res;
     try {
       if (viaProxy()) {
@@ -116,6 +121,26 @@
     const text = parts.map(p => p.text || '').join('').trim();
     if (!text) throw new Error('AI_EMPTY');
     return text;
+  }
+
+  /* ---------- Đọc giấy tờ bằng ảnh (hợp đồng giấy, CCCD) ----------
+     files: [{ mime, data }] với data là base64 (không kèm "data:...;base64,").
+     Mô hình chỉ ĐỌC chữ có trên giấy, không được suy đoán, thiếu thì để null. */
+  async function readDoc(files, systemText, userText, opt) {
+    opt = opt || {};
+    if (!configured()) throw new Error('AI_NOT_CONFIGURED');
+    if (quota().n >= DAILY_LIMIT) throw new Error('AI_QUOTA');
+    if (!files || !files.length) throw new Error('AI_EMPTY');
+    const parts = files.map(f => ({ inline_data: { mime_type: f.mime, data: f.data } }));
+    parts.push({ text: userText });
+    const body = {
+      contents: [{ role: 'user', parts }],
+      systemInstruction: { parts: [{ text: systemText }] },
+      generationConfig: { temperature: 0, maxOutputTokens: opt.maxTokens || 1600, responseMimeType: 'application/json' },
+      safetySettings: [],
+    };
+    const txt = await send(body, opt.timeout || 45000);
+    try { return JSON.parse(txt); } catch (e) { throw new Error('AI_BAD_JSON'); }
   }
 
   /* ---------- BƯỚC 1: phân loại ý định (chỉ trả JSON, không có số liệu) ---------- */
@@ -171,12 +196,13 @@ QUY TẮC BẮT BUỘC:
       case 'AI_TIMEOUT': return 'Máy chủ AI phản hồi chậm quá. Anh/chị thử lại giúp em nhé.';
       case 'AI_NETWORK': return 'Không kết nối được máy chủ AI. Kiểm tra mạng giúp em ạ.';
       case 'AI_BAD_KEY': return 'Khóa Gemini không hợp lệ.';
+      case 'AI_BAD_JSON': return 'AI đọc được nhưng trả về sai định dạng. Thử chụp lại ảnh rõ hơn giúp em.';
       default: return 'Trợ lý AI đang bận. Anh/chị thử lại sau ít phút nhé.';
     }
   }
 
   root.HHGemini = {
-    configured, viaProxy, classify, compose, call, errText,
+    configured, viaProxy, classify, compose, call, readDoc, errText,
     cacheGet, cacheSet,
     quotaUsed: () => quota().n, quotaLimit: DAILY_LIMIT,
     model: MODEL,

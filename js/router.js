@@ -22,6 +22,7 @@ HH.router = (function () {
     { pat: '/b/:bid/tenants/new', page: 'tenantNew', meta: { perm: 'tenants' } },
     { pat: '/b/:bid/contracts', page: 'contracts', meta: { perm: 'contracts' } },
     { pat: '/b/:bid/contracts/new', page: 'contractNew', meta: { perm: 'contracts' } },
+    { pat: '/b/:bid/contracts/scan', page: 'contractScan', meta: { title: 'Quét hợp đồng giấy', perm: 'contracts' } },
     { pat: '/b/:bid/contracts/:cid/terminate', page: 'terminate', meta: { perm: 'contracts' } },
     { pat: '/b/:bid/contracts/:cid', page: 'contractDetail', meta: { perm: 'contracts' } },
     { pat: '/b/:bid/services', page: 'services', meta: { perm: 'services' } },

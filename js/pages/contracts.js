@@ -89,6 +89,7 @@
           <div class="page-sub">${ctx.building.name}, ${all.length} hợp đồng${raw(f ? ` (đang lọc: ${f.label})` : '')}</div></div></div>
         <div class="page-actions">
           <button class="btn btn-success" id="ctExport">${HH.ic('sheet', 16)} Xuất excel</button>
+          <button class="btn btn-outline" id="ctScan">${HH.ic('camera', 16)} Quét hợp đồng giấy</button>
           <button class="btn btn-primary" data-primary-new>+ Lập hợp đồng</button></div>
       </div>
       ${raw(reminder)}
@@ -98,6 +99,8 @@
     mount(ctx) {
       ctx._dt.attach(document);
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/contracts/new`);
+      const sc = document.getElementById('ctScan');
+      if (sc) sc.onclick = () => HH.router.go(`/b/${ctx.bid}/contracts/scan`);
       document.querySelectorAll('[data-ctfilter]').forEach(b => b.onclick = () => {
         const k = b.dataset.ctfilter;
         const cur = new URLSearchParams((location.hash.split('?')[1] || '')).get('filter');
@@ -208,7 +211,9 @@
       ${termsHtml}
       <div class="clause"><b>Phụ lục: Tài sản bàn giao</b>${assetHtml}</div>
       <div class="sign"><div><b>BÊN CHO THUÊ (Bên A)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(b.contactName || S.prefs.userName || '')}</div>
-        <div><b>BÊN THUÊ (Bên B)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(rep.fullName || c.tenantName || '')}</div></div>
+        <div><b>BÊN THUÊ (Bên B)</b><br><i>(Ký, ghi rõ họ tên)</i>
+          ${c.signature ? `<br><img src="${c.signature}" alt="Chữ ký bên thuê" style="max-width:180px;max-height:70px;display:block;margin:6px auto 0">`
+            : '<br><br><br><br>'}${U.esc(rep.fullName || c.tenantName || '')}</div></div>
       <script>window.onload=function(){window.print()}<\/script></body></html>`);
     win.document.close();
   }
@@ -255,6 +260,7 @@
         ${raw(UI.statusBadge(c.status === 'active' && c.expiringSoon ? 'expiring' : c.status, 'contract'))}
         ${raw(expiryChip(c))}
         ${raw(c.renewCount ? `<span class="badge s-info"><span class="dot"></span>Đã gia hạn ${c.renewCount} lần</span>` : '')}
+        ${raw((c.scans || []).length ? `<span class="badge s-success"><span class="dot"></span>Có bản giấy đã ký</span>` : '')}
       </div>
 
       <div class="ct-grid">
@@ -300,6 +306,21 @@
             ${raw(assets.length ? `<div class="room-assets">${assets.map(a => `<span class="room-asset-chip ${a.condition === 'good' ? '' : a.condition}">${a.icon || '📦'} ${U.esc(a.name)}</span>`).join('')}</div>`
               : '<span class="faint text-sm">Chưa có tài sản</span>')}
           </div></div>
+
+          <div class="card"><div class="card-head"><h3>Minh chứng hợp đồng giấy</h3>
+            ${raw((c.scans || []).length ? `<span class="badge s-success"><span class="dot"></span>${c.scans.length} trang</span>` : '')}
+          </div><div class="card-pad">
+            ${raw((c.scans || []).length ? `
+              <div class="scan-strip small">${c.scans.slice(0, 3).map((src, i) => src.startsWith('data:application/pdf')
+                ? `<div class="scan-thumb"><div class="scan-pdf">${HH.ic('file', 22)}<span>PDF</span></div><span class="scan-n">Trang ${i + 1}</span></div>`
+                : `<div class="scan-thumb"><img src="${src}" alt="Hợp đồng giấy trang ${i + 1}"><span class="scan-n">Trang ${i + 1}</span></div>`).join('')}
+                ${c.scans.length > 3 ? `<div class="scan-thumb more">+${c.scans.length - 3}</div>` : ''}</div>
+              ${c.signature ? `<div class="sig-box small" style="margin-top:10px"><img src="${c.signature}" alt="Chữ ký khách thuê"></div>` : ''}
+              ${c.scanNote ? `<p class="muted text-sm" style="margin-top:10px">${U.esc(c.scanNote)}</p>` : ''}
+              <div style="margin-top:12px"><button class="btn btn-outline btn-sm" id="ctScans">${HH.ic('eye', 16)} Xem hợp đồng giấy</button></div>`
+              : `<span class="faint text-sm">Chưa có bản giấy.</span>
+                 <div style="margin-top:10px"><a class="btn btn-outline btn-sm" href="#/b/${ctx.bid}/contracts/scan">${HH.ic('camera', 16)} Quét bản giấy</a></div>`)}
+          </div></div>
         </div>
       </div>`;
     },
@@ -310,6 +331,7 @@
       const t = document.getElementById('ctTerm'); if (t) t.onclick = () => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}/terminate`);
       const e = document.getElementById('ctEdit'); if (e) e.onclick = () => editContract(ctx, c);
       const tm = document.getElementById('ctTerms'); if (tm) tm.onclick = () => editTerms(ctx, c);
+      const sv = document.getElementById('ctScans'); if (sv) sv.onclick = () => viewScans(c);
     },
   };
 
@@ -657,6 +679,375 @@
         HH.router.go(`/b/${ctx.bid}/contracts`);
       }, 700);
     };
+  }
+
+  /* ================= QUÉT HỢP ĐỒNG GIẤY =================
+     Chụp / tải hợp đồng giấy lên -> AI đọc chữ trên giấy điền sẵn vào biểu mẫu
+     -> người dùng kiểm tra, cắt chữ ký -> tạo hợp đồng.
+     Ảnh bản giấy được lưu làm MINH CHỨNG, bấm xem lại bất cứ lúc nào.
+     AI chỉ ĐỌC chữ có trên giấy, không tự suy đoán; mọi ô đều sửa được. */
+  const G = () => window.HHGemini;
+  const scan = { files: [], form: null, conf: {}, sig: null, busy: false, raw: null };
+
+  const SCAN_SYS = `Bạn là công cụ đọc hợp đồng thuê nhà/phòng trọ tiếng Việt từ ảnh chụp hoặc bản scan.
+NHIỆM VỤ: đọc CHÍNH XÁC chữ có trên giấy và trả về JSON. TUYỆT ĐỐI KHÔNG suy đoán, không tự bịa.
+Không đọc được ô nào thì để null. Chỉ trả JSON, không giải thích.
+Định dạng:
+{"roomCode":"mã phòng"|null,"tenantName":"họ tên bên thuê"|null,"idNumber":"số CCCD/CMND"|null,
+"dob":"dd/mm/yyyy"|null,"phone":"số điện thoại"|null,"address":"địa chỉ thường trú"|null,
+"rent":số tiền thuê mỗi tháng|null,"deposit":số tiền cọc|null,
+"startDate":"dd/mm/yyyy"|null,"endDate":"dd/mm/yyyy"|null,"months":số tháng thuê|null,
+"billingDay":ngày chốt tiền hàng tháng|null,"dueDays":số ngày được trả chậm|null,
+"occupants":số người ở|null,"landlordName":"họ tên bên cho thuê"|null,
+"hasSignature":true|false,"notes":"ghi chú khác đáng lưu ý"|null,
+"confidence":{"tên_trường":0..1}}
+QUY TẮC:
+- Tiền: chỉ chữ số, bỏ dấu chấm và chữ "đồng". "3.500.000 đ" -> 3500000. "3 triệu 5" -> 3500000.
+- Ngày: luôn dd/mm/yyyy. Thiếu năm thì để null.
+- roomCode: lấy đúng mã ghi trên giấy, ví dụ "P101", "A203".
+- hasSignature: true nếu thấy chữ ký tay hoặc điểm chỉ của bên thuê.
+- confidence: mức chắc chắn của từng trường bạn đọc được (1 là rõ ràng, 0.5 là mờ/đoán hình dạng).`;
+
+  HH.pages.contractScan = {
+    render(ctx) {
+      const rooms = S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code));
+      const f = scan.form;
+      const aiOn = G() && G().configured();
+
+      const thumbs = scan.files.map((x, i) => `<div class="scan-thumb">
+          ${x.mime.startsWith('image/') ? `<img src="${x.url}" alt="Trang ${i + 1}">`
+            : `<div class="scan-pdf">${HH.ic('file', 26)}<span>PDF</span></div>`}
+          <span class="scan-n">Trang ${i + 1}</span>
+          <button class="ph-del" data-delscan="${i}" title="Bỏ trang này">${HH.ic('x', 14)}</button>
+        </div>`).join('');
+
+      const formHtml = !f ? '' : `
+        <section class="card dh-panel" style="margin-top:20px">
+          <header class="dh-panel-h"><span class="dh-panel-pic">${HH.pic('contract', 26)}</span>
+            <h3>Thông tin đọc được</h3><span class="faint text-xs">kiểm tra lại trước khi tạo</span></header>
+          <div class="dh-panel-b">
+            <div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
+              <div>Ô nào có dấu <b>cần kiểm tra</b> là AI đọc chưa chắc chắn. Sửa lại cho đúng rồi mới tạo hợp đồng.</div></div>
+            <div class="grid-2">
+              ${scanField('Phòng', 'roomCode', `<select class="select" data-f="roomCode">
+                <option value="">Chọn phòng</option>
+                ${rooms.map(r => `<option value="${r.code}" ${f.roomCode === r.code ? 'selected' : ''}>${r.code}, ${U.esc(r.typeLabel)}${r.status !== 'vacant' ? ' (đang có khách)' : ''}</option>`).join('')}
+              </select>`)}
+              ${scanField('Khách thuê (bên B)', 'tenantName', `<input class="input" data-f="tenantName" value="${U.esc(f.tenantName || '')}">`)}
+              ${scanField('Số CCCD', 'idNumber', `<input class="input num" data-f="idNumber" value="${U.esc(f.idNumber || '')}">`)}
+              ${scanField('Ngày sinh', 'dob', `<input class="input" data-f="dob" value="${U.esc(f.dob || '')}" placeholder="dd/mm/yyyy">`)}
+              ${scanField('Điện thoại', 'phone', `<input class="input num" data-f="phone" value="${U.esc(f.phone || '')}">`)}
+              ${scanField('Địa chỉ thường trú', 'address', `<input class="input" data-f="address" value="${U.esc(f.address || '')}">`)}
+              ${scanField('Giá thuê mỗi tháng', 'rent', `<input class="input money" data-f="rent" value="${f.rent ? U.number(f.rent) : ''}">`)}
+              ${scanField('Tiền cọc', 'deposit', `<input class="input money" data-f="deposit" value="${f.deposit ? U.number(f.deposit) : ''}">`)}
+              ${scanField('Ngày bắt đầu', 'startDate', `<input class="input" type="date" data-f="startDate" value="${f.startDate || ''}">`)}
+              ${scanField('Ngày kết thúc', 'endDate', `<input class="input" type="date" data-f="endDate" value="${f.endDate || ''}">`)}
+              ${scanField('Ngày chốt tiền hàng tháng', 'billingDay', `<input class="input num" data-f="billingDay" value="${f.billingDay || 1}">`)}
+              ${scanField('Số ngày được trả chậm', 'dueDays', `<input class="input num" data-f="dueDays" value="${f.dueDays || 5}">`)}
+            </div>
+            <div class="field" style="margin-top:14px"><label>Ghi chú trên hợp đồng giấy</label>
+              <textarea class="textarea" data-f="notes" placeholder="Điều khoản riêng, thỏa thuận thêm...">${U.esc(f.notes || '')}</textarea></div>
+
+            <div class="field" style="margin-top:18px">
+              <label>Chữ ký của khách thuê</label>
+              ${scan.sig
+                ? `<div class="sig-box"><img src="${scan.sig}" alt="Chữ ký khách thuê">
+                    <button class="btn btn-sm btn-outline" id="sigRedo">${HH.ic('edit', 16)} Cắt lại</button>
+                    <button class="btn btn-sm btn-outline" id="sigDel">${HH.ic('trash', 16)} Bỏ</button></div>`
+                : `<div class="row-gap-2 wrap"><button class="btn btn-outline btn-sm" id="sigCrop" ${scan.files.some(x => x.mime.startsWith('image/')) ? '' : 'disabled'}>
+                      ${HH.ic('camera', 16)} Cắt chữ ký từ ảnh</button>
+                    <span class="faint text-sm">${f.hasSignature ? 'AI thấy có chữ ký trên giấy' : 'Kéo chọn vùng chữ ký trên ảnh hợp đồng'}</span></div>`}
+            </div>
+          </div>
+        </section>
+
+        <div class="between" style="margin-top:20px">
+          <button class="btn btn-outline" id="scanReset">${HH.ic('undo', 16)} Làm lại</button>
+          <button class="btn btn-primary btn-lg" id="scanSave">${HH.ic('check', 16)} Tạo hợp đồng từ bản quét</button>
+        </div>`;
+
+      return h`<div class="page-head">
+        <div><a class="back-link" href="#/b/${ctx.bid}/contracts">← Hợp đồng</a>
+          <div class="page-title-lg">Quét hợp đồng giấy</div>
+          <div class="page-sub">${ctx.building.name}. Chụp hoặc tải hợp đồng đã ký, hệ thống đọc và điền sẵn thông tin.</div></div>
+      </div>
+
+      ${raw(aiOn ? '' : `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">${HH.ic('alert', 16)}</span>
+        <div><b>Chưa bật trợ lý AI</b> nên chưa đọc tự động được. Bạn vẫn tải ảnh lên làm minh chứng và nhập tay.
+        Bật bằng cách điền <span class="code">aiProxyUrl</span> hoặc <span class="code">geminiApiKey</span> trong js/config.js.</div></div>`)}
+
+      <section class="card dh-panel">
+        <header class="dh-panel-h"><span class="dh-panel-pic">${raw(HH.pic('camera', 26))}</span>
+          <h3>Bản hợp đồng giấy</h3><span class="faint text-xs">${scan.files.length} trang</span></header>
+        <div class="dh-panel-b">
+          <div class="scan-drop" id="scanDrop">
+            <div class="big-ic">${raw(HH.pic('contract', 56))}</div>
+            <h4>Kéo thả ảnh hợp đồng vào đây</h4>
+            <p class="muted">Chụp từng trang cho rõ chữ. Nhận ảnh JPG, PNG và tệp PDF.</p>
+            <div class="row-gap-2 wrap" style="justify-content:center;margin-top:14px">
+              <label class="btn btn-primary">${raw(HH.ic('upload', 16))} Chọn tệp
+                <input type="file" accept="image/*,application/pdf" multiple hidden id="scanFile"></label>
+              <label class="btn btn-outline">${raw(HH.ic('camera', 16))} Chụp ảnh
+                <input type="file" accept="image/*" capture="environment" hidden id="scanCam"></label>
+            </div>
+          </div>
+          ${raw(scan.files.length ? `<div class="scan-strip">${thumbs}</div>` : '')}
+          ${raw(scan.files.length ? `<div class="row-gap-2 wrap" style="margin-top:14px">
+            <button class="btn btn-primary" id="scanRead" ${aiOn ? '' : 'disabled'}>${HH.ic('sparkles', 16)} Đọc thông tin từ hợp đồng</button>
+            <button class="btn btn-outline" id="scanManual">Nhập tay, chỉ lưu ảnh</button>
+          </div>` : '')}
+          <div id="scanMsg"></div>
+        </div>
+      </section>
+      ${raw(formHtml)}`;
+    },
+
+    mount(ctx) {
+      const pick = async (files) => {
+        for (const file of Array.from(files || []).slice(0, 6 - scan.files.length)) {
+          if (file.type === 'application/pdf') {
+            if (file.size > 6e6) { UI.toast('Tệp PDF quá lớn (tối đa 6MB)', { type: 'error' }); continue; }
+            const url = await U.fileToDataUrl(file);
+            scan.files.push({ mime: 'application/pdf', url, name: file.name });
+          } else if (file.type.startsWith('image/')) {
+            const url = await U.compressImage(file, 1500, 0.75);   // đủ nét để đọc chữ mà không quá nặng
+            scan.files.push({ mime: 'image/jpeg', url, name: file.name });
+          }
+        }
+        HH.router.render();
+      };
+      const fi = document.getElementById('scanFile'); if (fi) fi.onchange = () => pick(fi.files);
+      const cam = document.getElementById('scanCam'); if (cam) cam.onchange = () => pick(cam.files);
+      const drop = document.getElementById('scanDrop');
+      if (drop) {
+        ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+        ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+        drop.addEventListener('drop', (e) => pick(e.dataTransfer.files));
+      }
+      document.querySelectorAll('[data-delscan]').forEach(b => b.onclick = () => {
+        scan.files.splice(+b.dataset.delscan, 1); HH.router.render();
+      });
+
+      const read = document.getElementById('scanRead');
+      if (read) read.onclick = () => readScan(ctx, read);
+      const man = document.getElementById('scanManual');
+      if (man) man.onclick = () => { scan.form = blankScanForm(); scan.conf = {}; HH.router.render(); };
+
+      // Ô tiền tự chấm phân cách nghìn
+      document.querySelectorAll('.input.money[data-f]').forEach(inp => inp.oninput = () => {
+        const n = U.parseNum(inp.value); inp.value = n ? U.number(n) : '';
+      });
+      // Nhớ nội dung đang gõ để vẽ lại trang không mất chữ
+      document.querySelectorAll('[data-f]').forEach(el => {
+        const keep = () => { scan.form = readScanForm(); };
+        el.addEventListener('input', keep); el.addEventListener('change', keep);
+      });
+      const reset = document.getElementById('scanReset');
+      if (reset) reset.onclick = () => { scan.form = null; scan.conf = {}; scan.sig = null; HH.router.render(); };
+      const sigBtn = document.getElementById('sigCrop') || document.getElementById('sigRedo');
+      if (sigBtn) sigBtn.onclick = () => cropSignature(ctx);
+      const sigDel = document.getElementById('sigDel');
+      if (sigDel) sigDel.onclick = () => { scan.sig = null; HH.router.render(); };
+      const save = document.getElementById('scanSave');
+      if (save) save.onclick = () => saveScan(ctx, save);
+    },
+  };
+
+  // Đọc các ô đang nhập -> giữ lại khi trang vẽ lại (cắt chữ ký, xóa trang...)
+  function readScanForm() {
+    const g = (k) => { const el = document.querySelector(`[data-f="${k}"]`); return el ? el.value.trim() : ''; };
+    if (!document.querySelector('[data-f="tenantName"]')) return scan.form;
+    return {
+      roomCode: g('roomCode'), tenantName: g('tenantName'), idNumber: g('idNumber').replace(/\s/g, ''),
+      dob: g('dob'), phone: g('phone').replace(/\s/g, ''), address: g('address'),
+      rent: U.parseNum(g('rent')), deposit: U.parseNum(g('deposit')),
+      startDate: g('startDate'), endDate: g('endDate'),
+      billingDay: U.parseNum(g('billingDay')) || 1, dueDays: U.parseNum(g('dueDays')) || 5,
+      notes: g('notes'), hasSignature: !!(scan.form && scan.form.hasSignature),
+    };
+  }
+
+  function blankScanForm() {
+    return { roomCode: '', tenantName: '', idNumber: '', dob: '', phone: '', address: '',
+      rent: null, deposit: null, startDate: '', endDate: '', billingDay: 1, dueDays: 5, notes: '', hasSignature: false };
+  }
+
+  // Một ô nhập kèm nhãn "cần kiểm tra" khi AI đọc chưa chắc
+  function scanField(label, key, inputHtml) {
+    const c = scan.conf[key];
+    const low = c != null && c < 0.75;
+    return `<div class="field ${low ? 'ocr-field low' : ''}">
+      <label>${label}${low ? ' <span class="scan-warn">cần kiểm tra</span>' : ''}</label>
+      ${inputHtml}
+    </div>`;
+  }
+
+  // dd/mm/yyyy (AI trả về) -> yyyy-mm-dd (ô ngày của trình duyệt)
+  function toISODate(s) {
+    const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(String(s || '').trim());
+    if (!m) return '';
+    return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+  }
+
+  async function readScan(ctx, btn) {
+    if (scan.busy) return;
+    scan.busy = true;
+    btn.classList.add('loading'); btn.disabled = true;
+    const msg = document.getElementById('scanMsg');
+    msg.innerHTML = `<div class="alert alert-info" style="margin-top:14px"><span class="ic">${HH.ic('clock', 16)}</span>
+      <div>Đang đọc ${scan.files.length} trang hợp đồng. Việc này mất khoảng 10 tới 30 giây.</div></div>`;
+    try {
+      const parts = scan.files.map(f => ({ mime: f.mime, data: f.url.split(',')[1] }));
+      const out = await G().readDoc(parts, SCAN_SYS,
+        'Đọc hợp đồng thuê phòng trong các trang ảnh này và trả JSON theo đúng định dạng đã nêu.');
+      scan.raw = out;
+      scan.conf = out.confidence || {};
+      const rooms = S.roomsOf(ctx.bid);
+      const room = rooms.find(r => (r.code || '').toLowerCase() === String(out.roomCode || '').toLowerCase());
+      scan.form = {
+        roomCode: room ? room.code : '',
+        tenantName: out.tenantName || '', idNumber: out.idNumber || '', dob: out.dob || '',
+        phone: out.phone || '', address: out.address || '',
+        rent: out.rent || null, deposit: out.deposit || null,
+        startDate: toISODate(out.startDate), endDate: toISODate(out.endDate),
+        billingDay: out.billingDay || 1, dueDays: out.dueDays || 5,
+        notes: out.notes || '', hasSignature: !!out.hasSignature,
+      };
+      // Có ngày bắt đầu + số tháng mà thiếu ngày kết thúc thì tự tính
+      if (!scan.form.endDate && scan.form.startDate && out.months) {
+        scan.form.endDate = U.addMonths(new Date(scan.form.startDate), out.months).toISOString().slice(0, 10);
+      }
+      if (!room && out.roomCode) scan.conf.roomCode = 0.4;
+      UI.toast('Đã đọc xong, kiểm tra lại thông tin giúp mình', { type: 'ok' });
+      HH.router.render();
+    } catch (e) {
+      msg.innerHTML = `<div class="alert alert-danger" style="margin-top:14px"><span class="ic">${HH.ic('alert', 16)}</span>
+        <div>${U.esc(G().errText(e.message))} Bạn có thể bấm <b>Nhập tay, chỉ lưu ảnh</b> để làm tiếp.</div></div>`;
+      btn.classList.remove('loading'); btn.disabled = false;
+    } finally { scan.busy = false; }
+  }
+
+  /* Cắt chữ ký: kéo chọn một vùng trên ảnh, cắt đúng vùng đó ở độ phân giải gốc */
+  function cropSignature(ctx) {
+    const imgs = scan.files.filter(f => f.mime.startsWith('image/'));
+    if (!imgs.length) { UI.toast('Cần có ảnh hợp đồng để cắt chữ ký', { type: 'error' }); return; }
+    let idx = imgs.length - 1;      // chữ ký thường ở trang cuối
+    UI.modal({
+      size: 'wide', title: 'Cắt chữ ký của khách thuê',
+      bodyHtml: h`
+        <p class="muted text-sm" style="margin-bottom:12px">Kéo chuột (hoặc miết ngón tay) quanh chữ ký trên ảnh.</p>
+        ${raw(imgs.length > 1 ? `<div class="field" style="margin-bottom:12px"><label>Trang</label>
+          <select class="select" id="sigPage">${imgs.map((f, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>Trang ${i + 1}</option>`).join('')}</select></div>` : '')}
+        <div class="crop-wrap" id="cropWrap"><img id="cropImg" src="${raw(imgs[idx].url)}" alt="Hợp đồng giấy">
+          <div class="crop-box" id="cropBox" hidden></div></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span>
+        <button class="btn btn-primary" id="cropOk" disabled>${HH.ic('check', 16)} Dùng vùng đã chọn</button>`,
+      onMount(el, close) {
+        const wrap = el.querySelector('#cropWrap'), img = el.querySelector('#cropImg'), box = el.querySelector('#cropBox');
+        const ok = el.querySelector('#cropOk');
+        const page = el.querySelector('#sigPage');
+        if (page) page.onchange = () => { idx = +page.value; img.src = imgs[idx].url; box.hidden = true; ok.disabled = true; };
+        let sx = 0, sy = 0, rect = null, drawing = false;
+        const pos = (e) => {
+          const r = img.getBoundingClientRect();
+          const p = e.touches ? e.touches[0] : e;
+          return { x: Math.min(Math.max(p.clientX - r.left, 0), r.width), y: Math.min(Math.max(p.clientY - r.top, 0), r.height), r };
+        };
+        const start = (e) => { e.preventDefault(); const p = pos(e); sx = p.x; sy = p.y; drawing = true; box.hidden = false; };
+        const move = (e) => {
+          if (!drawing) return;
+          const p = pos(e);
+          rect = { x: Math.min(sx, p.x), y: Math.min(sy, p.y), w: Math.abs(p.x - sx), h: Math.abs(p.y - sy), vw: p.r.width, vh: p.r.height };
+          box.style.cssText = `left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px`;
+          ok.disabled = rect.w < 12 || rect.h < 8;
+        };
+        const end = () => { drawing = false; };
+        img.addEventListener('mousedown', start); window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+        img.addEventListener('touchstart', start, { passive: false }); img.addEventListener('touchmove', move, { passive: false }); img.addEventListener('touchend', end);
+        ok.onclick = () => {
+          const src = new Image();
+          src.onload = () => {
+            const sc = src.naturalWidth / rect.vw;              // ảnh gốc / ảnh đang hiện
+            const cv = document.createElement('canvas');
+            cv.width = Math.round(rect.w * sc); cv.height = Math.round(rect.h * sc);
+            cv.getContext('2d').drawImage(src, rect.x * sc, rect.y * sc, cv.width, cv.height, 0, 0, cv.width, cv.height);
+            scan.sig = cv.toDataURL('image/png');
+            close(); UI.toast('Đã lưu chữ ký', { type: 'ok' }); HH.router.render();
+          };
+          src.src = imgs[idx].url;
+        };
+      },
+    });
+  }
+
+  function saveScan(ctx, btn) {
+    const f = readScanForm() || {};
+    if (!f.roomCode) { UI.toast('Chọn phòng của hợp đồng', { type: 'error' }); return; }
+    if (!f.tenantName) { UI.toast('Nhập tên khách thuê', { type: 'error' }); return; }
+    if (!f.rent) { UI.toast('Nhập giá thuê', { type: 'error' }); return; }
+    if (!f.startDate || !f.endDate) { UI.toast('Nhập ngày bắt đầu và ngày kết thúc', { type: 'error' }); return; }
+    const room = S.room(ctx.bid, f.roomCode);
+    if (!room) { UI.toast('Không tìm thấy phòng này', { type: 'error' }); return; }
+
+    btn.classList.add('loading'); btn.disabled = true;
+    setTimeout(() => {
+      // Khách đã có hồ sơ (trùng CCCD hoặc số điện thoại) thì dùng lại, chưa có thì tạo mới
+      let t = S.tenantsOf(ctx.bid).find(x => (f.idNumber && x.idNumber === f.idNumber) || (f.phone && x.phone === f.phone));
+      if (!t) {
+        t = S.addTenant({ id: U.uid('tn'), buildingId: ctx.bid, roomCode: room.code, fullName: f.tenantName,
+          idNumber: f.idNumber, dob: f.dob, gender: '', hometown: '', phone: f.phone, occupation: '',
+          address: f.address, cccdIssueDate: '', cccdIssuePlace: '', cccdFront: false, cccdBack: false,
+          vehiclePlate: null, ttlock: false, tamtru: false, occupants: 1, isRep: true });
+      } else {
+        S.updateTenant(t.id, { roomCode: room.code, isRep: true,
+          phone: f.phone || t.phone, idNumber: f.idNumber || t.idNumber, address: f.address || t.address });
+      }
+
+      const c = {
+        id: U.uid('hd'), buildingId: ctx.bid, roomCode: room.code, roomType: room.type,
+        tenantName: f.tenantName, tenantId: t.id, rent: f.rent, deposit: f.deposit || 0,
+        start: new Date(f.startDate).toISOString(), end: new Date(f.endDate).toISOString(),
+        billingDay: f.billingDay, dueDays: f.dueDays, cycle: 'monthly', status: 'active', debt: 0,
+        // minh chứng bản giấy
+        scans: scan.files.map(x => x.url), signature: scan.sig || null,
+        scanNote: f.notes || null, scannedAt: new Date().toISOString(), source: 'scan',
+      };
+      S.addContract(c);
+      room.status = 'occupied'; room.tenantName = c.tenantName; room.tenantId = t.id;
+      room.contractId = c.id; room.contractEnd = c.end;
+      S.log('contract.scan', `Tạo hợp đồng phòng ${room.code} từ bản giấy đã quét (${scan.files.length} trang)`);
+      S.persist();
+      scan.files = []; scan.form = null; scan.conf = {}; scan.sig = null;
+      UI.toast('Đã tạo hợp đồng từ bản giấy', { type: 'ok', celebrate: true });
+      HH.router.go(`/b/${ctx.bid}/contracts/${c.id}`);
+    }, 400);
+  }
+
+  /* Xem lại bản hợp đồng giấy đã lưu */
+  function viewScans(c) {
+    const list = c.scans || [];
+    if (!list.length) return;
+    const open = (src) => {
+      // PDF và ảnh đều mở bằng blob để trình duyệt không chặn data:
+      const [head, b64] = src.split(',');
+      const mime = (/data:([^;]+)/.exec(head) || [])[1] || 'image/jpeg';
+      const bin = atob(b64); const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([buf], { type: mime }));
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    };
+    UI.modal({
+      size: 'xwide', title: `Hợp đồng giấy phòng ${c.roomCode}`,
+      bodyHtml: `<p class="muted text-sm" style="margin-bottom:12px">Bản chụp lúc tạo hợp đồng${c.scannedAt ? ', ngày ' + U.fmtDate(c.scannedAt) : ''}. Bấm vào ảnh để xem cỡ lớn.</p>
+        <div class="rd-photos">${list.map((src, i) => src.startsWith('data:application/pdf')
+          ? `<button class="scan-pdf big" data-open="${i}">${HH.ic('file', 30)}<span>Trang ${i + 1} (PDF)</span></button>`
+          : `<img src="${src}" alt="Hợp đồng giấy trang ${i + 1}" data-open="${i}" style="cursor:zoom-in">`).join('')}</div>
+        ${c.signature ? `<div class="field" style="margin-top:16px"><label>Chữ ký khách thuê</label>
+          <div class="sig-box"><img src="${c.signature}" alt="Chữ ký"></div></div>` : ''}`,
+      footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>`,
+      onMount(el) { el.querySelectorAll('[data-open]').forEach(n => n.onclick = () => open(list[+n.dataset.open])); },
+    });
   }
 
   /* ---------------- TRẢ PHÒNG & THANH LÝ (§3.10) ---------------- */

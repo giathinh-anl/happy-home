@@ -92,6 +92,16 @@ HH.util = (function () {
     a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /** Đọc tệp bất kỳ (PDF...) thành data URL để lưu kèm hồ sơ */
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onerror = () => reject(new Error('Không đọc được tệp'));
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(file);
+    });
+  }
+
   /** Nén ảnh về JPEG nhỏ gọn (mặc định ≤1000px) -> data URL, để lưu vào CSDL */
   function compressImage(file, maxSize, quality) {
     maxSize = maxSize || 1000; quality = quality || 0.72;
@@ -125,5 +135,5 @@ HH.util = (function () {
   }
 
   return { currency, currencyShort, number, percent, parseNum, fmtDate, addMonths,
-           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV, compressImage, asset };
+           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV, compressImage, fileToDataUrl, asset };
 })();

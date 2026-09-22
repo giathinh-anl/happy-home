@@ -844,3 +844,40 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 
 /* Dòng "Chưa có tài khoản? Đăng ký": chỉ là một dòng chữ xanh, không khung */
 .login-hints.plain { background: none; border: none; padding: 2px 0; text-align: center; font-size: var(--text-sm); }
+
+/* ---------- Quét hợp đồng giấy ---------- */
+.scan-drop {
+  border: 2px dashed var(--line-2); border-radius: var(--r-card); background: var(--surface-2);
+  padding: 28px 20px; text-align: center; transition: border-color .2s, background .2s;
+}
+.scan-drop.over { border-color: var(--teal-500); background: var(--teal-50); }
+.scan-drop h4 { font-size: 18px; margin: 10px 0 4px; }
+.scan-strip { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.scan-thumb {
+  position: relative; width: 150px; border-radius: var(--r-card); overflow: hidden;
+  border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow-xs);
+}
+.scan-strip.small .scan-thumb { width: 92px; }
+.scan-thumb img { width: 100%; height: 118px; object-fit: cover; display: block; }
+.scan-strip.small .scan-thumb img { height: 74px; }
+.scan-thumb.more { display: grid; place-items: center; height: 96px; font-weight: 800; color: var(--ink-3); }
+.scan-thumb .scan-n {
+  display: block; padding: 5px 8px; font-size: 12px; font-weight: 700; color: var(--ink-2);
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.scan-thumb .ph-del {
+  position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: none; border-radius: 50%;
+  background: var(--danger); color: #fff; display: grid; place-items: center; box-shadow: var(--shadow-card);
+}
+.scan-pdf { height: 118px; display: grid; place-items: center; gap: 4px; color: var(--coral); background: var(--coral-bg); font-weight: 700; font-size: 12px; }
+.scan-strip.small .scan-pdf { height: 74px; }
+.scan-pdf.big { width: 100%; height: 160px; border: 1px solid var(--line); border-radius: var(--r-card); }
+.scan-warn { font-size: 11.5px; font-weight: 800; color: var(--wood-700); background: var(--sun-bg); border-radius: var(--r-pill); padding: 1px 8px; }
+
+/* Cắt chữ ký */
+.crop-wrap { position: relative; display: inline-block; max-width: 100%; line-height: 0; user-select: none; }
+.crop-wrap img { max-width: 100%; max-height: clamp(240px, 62vh, 900px); cursor: crosshair; border-radius: var(--r-card); border: 1px solid var(--line); }
+.crop-box { position: absolute; border: 2px solid var(--teal-500); background: rgba(60,198,184,.16); pointer-events: none; border-radius: 4px; }
+.sig-box { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sig-box img { max-width: 260px; max-height: 110px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-input); padding: 6px; }
+.sig-box.small img { max-width: 180px; max-height: 80px; }
