@@ -18,7 +18,7 @@ HH.pages = HH.pages || {};
           </div>
         </div>`;
       const hint = backend
-        ? `<div class="login-hints">Kết nối máy chủ <b>Supabase</b>. <a href="#" id="toggleMode">Chưa có tài khoản? Đăng ký</a></div>`
+        ? `<div class="login-hints plain"><a href="#" id="toggleMode">Chưa có tài khoản? Đăng ký</a></div>`
         : `<div class="login-hints">Bản demo: nhập email hợp lệ và mật khẩu bất kỳ. <a href="#" id="quickFill">Điền nhanh</a></div>`;
       // Dòng chữ lớn hiện lên từng chữ một
       let wi = 0;

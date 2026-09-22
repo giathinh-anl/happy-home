@@ -836,3 +836,6 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
   display: inline-block; margin: 2px 4px 2px 0; padding: 2px 9px; border-radius: var(--r-pill);
   background: var(--teal-50); color: var(--teal-700); font-size: 12px; font-weight: 700;
 }
+
+/* Dòng "Chưa có tài khoản? Đăng ký": chỉ là một dòng chữ xanh, không khung */
+.login-hints.plain { background: none; border: none; padding: 2px 0; text-align: center; font-size: var(--text-sm); }
