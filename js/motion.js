@@ -105,14 +105,21 @@ HH.fx = (function () {
   let vtSeq = 0;
   function transition(update, dir) {
     const root = document.documentElement;
-    if (!document.startViewTransition || reduce()) { update(false); return; }
+    // Tab đang ẩn thì trình duyệt bỏ qua hiệu ứng -> đổi trang thẳng, khỏi chờ
+    if (!document.startViewTransition || reduce() || document.visibilityState !== 'visible') { update(false); return; }
     const tok = ++vtSeq;
+    let ran = false;
+    const run = (vt) => { if (!ran) { ran = true; update(vt); } };   // chỉ vẽ lại một lần
     root.dataset.vt = dir || 'fade';
     const done = () => { if (tok === vtSeq) delete root.dataset.vt; };
     try {
-      const t = document.startViewTransition(() => update(true));
+      const t = document.startViewTransition(() => run(true));
+      t.ready.catch(() => {});             // bị bỏ qua cũng không sao
+      t.updateCallbackDone.catch(() => {});
       t.finished.then(done, done);
-    } catch (e) { done(); update(false); }
+      // Phòng khi trình duyệt bỏ ngang mà chưa gọi hàm cập nhật: vẫn phải đổi trang
+      setTimeout(() => { run(false); done(); }, 300);
+    } catch (e) { done(); run(false); }
   }
 
   /* ---- Gợn sóng dưới ngón tay/chuột khi bấm: xác nhận đã bấm trúng ---- */

@@ -91,9 +91,11 @@
     });
   }
 
-  /* ---------------- TÀI SẢN (gắn theo phòng) ---------------- */
-  let assetView = 'room';   // 'room' = nhóm theo phòng | 'list' = bảng
-  let assetRoomFilter = null;
+  /* ---------------- KHO TÀI SẢN (mỗi tòa nhà một kho) ----------------
+     Tài sản khai báo MỘT chỗ duy nhất: trong kho của tòa nhà.
+     Cùng tên thì cùng giá, cùng đơn vị. Số lượng chỉ nhập thêm ở kho.
+     Từ kho chuyển vào phòng, phòng trả lại về kho. Trong phòng không tạo mới. */
+  let assetTab = 'stock';           // 'stock' = kho | 'rooms' = trong phòng
   const assetPage = { page: 1, size: 9 };
 
   function withResidual(a) {
@@ -101,186 +103,197 @@
     return Object.assign({}, a, { months, residual: Math.round((a.buyPrice || 0) * (1 - months / (a.lifeMonths || 60))) });
   }
 
+  // Gom mọi dòng cùng tên trong một tòa thành MỘT mặt hàng của kho
+  function catalog(bid) {
+    const map = new Map();
+    S.assetsOf(bid).forEach(a => {
+      const key = (a.name || '').trim().toLowerCase();
+      if (!map.has(key)) map.set(key, { key, name: a.name, icon: a.icon || '📦', unit: a.unit || 'Cái',
+        buyPrice: a.buyPrice || 0, lifeMonths: a.lifeMonths || 60, buyDate: a.buyDate, stock: 0, out: 0, rooms: [] });
+      const it = map.get(key);
+      const q = a.quantity || 1;
+      if (a.roomCode) { it.out += q; it.rooms.push({ code: a.roomCode, qty: q, condition: a.condition, id: a.id }); }
+      else { it.stock += q; it.icon = a.icon || it.icon; it.buyPrice = a.buyPrice || it.buyPrice; it.unit = a.unit || it.unit; }
+    });
+    const list = Array.from(map.values());
+    list.forEach(it => { it.total = it.stock + it.out; it.residual = withResidual(it).residual; });
+    return list.sort((x, y) => x.name.localeCompare(y.name, 'vi'));
+  }
+
   HH.pages.assets = {
     render(ctx) {
-      const all = S.assetsOf(ctx.bid).map(withResidual);
+      const items = catalog(ctx.bid);
       const rooms = S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code));
-      const inRoom = all.filter(a => a.roomCode).length;
-      const inStock = all.length - inRoom;
-      const totalValue = all.reduce((s, a) => s + (a.residual || 0) * (a.quantity || 1), 0);
+      const totalQty = items.reduce((s, x) => s + x.total, 0);
+      const inStock = items.reduce((s, x) => s + x.stock, 0);
+      const value = items.reduce((s, x) => s + x.residual * x.total, 0);
 
       const head = h`<div class="page-head">
-        <div><div><div class="page-title-lg">Tài sản theo phòng</div>
-          <div class="page-sub">${ctx.building.name}: ${all.length} tài sản, ${inRoom} trong phòng và ${inStock} ở kho chung</div></div></div>
+        <div><div class="page-title-lg">Kho tài sản</div>
+          <div class="page-sub">${ctx.building.name}: ${items.length} loại, ${totalQty} món, ${inStock} món còn trong kho</div></div>
         <div class="page-actions">
           <div class="view-toggle">
-            <button class="${raw(assetView === 'room' ? 'active' : '')}" data-aview="room">▦ Theo phòng</button>
-            <button class="${raw(assetView === 'list' ? 'active' : '')}" data-aview="list">${HH.ic('list', 16)} Bảng</button>
+            <button class="${raw(assetTab === 'stock' ? 'active' : '')}" data-atab="stock">${HH.ic('box', 15)} Kho</button>
+            <button class="${raw(assetTab === 'rooms' ? 'active' : '')}" data-atab="rooms">${HH.ic('grid', 15)} Trong phòng</button>
           </div>
-          <button class="btn btn-success" id="assetExport">${HH.ic('sheet', 16)} Xuất excel</button>
-          ${raw(S.isOwner() ? '<button class="btn btn-primary" data-primary-new>' + HH.ic('plus', 16) + ' Thêm tài sản</button>' : '')}
+          <button class="btn btn-outline" id="assetExport">${HH.ic('download', 16)} Xuất Excel</button>
+          ${raw(S.isOwner() ? '<button class="btn btn-primary" data-primary-new>' + HH.ic('plus', 16) + ' Thêm loại tài sản</button>' : '')}
         </div></div>
-        <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin-bottom:16px">
-          ${raw(UI.metricCard({ label: 'Tổng giá trị còn lại', value: totalValue, format: 'currency' }))}
-          ${raw(UI.metricCard({ label: 'Đang trong phòng', value: inRoom, format: 'number', intent: 'success' }))}
-          ${raw(UI.metricCard({ label: 'Kho chung (chưa gắn phòng)', value: inStock, format: 'number', intent: inStock ? 'warning' : 'default' }))}
+        <div class="dh-kpis" style="margin-top:0;margin-bottom:20px">
+          <div class="dh-kpi t-sky"><span class="dh-kpi-pic">${raw(HH.pic('sofa', 36))}</span>
+            <span class="k">Loại tài sản</span><span class="v">${items.length}</span>
+            <span class="dl flat">khai báo trong kho</span></div>
+          <div class="dh-kpi t-leaf"><span class="dh-kpi-pic">${raw(HH.pic('box', 36))}</span>
+            <span class="k">Còn trong kho</span><span class="v">${inStock}</span>
+            <span class="dl flat">sẵn sàng chuyển vào phòng</span></div>
+          <div class="dh-kpi t-sun"><span class="dh-kpi-pic">${raw(HH.pic('door', 36))}</span>
+            <span class="k">Đang ở các phòng</span><span class="v">${totalQty - inStock}</span>
+            <span class="dl flat">trên tổng ${totalQty} món</span></div>
+          <div class="dh-kpi t-coral"><span class="dh-kpi-pic">${raw(HH.pic('coins', 36))}</span>
+            <span class="k">Giá trị còn lại</span><span class="v">${U.currency(value)}</span>
+            <span class="dl flat">đã trừ khấu hao</span></div>
         </div>`;
 
-      if (assetView === 'list') {
-        const dt = UI.DataTable({
-          rows: assetRoomFilter ? all.filter(a => (a.roomCode || '') === (assetRoomFilter === '__stock__' ? '' : assetRoomFilter)) : all,
-          rowId: a => a.id, searchKeys: ['id', 'name', 'roomCode'],
-          searchPlaceholder: 'Tìm tài sản, phòng...',
-          emptyTitle: 'Chưa có tài sản', emptyIcon: HH.ic('box', 16),
-          emptyAction: { label: 'Thêm tài sản', onClick: () => assetForm(ctx, null) },
-          columns: [
-            { key: 'icon', label: '', width: '48px', render: a => `<span style="font-size:22px">${a.icon || '📦'}</span>` },
-            { key: 'name', label: 'Tên tài sản', sortable: true, render: a => `<b>${U.esc(a.name)}</b>` },
-            { key: 'roomCode', label: 'Phòng', sortable: true, render: a => a.roomCode ? `<span class="badge s-info"><span class="dot"></span>${a.roomCode}</span>` : '<span class="faint">Kho chung</span>' },
-            { key: 'quantity', label: 'Số lượng', align: 'right', render: a => `${U.number(a.quantity || 1)} ${a.unit || 'cái'}` },
-            { key: 'buyPrice', label: 'Giá trị nhập', align: 'right', render: a => U.currency(a.buyPrice) },
-            { key: 'residual', label: 'Giá trị còn lại', align: 'right', sortable: true, render: a => U.currency(a.residual) },
-            { key: 'condition', label: 'Tình trạng', render: a => UI.statusBadge(a.condition, 'asset') },
-          ],
-          actions: a => assetActions(ctx, a),
-        });
-        ctx._dt = dt;
-        return head + dt.render();
+      if (assetTab === 'stock') {
+        const rows = items.map(it => `<tr data-kind="${U.esc(it.name)}">
+          <td><div class="dh-bname"><span class="ast-ic">${it.icon}</span>
+            <span><b>${U.esc(it.name)}</b><small>${U.currency(it.buyPrice)} mỗi ${U.esc((it.unit || 'cái').toLowerCase())}</small></span></div></td>
+          <td class="num">${U.number(it.stock)}</td>
+          <td class="num">${it.out ? U.number(it.out) : '<span class="faint">0</span>'}</td>
+          <td class="num b">${U.number(it.total)}</td>
+          <td class="num">${U.currency(it.residual * it.total)}</td>
+          <td>${it.rooms.length ? it.rooms.slice(0, 4).map(r => `<span class="ast-chip">${U.esc(r.code)}${r.qty > 1 ? ' ×' + r.qty : ''}</span>`).join('')
+            + (it.rooms.length > 4 ? `<span class="ast-chip">+${it.rooms.length - 4}</span>` : '') : '<span class="faint">chưa chuyển phòng nào</span>'}</td>
+          <td class="col-actions"><button class="kebab" data-akind="${U.esc(it.name)}">⋯</button></td>
+        </tr>`).join('');
+        return head + `<div class="dt-wrap"><div class="dt-scroll"><table class="dt">
+          <thead><tr><th>Tài sản</th><th class="num">Trong kho</th><th class="num">Ở phòng</th><th class="num">Tổng</th>
+            <th class="num">Giá trị còn lại</th><th>Đang ở phòng nào</th><th></th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="7"><div class="empty"><div class="ic">${HH.pic('sofa', 64)}</div>
+            <h4>Kho chưa có tài sản nào</h4><p class="muted">Bấm "Thêm loại tài sản" để khai báo máy lạnh, giường, tủ lạnh... rồi chuyển vào phòng.</p></div></td></tr>`}</tbody>
+        </table></div></div>`;
       }
 
-      // ----- Chế độ nhóm theo phòng -----
-      const groups = rooms.map(r => {
-        const items = all.filter(a => a.roomCode === r.code);
-        return { key: r.code, title: r.code, sub: r.typeLabel + (r.tenantName ? ' · ' + r.tenantName : ''),
-          badge: UI.statusBadge(r.status, 'room'), items };
-      });
-      const stockItems = all.filter(a => !a.roomCode);
-      groups.unshift({ key: '__stock__', title: 'Kho chung', sub: 'Chưa gắn vào phòng nào',
-        badge: '<span class="badge s-neutral"><span class="dot"></span>Kho</span>', items: stockItems });
-
+      // ----- Tab: tài sản đang ở các phòng -----
+      const groups = rooms.map(r => ({
+        key: r.code, title: r.code, sub: r.typeLabel + (r.tenantName ? ', ' + r.tenantName : ''),
+        badge: UI.statusBadge(r.status, 'room'),
+        items: S.assetsOf(ctx.bid, r.code).map(withResidual),
+      }));
       const apg = UI.paginate(groups, assetPage, { unit: 'phòng', sizes: [9, 18, 36] });
       ctx._apg = apg;
       const cards = apg.items.map(g => {
-        const value = g.items.reduce((s, a) => s + (a.residual || 0) * (a.quantity || 1), 0);
-        const list = g.items.length ? g.items.map(a => `<div class="asset-row" data-amenu="${a.id}">
+        const val = g.items.reduce((s, a) => s + (a.residual || 0) * (a.quantity || 1), 0);
+        const list = g.items.length ? g.items.map(a => `<div class="asset-row">
             <span class="a-ic">${a.icon || '📦'}</span>
             <span class="a-name"><b>${U.esc(a.name)}</b>
-              <div class="muted text-xs">${U.number(a.quantity || 1)} ${U.esc(a.unit || 'cái')} · ${U.currency(a.residual)}</div></span>
+              <div class="muted text-xs">${U.number(a.quantity || 1)} ${U.esc((a.unit || 'cái').toLowerCase())}, ${U.currency(a.residual)}</div></span>
             ${UI.statusBadge(a.condition, 'asset')}
-            <button class="kebab" data-akebab="${a.id}">⋯</button>
+            <button class="kebab" data-aroom="${a.id}">⋯</button>
           </div>`).join('')
-          : `<div class="muted text-sm" style="text-align:center;padding:14px 0">Chưa có tài sản
-              ${S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-addto="${g.key}">${HH.ic('plus', 16)} Thêm vào ${g.key === '__stock__' ? 'kho' : g.title}</button></div>` : ''}</div>`;
+          : '<div class="muted text-sm" style="text-align:center;padding:14px 0">Phòng này chưa nhận tài sản nào</div>';
         return `<div class="card asset-card">
           <div class="card-head" style="padding:12px 14px">
-            <div><b>${g.title}</b> <span class="muted text-xs">${U.esc(g.sub)}</span></div>
-            ${g.badge}
+            <div><b>${g.title}</b> <span class="muted text-xs">${U.esc(g.sub)}</span></div>${g.badge}
           </div>
           <div class="card-pad" style="padding:8px 14px 14px">
             ${list}
-            <div class="between" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--neutral-200)">
-              <span class="muted text-xs">${g.items.length} tài sản</span>
-              <span class="mono b text-sm">${U.currency(value)}</span>
+            <div class="between" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+              <span class="muted text-xs">${g.items.length} loại, ${g.items.reduce((s, a) => s + (a.quantity || 1), 0)} món</span>
+              <span class="num b text-sm">${U.currency(val)}</span>
             </div>
-            ${g.items.length && S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-addto="${g.key}">${HH.ic('plus', 16)} Thêm vào ${g.key === '__stock__' ? 'kho' : g.title}</button></div>` : ''}
+            ${S.isOwner() ? `<div style="margin-top:8px"><button class="btn btn-sm btn-outline" data-toroom="${g.key}">
+              ${HH.ic('box', 15)} Chuyển từ kho vào ${g.title}</button></div>` : ''}
           </div></div>`;
       }).join('');
-
       return head + `<div class="asset-grid">${cards}</div>` + apg.html;
     },
+
     mount(ctx) {
-      if (ctx._dt) ctx._dt.attach(document);
       if (ctx._apg) ctx._apg.attach(document, () => HH.router.render());
-      document.querySelectorAll('[data-aview]').forEach(b => b.onclick = () => { assetView = b.dataset.aview; HH.router.render(); });
+      document.querySelectorAll('[data-atab]').forEach(b => b.onclick = () => { assetTab = b.dataset.atab; HH.router.render(); });
       const nb = document.querySelector('[data-primary-new]');
-      if (nb) nb.onclick = () => assetForm(ctx, null);
-      document.querySelectorAll('[data-addto]').forEach(b => b.onclick = () => {
-        const k = b.dataset.addto;
-        assetForm(ctx, null, k === '__stock__' ? null : k);
-      });
-      document.querySelectorAll('[data-akebab]').forEach(b => b.onclick = (e) => {
+      if (nb) nb.onclick = () => kindForm(ctx, null);
+      document.querySelectorAll('[data-akind]').forEach(b => b.onclick = (e) => {
         e.stopPropagation();
-        UI.openMenu(b, assetActions(ctx, S.asset(b.dataset.akebab)));
+        const it = catalog(ctx.bid).find(x => x.name === b.dataset.akind);
+        if (it) UI.openMenu(b, kindActions(ctx, it));
       });
+      document.querySelectorAll('[data-aroom]').forEach(b => b.onclick = (e) => {
+        e.stopPropagation();
+        UI.openMenu(b, roomAssetActions(ctx, S.asset(b.dataset.aroom)));
+      });
+      document.querySelectorAll('[data-toroom]').forEach(b => b.onclick = () => transferDialog(ctx, null, b.dataset.toroom));
       const ex = document.getElementById('assetExport');
       if (ex) ex.onclick = () => {
-        U.downloadCSV(`tai-san-${ctx.bid}.csv`, ['Tên tài sản', 'Phòng', 'Số lượng', 'Đơn vị', 'Giá trị nhập', 'Giá trị còn lại', 'Tình trạng'],
-          S.assetsOf(ctx.bid).map(withResidual).map(a => [a.name, a.roomCode || 'Kho chung', a.quantity || 1, a.unit || 'cái',
-            a.buyPrice, a.residual, (UI.STATUS.asset[a.condition] || {}).label || a.condition]));
-        UI.toast('Đã tải file Excel (CSV)', { type: 'ok' });
+        U.downloadCSV(`kho-tai-san-${ctx.bid}.csv`,
+          ['Tài sản', 'Giá mỗi cái', 'Đơn vị', 'Trong kho', 'Ở phòng', 'Tổng', 'Giá trị còn lại', 'Đang ở phòng'],
+          catalog(ctx.bid).map(it => [it.name, it.buyPrice, it.unit, it.stock, it.out, it.total,
+            it.residual * it.total, it.rooms.map(r => `${r.code}×${r.qty}`).join(' ')]));
+        UI.toast('Đã tải bảng kho tài sản (CSV)', { type: 'ok' });
       };
     },
   };
 
-  function assetActions(ctx, a) {
-    if (!a) return [];
-    const items = [{ icon: HH.ic('edit', 16), label: 'Sửa tài sản', onClick: () => assetForm(ctx, a) },
-      { icon: HH.ic('building', 16), label: 'Chuyển sang phòng khác', onClick: () => moveAsset(ctx, a) }];
-    const conds = { good: 'Tốt', wear: 'Hao mòn tự nhiên', broken: 'Hư hỏng' };
-    items.push({ sep: true });
-    Object.keys(conds).forEach(c => { if (c !== a.condition)
-      items.push({ icon: '●', label: 'Đánh dấu: ' + conds[c], onClick: () => {
-        S.updateAsset(a.id, { condition: c }); UI.toast('Đã cập nhật tình trạng', { type: 'ok' }); HH.router.render(); } }); });
-    if (S.isOwner()) items.push({ sep: true }, { icon: HH.ic('trash', 16), label: 'Xóa tài sản', danger: true, onClick: () => {
-      UI.dangerDialog({ title: `Xóa tài sản "${a.name}"`,
-        description: 'Tài sản sẽ bị xóa khỏi danh sách và biên bản bàn giao.',
-        consequences: ['Không thể hoàn tác', 'Thao tác được ghi vào nhật ký'],
-        confirmLabel: 'Xóa tài sản', reasonLabel: 'Lý do xóa',
-        onConfirm: () => { S.removeAsset(a.id); UI.toast('Đã xóa tài sản', { type: 'ok' }); HH.router.render(); } });
+  function kindActions(ctx, it) {
+    const items = [
+      { icon: HH.ic('download', 16), label: 'Nhập thêm vào kho', onClick: () => stockInDialog(ctx, it) },
+      { icon: HH.ic('door', 16), label: 'Chuyển vào phòng', onClick: () => transferDialog(ctx, it, null) },
+      { icon: HH.ic('edit', 16), label: 'Sửa tên, giá, đơn vị', onClick: () => kindForm(ctx, it) },
+    ];
+    if (S.isOwner()) items.push({ sep: true }, { icon: HH.ic('trash', 16), label: 'Xóa khỏi kho', danger: true, onClick: () => {
+      UI.dangerDialog({ title: `Xóa "${it.name}" khỏi kho`,
+        description: `Xóa cả ${it.total} món, kể cả ${it.out} món đang ở phòng.`,
+        consequences: ['Không thể hoàn tác', 'Biên bản bàn giao cũ sẽ không còn tài sản này', 'Thao tác được ghi vào nhật ký'],
+        confirmLabel: 'Xóa khỏi kho', reasonLabel: 'Lý do xóa',
+        onConfirm: () => { S.removeAssetKind(ctx.bid, it.name); S.log('asset.remove', `Xóa tài sản ${it.name} khỏi kho`);
+          UI.toast('Đã xóa khỏi kho', { type: 'ok' }); HH.router.render(); } });
     } });
     return items;
   }
 
-  function moveAsset(ctx, a) {
-    const rooms = S.roomsOf(ctx.bid).slice().sort((x, y) => x.code.localeCompare(y.code));
-    const opts = `<option value="">Kho chung (không gắn phòng)</option>` +
-      rooms.map(r => `<option value="${r.code}" ${a.roomCode === r.code ? 'selected' : ''}>${r.code} (${r.typeLabel})${r.tenantName ? ', ' + U.esc(r.tenantName) : ''}</option>`).join('');
-    UI.modal({ title: `Chuyển "${a.name}" sang phòng`, bodyHtml: h`
-      <p class="muted" style="margin-bottom:12px">Hiện tại: <b>${a.roomCode || 'Kho chung'}</b></p>
-      <div class="field"><label>Chuyển tới</label><select class="select" id="mvRoom">${raw(opts)}</select></div>`,
-      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="mvGo">Chuyển</button>`,
-      onMount(el, close) {
-        el.querySelector('#mvGo').onclick = () => {
-          const to = el.querySelector('#mvRoom').value || null;
-          S.updateAsset(a.id, { roomCode: to });
-          S.log('asset.move', `Chuyển tài sản ${a.name} → ${to || 'Kho chung'}`);
-          close(); UI.toast(`Đã chuyển sang ${to || 'kho chung'}`, { type: 'ok' }); HH.router.render();
-        };
-      } });
+  function roomAssetActions(ctx, a) {
+    if (!a) return [];
+    const items = [{ icon: HH.ic('undo', 16), label: 'Trả về kho', onClick: () => returnDialog(ctx, a) }];
+    const conds = { good: 'Tốt', wear: 'Hao mòn tự nhiên', broken: 'Hư hỏng' };
+    items.push({ sep: true });
+    Object.keys(conds).forEach(c => { if (c !== a.condition)
+      items.push({ icon: HH.ic('check', 16), label: 'Đánh dấu: ' + conds[c], onClick: () => {
+        S.updateAsset(a.id, { condition: c }); UI.toast('Đã cập nhật tình trạng', { type: 'ok' }); HH.router.render(); } }); });
+    return items;
   }
 
   const ASSET_ICONS = ['🧊', '🌀', '❄️', '💡', '🪑', '🛋️', '🚪', '🗄️', '🔑', '🔐', '🛏️', '🪞', '📺', '🍳', '🚿', '🧺', '🪟', '🔥'];
 
-  function assetForm(ctx, existing, presetRoom) {
-    const isNew = !existing;
-    let icon = existing ? (existing.icon || '📦') : '❄️';
-    const rooms = S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code));
-    const curRoom = existing ? existing.roomCode : (presetRoom || null);
-    const roomOpts = `<option value="">Kho chung (chưa gắn phòng)</option>` +
-      rooms.map(r => `<option value="${r.code}" ${curRoom === r.code ? 'selected' : ''}>${r.code} (${r.typeLabel})${r.tenantName ? ', ' + U.esc(r.tenantName) : ''}</option>`).join('');
-    const grid = ASSET_ICONS.map(ic => `<button type="button" class="icon-opt ${ic === icon ? 'sel' : ''}" data-ic="${ic}">${ic}</button>`).join('');
+  /* Thêm / sửa MỘT LOẠI tài sản của kho. Cùng tên thì cùng giá nên sửa giá là
+     đổi cho mọi món cùng tên, kể cả món đang ở trong phòng. */
+  function kindForm(ctx, it) {
+    const isNew = !it;
+    let icon = it ? it.icon : '❄️';
+    const grid = ASSET_ICONS.map(i => `<button type="button" class="icon-opt ${i === icon ? 'sel' : ''}" data-ic="${i}">${i}</button>`).join('');
     UI.modal({
       size: 'wide',
-      headHtml: `<div class="row-gap-3"><span class="lz-home-ic" style="border:none">${HH.ic('box', 30)}</span><h3>${isNew ? 'Thêm mới tài sản' : 'Sửa tài sản'}</h3></div>`,
+      headHtml: `<div class="row-gap-3"><span class="lz-home-ic" style="border:none">${HH.pic('sofa', 30)}</span>
+        <h3>${isNew ? 'Thêm loại tài sản vào kho' : `Sửa "${U.esc(it.name)}"`}</h3></div>`,
       bodyHtml: h`
+        <p class="muted text-sm" style="margin-bottom:14px">Tài sản chỉ khai báo ở kho. Các món cùng tên dùng chung một giá.
+          Muốn đưa vào phòng thì dùng nút <b>Chuyển vào phòng</b>.</p>
         <div class="grid-2">
-          <div class="field"><label>Tên tài sản *</label><input class="input" data-a="name" value="${existing ? existing.name : ''}" placeholder="VD: Máy lạnh Panasonic"></div>
-          <div class="field"><label>Gắn vào phòng</label><select class="select" data-a="room">${raw(roomOpts)}</select></div>
+          <div class="field"><label>Tên tài sản *</label><input class="input" data-a="name" value="${it ? it.name : ''}" placeholder="VD: Máy lạnh Panasonic"></div>
+          <div class="field"><label>Đơn vị</label><select class="select" data-a="unit">
+            ${raw(['Cái', 'Chiếc', 'Bộ', 'Máy'].map(u => `<option ${it && it.unit === u ? 'selected' : ''}>${u}</option>`).join(''))}</select></div>
         </div>
-        <div class="field" style="margin-top:14px"><label>Chọn icon đại diện cho tài sản</label>
+        <div class="field" style="margin-top:14px"><label>Chọn hình đại diện</label>
           <div class="icon-grid" id="iconGrid">${raw(grid)}</div></div>
         <div class="grid-2" style="margin-top:14px">
-          <div class="field"><label>Giá trị nhập vào (đ) *</label><input class="input money" data-a="buy" value="${existing ? U.number(existing.buyPrice) : ''}" placeholder="0"></div>
-          <div class="field"><label>Số tháng khấu hao</label><input class="input mono" data-a="life" value="${existing ? (existing.lifeMonths || 60) : 60}"></div>
+          <div class="field"><label>Giá mỗi ${raw(it ? U.esc((it.unit || 'cái').toLowerCase()) : 'cái')} (đ) *</label>
+            <input class="input money" data-a="buy" value="${it ? U.number(it.buyPrice) : ''}" placeholder="0"></div>
+          <div class="field"><label>Số tháng khấu hao</label><input class="input num" data-a="life" value="${it ? (it.lifeMonths || 60) : 60}"></div>
         </div>
-        <div class="grid-2" style="margin-top:14px">
-          <div class="field"><label>Tổng số lượng *</label><input class="input mono" data-a="qty" value="${existing ? (existing.quantity || 1) : 1}"></div>
-          <div class="field"><label>Đơn vị</label><select class="select" data-a="unit">
-            ${raw(['Cái', 'Chiếc', 'Bộ', 'Máy'].map(u => `<option ${existing && existing.unit === u ? 'selected' : ''}>${u}</option>`).join(''))}</select></div>
-        </div>
-        <div class="field" style="margin-top:14px"><label>Tình trạng</label><select class="select" data-a="cond">
-          ${raw(['good', 'wear', 'broken'].map(c => `<option value="${c}" ${existing && existing.condition === c ? 'selected' : ''}>${UI.STATUS.asset[c].label}</option>`).join(''))}</select></div>`,
-      footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span><button class="btn btn-primary" data-add>${isNew ? 'Thêm tài sản' : 'Lưu'}</button>`,
+        ${raw(isNew ? `<div class="field" style="margin-top:14px"><label>Số lượng nhập kho *</label>
+          <input class="input num" data-a="qty" value="1"><span class="hint">Sau này nhập thêm bằng nút "Nhập thêm vào kho"</span></div>` : '')}`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span>
+        <button class="btn btn-primary" data-add>${isNew ? 'Thêm vào kho' : 'Lưu'}</button>`,
       onMount(el, close) {
         el.querySelectorAll('[data-ic]').forEach(b => b.onclick = () => {
           icon = b.dataset.ic; el.querySelectorAll('.icon-opt').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
@@ -289,22 +302,97 @@
         buy.oninput = () => { const n = U.parseNum(buy.value); buy.value = n ? U.number(n) : ''; };
         el.querySelector('[data-add]').onclick = (e) => {
           const get = (k) => (el.querySelector(`[data-a="${k}"]`) || {}).value || '';
-          const price = U.parseNum(get('buy'));
-          if (!get('name').trim() || !price) { UI.toast('Nhập tên và giá trị tài sản', { type: 'error' }); return; }
+          const name = get('name').trim(), price = U.parseNum(get('buy'));
+          if (!name || !price) { UI.toast('Nhập tên và giá tài sản', { type: 'error' }); return; }
+          const dup = catalog(ctx.bid).find(x => x.name.toLowerCase() === name.toLowerCase());
+          if (isNew && dup) { UI.toast(`Kho đã có "${dup.name}". Dùng "Nhập thêm vào kho" để cộng số lượng.`, { type: 'error' }); return; }
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
-            const patch = { icon, name: get('name').trim(), buyPrice: price, roomCode: get('room') || null,
-              lifeMonths: U.parseNum(get('life')) || 60, condition: get('cond'),
-              quantity: U.parseNum(get('qty')) || 1, unit: get('unit') };
+            const base = { icon, buyPrice: price, unit: get('unit'), lifeMonths: U.parseNum(get('life')) || 60 };
             if (isNew) {
-              S.addAsset(Object.assign({ id: U.uid('TS').toUpperCase(), buildingId: ctx.bid, buyDate: U.today().toISOString() }, patch));
-              S.log('asset.create', `Thêm tài sản ${patch.name}${patch.roomCode ? ' vào ' + patch.roomCode : ''}`);
-            } else { S.updateAsset(existing.id, patch); S.log('asset.update', `Sửa tài sản ${patch.name}`); }
-            close(); UI.toast(isNew ? 'Đã thêm tài sản' : 'Đã lưu tài sản', { type: 'ok' }); HH.router.render();
-          }, 400);
+              S.stockAsset(ctx.bid, Object.assign({ name, quantity: U.parseNum(get('qty')) || 1 }, base));
+              S.log('asset.create', `Nhập kho ${name} × ${U.parseNum(get('qty')) || 1}`);
+            } else {
+              S.updateAssetKind(ctx.bid, it.name, Object.assign({ name }, base));
+              S.log('asset.update', `Sửa tài sản ${it.name}`);
+            }
+            close(); UI.toast(isNew ? 'Đã thêm vào kho' : 'Đã lưu', { type: 'ok' }); HH.router.render();
+          }, 300);
         };
       },
     });
+  }
+
+  function stockInDialog(ctx, it) {
+    UI.modal({ title: `Nhập thêm "${it.name}" vào kho`, bodyHtml: h`
+      <p class="muted" style="margin-bottom:12px">Đang có <b>${it.stock}</b> ${U.esc((it.unit || 'cái').toLowerCase())} trong kho.</p>
+      <div class="field"><label>Nhập thêm bao nhiêu?</label><input class="input num" id="inQty" value="1"></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="inGo">Nhập kho</button>`,
+      onMount(el, close) {
+        el.querySelector('#inGo').onclick = () => {
+          const n = U.parseNum(el.querySelector('#inQty').value) || 0;
+          if (n <= 0) { UI.toast('Nhập số lượng lớn hơn 0', { type: 'error' }); return; }
+          S.stockAsset(ctx.bid, { name: it.name, quantity: n, icon: it.icon, unit: it.unit, buyPrice: it.buyPrice, lifeMonths: it.lifeMonths });
+          S.log('asset.stock', `Nhập thêm ${it.name} × ${n}`);
+          close(); UI.toast(`Đã nhập thêm ${n} ${(it.unit || 'cái').toLowerCase()}`, { type: 'ok' }); HH.router.render();
+        };
+      } });
+  }
+
+  /* Chuyển từ kho vào phòng. Mở từ kho thì đã biết tài sản, mở từ phòng thì đã biết phòng. */
+  function transferDialog(ctx, it, roomCode) {
+    const items = catalog(ctx.bid).filter(x => x.stock > 0);
+    if (!items.length) { UI.toast('Kho đang trống, hãy nhập tài sản vào kho trước', { type: 'warning' }); return; }
+    const cur = it ? items.find(x => x.name === it.name) : items[0];
+    if (it && !cur) { UI.toast(`"${it.name}" đã hết trong kho`, { type: 'warning' }); return; }
+    const rooms = S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code));
+    UI.modal({ title: 'Chuyển tài sản từ kho vào phòng', bodyHtml: h`
+      <div class="grid-2">
+        <div class="field"><label>Tài sản</label><select class="select" id="trItem" ${raw(it ? 'disabled' : '')}>
+          ${raw(items.map(x => `<option value="${U.esc(x.name)}" ${cur && x.name === cur.name ? 'selected' : ''}>${x.icon} ${U.esc(x.name)} (kho còn ${x.stock})</option>`).join(''))}
+        </select></div>
+        <div class="field"><label>Vào phòng</label><select class="select" id="trRoom">
+          ${raw(rooms.map(r => `<option value="${r.code}" ${roomCode === r.code ? 'selected' : ''}>${r.code}, ${U.esc(r.typeLabel)}${r.tenantName ? ', ' + U.esc(r.tenantName) : ''}</option>`).join(''))}
+        </select></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label>Số lượng</label>
+        <input class="input num" id="trQty" value="1">
+        <span class="hint" id="trHint">Kho còn ${cur ? cur.stock : 0} ${U.esc(((cur && cur.unit) || 'cái').toLowerCase())}</span></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="trGo">Chuyển vào phòng</button>`,
+      onMount(el, close) {
+        const sel = el.querySelector('#trItem'), hint = el.querySelector('#trHint');
+        const stockOf = (name) => (items.find(x => x.name === name) || {});
+        sel.onchange = () => { const x = stockOf(sel.value); hint.textContent = `Kho còn ${x.stock || 0} ${(x.unit || 'cái').toLowerCase()}`; };
+        el.querySelector('#trGo').onclick = () => {
+          const name = sel.value, room = el.querySelector('#trRoom').value;
+          const qty = U.parseNum(el.querySelector('#trQty').value) || 0;
+          const x = stockOf(name);
+          if (qty <= 0) { UI.toast('Nhập số lượng lớn hơn 0', { type: 'error' }); return; }
+          if (qty > (x.stock || 0)) { UI.toast(`Kho chỉ còn ${x.stock || 0}`, { type: 'error' }); return; }
+          const r = S.moveAssetQty(ctx.bid, name, null, room, qty);
+          if (!r.ok) { UI.toast('Không đủ số lượng trong kho', { type: 'error' }); return; }
+          S.log('asset.move', `Chuyển ${name} × ${qty} từ kho vào phòng ${room}`);
+          close(); UI.toast(`Đã chuyển ${qty} ${(x.unit || 'cái').toLowerCase()} vào phòng ${room}`, { type: 'ok' }); HH.router.render();
+        };
+      } });
+  }
+
+  function returnDialog(ctx, a) {
+    const max = a.quantity || 1;
+    UI.modal({ title: `Trả "${a.name}" về kho`, bodyHtml: h`
+      <p class="muted" style="margin-bottom:12px">Phòng <b>${a.roomCode}</b> đang có <b>${max}</b> ${U.esc((a.unit || 'cái').toLowerCase())}.</p>
+      <div class="field"><label>Trả về kho bao nhiêu?</label><input class="input num" id="rtQty" value="${max}"></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="rtGo">Trả về kho</button>`,
+      onMount(el, close) {
+        el.querySelector('#rtGo').onclick = () => {
+          const n = U.parseNum(el.querySelector('#rtQty').value) || 0;
+          if (n <= 0 || n > max) { UI.toast(`Nhập từ 1 đến ${max}`, { type: 'error' }); return; }
+          const r = S.moveAssetQty(ctx.bid, a.name, a.roomCode, null, n);
+          if (!r.ok) { UI.toast('Không trả được, thử lại', { type: 'error' }); return; }
+          S.log('asset.move', `Trả ${a.name} × ${n} từ phòng ${a.roomCode} về kho`);
+          close(); UI.toast(`Đã trả ${n} ${(a.unit || 'cái').toLowerCase()} về kho`, { type: 'ok' }); HH.router.render();
+        };
+      } });
   }
 
 

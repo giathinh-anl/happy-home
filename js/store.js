@@ -69,6 +69,18 @@ HH.store = (function () {
       { id: U.uid('sv'), buildingId: b.id, name: 'Internet', method: 'flat', unit: 40000, unitLabel: '₫/tháng' },
     );
 
+    // kho tài sản của tòa nhà (chưa chuyển vào phòng nào)
+    assets.push(
+      { id: 'KHO-ML-' + bi, buildingId: b.id, roomCode: null, name: 'Máy lạnh', icon: '❄️',
+        buyPrice: 8000000, buyDate: '2024-06-01', lifeMonths: 60, condition: 'good', quantity: 3, unit: 'Cái' },
+      { id: 'KHO-TL-' + bi, buildingId: b.id, roomCode: null, name: 'Tủ lạnh', icon: '🧊',
+        buyPrice: 5000000, buyDate: '2024-06-01', lifeMonths: 60, condition: 'good', quantity: 2, unit: 'Cái' },
+      { id: 'KHO-GI-' + bi, buildingId: b.id, roomCode: null, name: 'Giường', icon: '🛏️',
+        buyPrice: 2500000, buyDate: '2024-06-01', lifeMonths: 84, condition: 'good', quantity: 5, unit: 'Cái' },
+      { id: 'KHO-TU-' + bi, buildingId: b.id, roomCode: null, name: 'Tủ quần áo', icon: '🗄️',
+        buyPrice: 1800000, buyDate: '2024-06-01', lifeMonths: 84, condition: 'good', quantity: 4, unit: 'Cái' },
+    );
+
     const typeKeys = Object.keys(ROOM_TYPES);
     let n = 0;
     for (let f = 1; f <= b.floors; f++) {
@@ -135,10 +147,10 @@ HH.store = (function () {
 
           // tài sản trong phòng
           assets.push(
-            { id: 'ML-' + String(100 + seq).slice(1), buildingId: b.id, roomCode: code, name: 'Máy lạnh',
-              buyPrice: 8000000, buyDate: '2024-06-01', lifeMonths: 60, condition: 'good' },
-            { id: 'TL-' + String(100 + seq).slice(1), buildingId: b.id, roomCode: code, name: 'Tủ lạnh',
-              buyPrice: 5000000, buyDate: '2024-06-01', lifeMonths: 60, condition: 'good' },
+            { id: 'ML-' + String(100 + seq).slice(1), buildingId: b.id, roomCode: code, name: 'Máy lạnh', icon: '❄️',
+              buyPrice: 8000000, buyDate: '2024-06-01', lifeMonths: 60, condition: 'good', quantity: 1, unit: 'Cái' },
+            { id: 'TL-' + String(100 + seq).slice(1), buildingId: b.id, roomCode: code, name: 'Tủ lạnh', icon: '🧊',
+              buyPrice: 5000000, buyDate: '2024-06-01', lifeMonths: 60, condition: 'good', quantity: 1, unit: 'Cái' },
           );
 
           // chỉ số kỳ trước (đã có) + kỳ này (một phần)
@@ -811,6 +823,62 @@ HH.store = (function () {
       return c;
     },
     addAsset(a) { assets.push(a); persist(); return a; },
+
+    /* ---------- Kho tài sản (mỗi tòa một kho) ----------
+       Mỗi dòng assets là "một loại tài sản đang ở một chỗ": roomCode rỗng là
+       trong kho, có roomCode là đang ở phòng đó. Cùng tên thì cùng giá. */
+    assetKindRows: (bid, name) => assets.filter(a => a.buildingId === bid
+      && (a.name || '').trim().toLowerCase() === String(name || '').trim().toLowerCase()),
+
+    // Nhập thêm vào kho (gộp vào dòng kho sẵn có, chưa có thì tạo mới)
+    stockAsset(bid, item) {
+      const rows = api.assetKindRows(bid, item.name);
+      const inStock = rows.find(a => !a.roomCode);
+      if (inStock) inStock.quantity = (inStock.quantity || 0) + (item.quantity || 1);
+      else assets.push(Object.assign({
+        id: U.uid('TS').toUpperCase(), buildingId: bid, roomCode: null, condition: 'good',
+        unit: 'Cái', lifeMonths: 60, buyDate: U.today().toISOString(), quantity: 1,
+      }, item));
+      // cùng tên thì cùng giá, cùng hình, cùng đơn vị
+      api.assetKindRows(bid, item.name).forEach(a => {
+        if (item.buyPrice) a.buyPrice = item.buyPrice;
+        if (item.icon) a.icon = item.icon;
+        if (item.unit) a.unit = item.unit;
+        if (item.lifeMonths) a.lifeMonths = item.lifeMonths;
+      });
+      persist();
+    },
+
+    // Chuyển số lượng giữa kho (null) và phòng
+    moveAssetQty(bid, name, from, to, qty) {
+      qty = Math.max(1, Math.round(qty || 0));
+      const rows = api.assetKindRows(bid, name);
+      const sample = rows[0];
+      if (!sample) return { ok: false };
+      const src = rows.filter(a => (a.roomCode || null) === (from || null));
+      if (src.reduce((s, a) => s + (a.quantity || 0), 0) < qty) return { ok: false };
+      let left = qty;
+      src.forEach(a => { if (left <= 0) return; const take = Math.min(left, a.quantity || 0); a.quantity -= take; left -= take; });
+      const dst = rows.find(a => (a.roomCode || null) === (to || null));
+      if (dst) dst.quantity = (dst.quantity || 0) + qty;
+      else assets.push({ id: U.uid('TS').toUpperCase(), buildingId: bid, roomCode: to || null,
+        icon: sample.icon, name: sample.name, buyPrice: sample.buyPrice || 0,
+        buyDate: sample.buyDate || U.today().toISOString(), lifeMonths: sample.lifeMonths || 60,
+        condition: 'good', quantity: qty, unit: sample.unit || 'Cái' });
+      // dọn các dòng còn 0 món
+      for (let i = assets.length - 1; i >= 0; i--) {
+        if (assets[i].buildingId === bid && (assets[i].quantity || 0) <= 0) {
+          const id = assets[i].id; assets.splice(i, 1);
+          if (usingBackend()) HH.backend.deleteOne('assets', id);
+        }
+      }
+      persist();
+      return { ok: true };
+    },
+
+    // Sửa tên / giá / hình cho MỌI món cùng tên
+    updateAssetKind(bid, name, patch) { api.assetKindRows(bid, name).forEach(a => Object.assign(a, patch)); persist(); },
+    removeAssetKind(bid, name) { api.assetKindRows(bid, name).map(a => a.id).forEach(id => api.removeAsset(id)); },
     asset: (id) => assets.find(a => a.id === id),
     updateAsset(id, patch) { const a = assets.find(x => x.id === id); if (a) { Object.assign(a, patch); persist(); } return a; },
     removeAsset(id) {
