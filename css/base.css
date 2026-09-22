@@ -38,9 +38,34 @@ img { max-width: 100%; display: block; }
 .ic-svg { flex: 0 0 auto; display: inline-block; vertical-align: middle; }
 
 h1, h2, h3, h4 {
-  font-family: var(--font-display); font-weight: 650; line-height: 1.2;
-  letter-spacing: -.015em; text-wrap: balance; color: var(--ink);
+  font-family: var(--font-display); font-weight: 700; line-height: 1.25;
+  letter-spacing: -.01em; text-wrap: balance; color: var(--ink);
 }
+
+/* Icon tượng hình: không co trong flex, nảy nhẹ khi rê chuột lên mục chứa nó */
+.pic { flex: 0 0 auto; display: inline-block; vertical-align: middle; overflow: visible; transition: transform .35s var(--spring); }
+a:hover > .pic, button:hover > .pic, .pic-hop:hover .pic { transform: translateY(-2px) rotate(-6deg) scale(1.06); }
+
+/* Tranh nền khu phố (HH.scene): mây trôi chậm, vài ô cửa sổ bật tắt đèn */
+.scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.scene .sc-cloud { animation: scDrift 38s ease-in-out infinite alternate; }
+.scene .sc-cloud.c2 { animation-duration: 46s; animation-delay: -12s; }
+.scene .sc-cloud.c3 { animation-duration: 52s; animation-delay: -20s; }
+.scene .sc-cloud.c4 { animation-duration: 30s; animation-delay: -6s; }
+.scene .sc-tw { animation: scTwinkle 7s ease-in-out infinite; }
+.scene .sc-tw:nth-of-type(2n) { animation-delay: -3s; }
+@keyframes scDrift { from { translate: -30px 0; } to { translate: 40px 0; } }
+@keyframes scTwinkle { 0%, 60%, 100% { fill: #FFE9AE; } 70%, 90% { fill: #9FD0CB; } }
+
+/* ---------- Chuyển động vào trang (HH.fx.enter) ---------- */
+.fx-in { animation: fxUp .6s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 55ms); }
+.fx-wait { opacity: 0; }
+@keyframes fxUp { from { opacity: 0; transform: translateY(18px); } }
+@keyframes growX { from { transform: scaleX(0); } }
+@keyframes growY { from { transform: scaleY(0); } }
+@keyframes popIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes sheetUp { from { transform: translateY(100%); } }
+@keyframes fadeIn { from { opacity: 0; } }
 
 /* Tiện ích */
 .muted { color: var(--ink-2); }

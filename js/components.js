@@ -156,7 +156,7 @@ HH.ui = (function () {
     const menu = document.createElement('div');
     menu.className = 'menu'; menu.dataset.floating = '1';
     menu.innerHTML = items.map(it => it.sep ? '<div class="sep"></div>' :
-      `<button class="${it.danger ? 'danger' : ''}">${it.icon ? `<span class="ic">${it.icon}</span>` : ''}<span>${esc(it.label)}</span></button>`).join('');
+      `<button class="${it.danger ? 'danger' : ''} ${it.cls || ''}">${it.icon ? `<span class="ic">${it.icon}</span>` : ''}<span>${esc(it.label)}</span></button>`).join('');
     document.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
     const mw = 210;

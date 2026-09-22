@@ -335,15 +335,15 @@
     const s = S.roomSummary(ctx.bid);
     const card = (iconName, tone, label, value, filter) =>
       `<div class="lz-sum" ${filter ? `data-sumfilter="${filter}"` : ''}>
-        <span class="lz-sum-ic ${tone}">${HH.icon(iconName, 20)}</span>
+        <span class="lz-sum-ic ${tone}">${HH.pic(iconName, 32)}</span>
         <div class="lz-sum-body"><div class="lz-sum-label">${label}</div>
           <div class="lz-sum-val">${U.currency(value).replace(' ₫','')}<span class="lz-sum-cur">${typeof value==='number'?'đ':''}</span></div></div>
         <span class="lz-sum-go">${HH.icon('chevron', 16)}</span></div>`;
     return `<div class="lz-sum-grid">
       ${card('receipt', 'tone-danger', 'Tổng tiền khách nợ', s.debt, 'debt')}
-      ${card('wallet', 'tone-success', 'Tổng tiền cọc', s.deposit, null)}
-      ${card('box', 'tone-warning', 'Cọc giữ chỗ phòng', s.holding, 'reserved')}
-      <div class="lz-sum" data-sumfilter="incident"><span class="lz-sum-ic tone-info">${HH.icon('wrench', 20)}</span>
+      ${card('coins', 'tone-success', 'Tổng tiền cọc', s.deposit, null)}
+      ${card('calendar', 'tone-warning', 'Cọc giữ chỗ phòng', s.holding, 'reserved')}
+      <div class="lz-sum" data-sumfilter="incident"><span class="lz-sum-ic tone-info">${HH.pic('wrench', 32)}</span>
         <div class="lz-sum-body"><div class="lz-sum-label">Sự cố phòng</div>
           <div class="lz-sum-val">${s.incident} <span class="lz-sum-cur">vấn đề</span></div></div>
         <span class="lz-sum-go">${HH.icon('chevron', 16)}</span></div>
@@ -370,7 +370,7 @@
       const view = S.prefs.roomView || 'table';
       if (rooms.length === 0) {
         return h`${raw(summaryCards(ctx))}
-          <div class="card"><div class="empty"><div class="ic">${HH.ic('building', 30)}</div>
+          <div class="card"><div class="empty"><div class="ic">${HH.pic('building', 72)}</div>
           <h4>Chưa có phòng nào trong tòa nhà này</h4>
           <p class="muted">Bắt đầu bằng cách tạo phòng hàng loạt theo tầng.</p>
           <div style="margin-top:16px"><button class="btn btn-primary" data-primary-new>Tạo phòng hàng loạt</button></div>

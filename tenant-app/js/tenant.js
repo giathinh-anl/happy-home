@@ -107,14 +107,14 @@
 
   /* ---------- thanh tab dưới ---------- */
   const TABS = [
-    { key: 'home', hash: '#/home', ic: HH.ic('building', 16), label: 'Trang chủ' },
-    { key: 'invoices', hash: '#/invoices', ic: HH.ic('receipt', 16), label: 'Hóa đơn' },
-    { key: 'room', hash: '#/room', ic: HH.ic('door', 16), label: 'Phòng của tôi' },
-    { key: 'account', hash: '#/account', ic: HH.ic('user', 16), label: 'Tài khoản' },
+    { key: 'home', hash: '#/home', ic: HH.pic('house', 28), label: 'Trang chủ' },
+    { key: 'invoices', hash: '#/invoices', ic: HH.pic('receipt', 28), label: 'Hóa đơn' },
+    { key: 'room', hash: '#/room', ic: HH.pic('door', 28), label: 'Phòng của tôi' },
+    { key: 'account', hash: '#/account', ic: HH.pic('user', 28), label: 'Tài khoản' },
   ];
   function tabbar(active) {
     const unpaid = (state.data.invoices || []).filter(i => (i.total - i.paid) > 0).length;
-    return `<nav class="t-tabbar">${TABS.map(t => `<button class="t-tab ${t.key === active ? 'on' : ''}" data-tab="${t.hash}">
+    return `<nav class="t-tabbar" id="tTabs"><span class="slide-ind" data-mode="fixed" aria-hidden="true"></span>${TABS.map(t => `<button class="t-tab ${t.key === active ? 'on active' : ''}" data-tab="${t.hash}">
       ${t.key === 'invoices' && unpaid ? `<span class="dot-badge">${unpaid}</span>` : ''}
       <span class="ic">${t.ic}</span><span>${t.label}</span></button>`).join('')}</nav>`;
   }
@@ -124,20 +124,20 @@
 
   /* ---------- Thanh bên (chỉ hiện trên máy tính) ---------- */
   const SIDE_MAIN = [
-    { hash: '#/home', ic: HH.ic('building', 16), label: 'Trang chủ', key: 'home' },
-    { hash: '#/invoices', ic: HH.ic('receipt', 16), label: 'Hóa đơn', key: 'invoices' },
-    { hash: '#/room', ic: HH.ic('door', 16), label: 'Phòng của tôi', key: 'room' },
-    { hash: '#/contract', ic: HH.ic('file', 16), label: 'Hợp đồng', key: 'contract' },
+    { hash: '#/home', ic: HH.pic('house', 26), label: 'Trang chủ', key: 'home' },
+    { hash: '#/invoices', ic: HH.pic('receipt', 26), label: 'Hóa đơn', key: 'invoices' },
+    { hash: '#/room', ic: HH.pic('door', 26), label: 'Phòng của tôi', key: 'room' },
+    { hash: '#/contract', ic: HH.pic('contract', 26), label: 'Hợp đồng', key: 'contract' },
   ];
   const SIDE_MORE = [
-    { hash: '#/readings', ic: HH.ic('camera', 16), label: 'Gửi chỉ số', key: 'readings' },
-    { hash: '#/repair', ic: HH.ic('wrench', 16), label: 'Báo hỏng', key: 'repair' },
-    { hash: '#/track', ic: HH.ic('wrench', 16), label: 'Yêu cầu sửa chữa', key: 'track' },
-    { hash: '#/usage', ic: HH.ic('sheet', 16), label: 'Lịch sử điện nước', key: 'usage' },
-    { hash: '#/history', ic: HH.ic('card', 16), label: 'Lịch sử thanh toán', key: 'history' },
-    { hash: '#/services', ic: HH.ic('concierge', 16), label: 'Bảng giá dịch vụ', key: 'services' },
-    { hash: '#/chat', ic: HH.ic('chat', 16), label: 'Trợ lý ảo', key: 'chat' },
-    { hash: '#/account', ic: HH.ic('user', 16), label: 'Tài khoản', key: 'account' },
+    { hash: '#/readings', ic: HH.pic('camera', 26), label: 'Gửi chỉ số', key: 'readings' },
+    { hash: '#/repair', ic: HH.pic('wrench', 26), label: 'Báo hỏng', key: 'repair' },
+    { hash: '#/track', ic: HH.pic('clipboard', 26), label: 'Yêu cầu sửa chữa', key: 'track' },
+    { hash: '#/usage', ic: HH.pic('chart', 26), label: 'Lịch sử điện nước', key: 'usage' },
+    { hash: '#/history', ic: HH.pic('card', 26), label: 'Lịch sử thanh toán', key: 'history' },
+    { hash: '#/services', ic: HH.pic('concierge', 26), label: 'Bảng giá dịch vụ', key: 'services' },
+    { hash: '#/chat', ic: HH.pic('chat', 26), label: 'Trợ lý ảo', key: 'chat' },
+    { hash: '#/account', ic: HH.pic('user', 26), label: 'Tài khoản', key: 'account' },
   ];
 
   function sidebar() {
@@ -169,7 +169,8 @@
   /* ---------- màn hình: ĐĂNG NHẬP ---------- */
   function screenLogin() {
     el('tapp').innerHTML = `<div class="t-login">
-      <div class="logo"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804">
+      <div class="t-login-art" aria-hidden="true">${HH.scene()}</div>
+      <div class="logo"><div class="t-sign"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804"></div>
         <h1 class="sr-only">Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>
       <div id="loginErr"></div>
       <div class="t-field"><label>Số điện thoại</label>
@@ -205,7 +206,8 @@
   function screenOtp() {
     const masked = state.pendingPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1 *** $2');
     el('tapp').innerHTML = `<div class="t-login">
-      <div class="logo" style="margin-top:8px"><div class="mark">${logoImg(46)}</div></div>
+      <div class="t-login-art short" aria-hidden="true">${HH.scene()}</div>
+      <div class="logo"><div class="mark">${logoImg(46)}</div></div>
       <h1 style="font-size:22px">Nhập mã xác thực</h1>
       <p class="lead">Mã gồm 6 chữ số đã gửi tới<br><b>${masked}</b></p>
       <div id="otpErr"></div>
@@ -268,9 +270,9 @@
       : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
     // Nút trợ lý ảo nổi — hiện ở các màn hình chính (điện thoại)
-    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">${HH.ic('chat', 16)}</button>` : '';
+    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">${HH.pic('chat', 30)}</button>` : '';
     // Tiêu đề trang cho bố cục máy tính (điện thoại đã có thanh header riêng)
-    const deskHead = `<div class="t-page-head"><h1>${esc(opts.deskTitle || title || 'Trang chủ')}</h1>
+    const deskHead = opts.hero ? '' : `<div class="t-page-head"><h1>${esc(opts.deskTitle || title || 'Trang chủ')}</h1>
       ${opts.deskSub ? `<p>${esc(opts.deskSub)}</p>` : ''}</div>`;
     el('tapp').innerHTML = `<div class="t-app">${sidebar()}${header}
       <div class="t-main">${deskHead}${body}</div>${fab}${tabs}</div>`;
@@ -287,11 +289,19 @@
       render();
     };
     if (opts.tab) wireTabs();
+    // Chuyển động: viên chỉ báo trượt sang tab mới, các khối trồi lên, số tiền chạy
+    HH.fx.slide(el('tTabs'), 't-tab');
+    HH.fx.enter(document.querySelector('.t-main'));
+    HH.fx.countUp(el('tapp'), { vnd: (v) => vnd(v) });
   }
 
   function screenLoading() { shell('', `<div class="skeleton-card"></div><div class="skeleton-card"></div>`, { home: true }); }
 
   /* ---------- màn hình: TRANG CHỦ ---------- */
+  function greet() {
+    const hr = new Date().getHours();
+    return hr < 11 ? 'Chào buổi sáng' : hr < 14 ? 'Chào buổi trưa' : hr < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+  }
   function currentUnpaid() { return (state.data.invoices || []).find(i => (i.total - i.paid) > 0); }
 
   function screenHome() {
@@ -300,13 +310,13 @@
     let dueCard;
     if (!inv) {
       dueCard = `<div class="due-card paid"><div class="label">Công nợ</div>
-        <div class="amount">${vnd(0)}</div><div class="meta">✓ Bạn đã thanh toán đầy đủ</div></div>`;
+        <div class="amount">${vnd(0)}</div><div class="meta">Bạn đã thanh toán đầy đủ</div></div>`;
     } else {
       const remain = inv.total - inv.paid; const dl = daysLeft(inv.dueDate);
       const cls = dl < 0 ? 'danger' : 'warn';
       const meta = dl < 0 ? `Quá hạn ${Math.abs(dl)} ngày (hạn ${fmtDate(inv.dueDate)})` : `Hạn: ${fmtDate(inv.dueDate)} · Còn ${dl} ngày`;
       dueCard = `<div class="due-card ${cls}"><div class="label">Cần thanh toán</div>
-        <div class="amount">${vnd(remain)}</div><div class="meta">${meta}</div>
+        <div class="amount" data-count="${remain}" data-fmt="vnd">${vnd(remain)}</div><div class="meta">${meta}</div>
         <button class="t-btn" id="payNow">Thanh toán ngay</button></div>`;
     }
     const notis = buildNotifications();
@@ -325,24 +335,28 @@
     const usageCard = usage ? `<div class="t-card">
       <div class="t-section-head" style="margin-bottom:4px"><h3>Tiêu thụ ${esc(usage.label)}</h3>
         <a href="#/usage">Xem lịch sử →</a></div>
-      <div class="t-row"><span class="k">${HH.ic('bolt', 16)} Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
-      <div class="t-row"><span class="k">${HH.ic('drop', 16)} Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
+      <div class="t-row"><span class="k">${HH.pic('bolt', 26)} Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
+      <div class="t-row"><span class="k">${HH.pic('drop', 26)} Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
     </div>` : '';
 
     const contractCardHtml = c ? contractCard(c) : '';
     shell('', `
-      <div class="room-head"><div class="rname">Phòng ${esc(d.room.code || d.tenant.roomCode)}</div>
-        <div class="bname">${esc(d.building.name || '')}</div></div>
+      <section class="t-hero">
+        <div class="t-hero-art" aria-hidden="true">${HH.scene()}</div>
+        <div class="t-hero-in"><p class="hi">${greet()}, <b>${esc((d.tenant.fullName || '').trim().split(/\s+/).slice(-1)[0])}</b></p>
+          <div class="rm">Phòng ${esc(d.room.code || d.tenant.roomCode)}</div>
+          <div class="bn">${HH.ic('pin', 14)} ${esc(d.building.name || '')}</div></div>
+      </section>
       ${ctWarn}
       <div class="t-grid2">
         <div>
           ${dueCard}
           <div class="section-title">Truy cập nhanh</div>
           <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
-            <button class="quick-item" data-nav="#/invoices"><div class="qic" style="background:var(--info-bg)">${HH.ic('receipt', 16)}</div><div class="qlabel">Hóa đơn</div></button>
-            <button class="quick-item" data-nav="#/readings"><div class="qic" style="background:var(--brand-50)">${HH.ic('camera', 16)}</div><div class="qlabel">Ghi chỉ số</div></button>
-            <button class="quick-item" data-nav="#/repair"><div class="qic" style="background:var(--warning-bg)">${HH.ic('wrench', 16)}</div><div class="qlabel">Báo hỏng</div></button>
-            <button class="quick-item" data-nav="#/chat"><div class="qic" style="background:var(--purple-bg)">${HH.ic('chat', 16)}</div><div class="qlabel">Trợ lý ảo</div></button>
+            <button class="quick-item" data-nav="#/invoices"><div class="qic t-sky">${HH.pic('receipt', 34)}</div><div class="qlabel">Hóa đơn</div></button>
+            <button class="quick-item" data-nav="#/readings"><div class="qic t-leaf">${HH.pic('camera', 34)}</div><div class="qlabel">Ghi chỉ số</div></button>
+            <button class="quick-item" data-nav="#/repair"><div class="qic t-coral">${HH.pic('wrench', 34)}</div><div class="qlabel">Báo hỏng</div></button>
+            <button class="quick-item" data-nav="#/chat"><div class="qic t-grape">${HH.pic('chat', 34)}</div><div class="qlabel">Trợ lý ảo</div></button>
           </div>
           ${usageCard}
         </div>
@@ -352,7 +366,7 @@
           <div class="t-card">${notis || '<div style="color:var(--neutral-400);text-align:center;padding:8px">Chưa có thông báo</div>'}</div>
         </div>
       </div>
-    `, { home: true, tab: 'home', deskTitle: 'Xin chào, ' + (d.tenant.fullName || '').split(' ').slice(-1)[0],
+    `, { home: true, hero: true, tab: 'home', deskTitle: 'Xin chào, ' + (d.tenant.fullName || '').split(' ').slice(-1)[0],
          deskSub: `Phòng ${d.room.code || d.tenant.roomCode} · ${d.building.name || ''}` });
     const pn = el('payNow'); if (pn) pn.onclick = () => go('#/pay/' + inv.id);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -397,7 +411,7 @@
         <span class="v mono" style="color:${unpaidTotal > 0 ? 'var(--danger)' : 'var(--success)'}">${vnd(unpaidTotal)}</span></div>
       <div class="t-row tap" data-nav="#/history"><span class="k">Lịch sử thanh toán</span><span class="v">›</span></div>
     </div>` : '';
-    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">${HH.ic('receipt', 16)}</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
+    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">${HH.pic('receipt', 64)}</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
   const vnPeriod = (p) => { if (!p) return ''; const [y, m] = p.split('-'); return 'T' + Number(m) + '/' + y; };
@@ -432,7 +446,7 @@
   /* ---------- màn hình: THANH TOÁN ---------- */
   function screenPay(id) {
     const inv = (state.data.invoices || []).find(i => i.id === id) || currentUnpaid();
-    if (!inv) { shell('Thanh toán', `<div class="t-empty"><div class="eic">✓</div><p>Không có khoản cần thanh toán</p></div>`); return; }
+    if (!inv) { shell('Thanh toán', `<div class="t-empty"><div class="eic">${HH.pic('wallet', 64)}</div><p>Không có khoản cần thanh toán</p></div>`); return; }
     const remain = inv.total - inv.paid;
     const content = payContent(inv);
     shell('Thanh toán', `
@@ -533,7 +547,7 @@
   }
 
   /* ---------- màn hình: BÁO HỎNG ---------- */
-  const CATS = [{ k: 'Điện', ic: HH.ic('bolt', 16) }, { k: 'Nước', ic: HH.ic('drop', 16) }, { k: 'Máy lạnh', ic: HH.ic('snow', 16) }, { k: 'Khác', ic: '⋯' }];
+  const CATS = [{ k: 'Điện', ic: HH.pic('bolt', 34) }, { k: 'Nước', ic: HH.pic('drop', 34) }, { k: 'Máy lạnh', ic: HH.pic('gear', 34) }, { k: 'Khác', ic: HH.pic('wrench', 34) }];
   const TIMES = ['Sáng', 'Chiều', 'Tối', 'Bất kỳ'];
   function screenRepair() {
     const r = state.repair;
@@ -605,7 +619,7 @@
         </div>
         <div class="timeline">${steps.map(s => `<div class="tl-item ${s.done ? 'done' : ''} ${s.active ? 'active' : ''}"><div class="tl-title">${s.t}</div><div class="tl-time">${s.done ? fmtDate(x.createdAt) : '-'}</div></div>`).join('')}</div>
       </div>`;
-    }).join('') : `<div class="t-empty"><div class="eic">${HH.ic('wrench', 16)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
+    }).join('') : `<div class="t-empty"><div class="eic">${HH.pic('clipboard', 64)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
     shell('Yêu cầu sửa chữa', body + (incs.length ? `<button class="t-btn outline" id="newReq" style="margin-top:6px">${HH.ic('plus', 16)} Tạo yêu cầu mới</button>` : ''));
     const nr = el('newReq'); if (nr) nr.onclick = () => go('#/repair');
   }
@@ -657,9 +671,9 @@
           ${a.icon || '📦'} ${esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>
         <p style="color:var(--neutral-500);font-size:12px;margin-top:10px">Vui lòng giữ gìn tài sản. Hư hỏng do lỗi sử dụng sẽ bồi thường theo giá trị còn lại.</p></div>` : ''}
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/usage"><span class="aic" style="background:var(--brand-50)">${HH.ic('sheet', 16)}</span>Lịch sử điện nước<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/services"><span class="aic" style="background:var(--info-bg)">${HH.ic('concierge', 16)}</span>Bảng giá dịch vụ<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">${HH.ic('wrench', 16)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/usage"><span class="aic t-leaf">${HH.pic('chart', 26)}</span>Lịch sử điện nước<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/services"><span class="aic t-sun">${HH.pic('concierge', 26)}</span>Bảng giá dịch vụ<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic t-coral">${HH.pic('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
       </div>
     `, { tab: 'room' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -692,7 +706,7 @@
   ];
   function screenContract() {
     const c = state.data.contract;
-    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">${HH.ic('file', 16)}</div><p>Chưa có thông tin hợp đồng</p>
+    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">${HH.pic('contract', 64)}</div><p>Chưa có thông tin hợp đồng</p>
       <p style="font-size:13px">Liên hệ chủ nhà để được cung cấp.</p></div>`); return; }
     const src = (c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
     const terms = src.map(t => ({ title: t.title, body: (t.body || '')
@@ -720,7 +734,7 @@
   /* ---------- màn hình: LỊCH SỬ ĐIỆN NƯỚC ---------- */
   function screenUsage() {
     const list = usageList();
-    if (!list.length) { shell('Lịch sử điện nước', `<div class="t-empty"><div class="eic">${HH.ic('sheet', 16)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
+    if (!list.length) { shell('Lịch sử điện nước', `<div class="t-empty"><div class="eic">${HH.pic('chart', 64)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
     const recent = list.slice(0, 6).reverse();
     const maxE = Math.max(1, ...recent.map(x => x.elec || 0));
     const maxW = Math.max(1, ...recent.map(x => x.water || 0));
@@ -749,7 +763,7 @@
           <span class="v mono">${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</span></div>`).join('')}
       </div>
       <p style="color:var(--neutral-500);font-size:12px;text-align:center">Đơn giá do chủ nhà niêm yết, áp dụng cho kỳ hiện hành.</p>`
-      : `<div class="t-empty"><div class="eic">${HH.ic('concierge', 16)}</div><p>Chưa có bảng giá dịch vụ</p></div>`);
+      : `<div class="t-empty"><div class="eic">${HH.pic('concierge', 64)}</div><p>Chưa có bảng giá dịch vụ</p></div>`);
   }
 
   /* ---------- màn hình: LỊCH SỬ THANH TOÁN ---------- */
@@ -763,7 +777,7 @@
         <span class="k"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
           <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div></span>
         <span class="v mono" style="color:var(--success)">+${vnd(p.amount)}</span></div>`).join('')}</div>`
-      : `<div class="t-empty"><div class="eic">${HH.ic('card', 16)}</div><p>Chưa có lịch sử thanh toán</p></div>`);
+      : `<div class="t-empty"><div class="eic">${HH.pic('card', 64)}</div><p>Chưa có lịch sử thanh toán</p></div>`);
   }
 
   /* ---------- màn hình: TÀI KHOẢN ---------- */
@@ -788,11 +802,11 @@
           : '<span class="t-badge warning"><span class="d"></span>Chưa đăng ký</span>'}</span></div>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/history"><span class="aic" style="background:var(--success-bg)">${HH.ic('card', 16)}</span>Lịch sử thanh toán<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/contract"><span class="aic" style="background:var(--brand-50)">${HH.ic('file', 16)}</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/track"><span class="aic" style="background:var(--warning-bg)">${HH.ic('wrench', 16)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/chat"><span class="aic" style="background:var(--purple-bg)">${HH.ic('chat', 16)}</span>Trợ lý ảo<span class="chev">›</span></button>
-        <button class="t-action" id="helpBtn"><span class="aic" style="background:var(--info-bg)">${HH.ic('help', 16)}</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/history"><span class="aic t-sky">${HH.pic('card', 26)}</span>Lịch sử thanh toán<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/contract"><span class="aic t-grape">${HH.pic('contract', 26)}</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic t-coral">${HH.pic('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/chat"><span class="aic t-grape">${HH.pic('chat', 26)}</span>Trợ lý ảo<span class="chev">›</span></button>
+        <button class="t-action" id="helpBtn"><span class="aic t-sky">${HH.ic('help', 20)}</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
         <button class="t-action danger" id="logoutBtn"><span class="aic" style="background:var(--danger-bg)">${HH.ic('logout', 16)}</span>Đăng xuất<span class="chev">›</span></button>

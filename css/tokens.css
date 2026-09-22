@@ -1,17 +1,16 @@
 /* ============================================================
-   Happy Home — Design tokens (bản làm lại theo logo gỗ + xanh ngọc)
+   Happy Home — Design tokens (bản sống động: chữ tròn + hình minh họa)
    ------------------------------------------------------------
    MÀU      Xanh ngọc (#0F5C5B, màu thân nhà trong logo) là màu chủ đạo
-            DUY NHẤT cho hành động. Gỗ (#C98A50) chỉ dùng điểm xuyết:
-            mục đang chọn, số tiền nổi bật, chi tiết thương hiệu.
-            Trạng thái (đã thu / chờ / quá hạn) có màu riêng, không lẫn màu chủ đạo.
-            Nền trung tính hơi ngả xanh để ăn nhập với màu ngọc, không dùng
-            trắng tinh hay đen tuyền.
-   CHỮ      Bricolage Grotesque: tiêu đề và con số lớn.
-            Be Vietnam Pro: toàn bộ chữ thường (thiết kế cho tiếng Việt).
-            JetBrains Mono: CHỈ cho mã (mã hóa đơn, số phiếu), không cho tiền.
-   BO GÓC   Một thang duy nhất: 6 (nhãn nhỏ) · 10 (nút, ô nhập, menu) ·
-            14 (thẻ, bảng) · 20 (hộp thoại). Tròn hẳn chỉ cho ảnh đại diện.
+            cho nút và mục đang chọn. Gỗ (#C98A50) điểm xuyết.
+            Icon tượng hình và tranh nền dùng thêm bảng màu minh họa
+            (vàng nắng, cam san hô, xanh trời, tím nho, xanh lá) để mỗi
+            mục có "màu riêng" dễ nhận ra; bảng màu này KHÔNG dùng cho nút.
+   CHỮ      Baloo 2: tiêu đề và con số lớn (nét tròn, đậm, vui mắt).
+            Nunito: chữ nội dung (nét tròn, dễ đọc, đủ dấu tiếng Việt).
+            JetBrains Mono: CHỈ cho mã (mã hóa đơn, số phiếu).
+   BO GÓC   8 (nhãn nhỏ) · 12 (nút, ô nhập, menu) · 18 (thẻ, bảng) ·
+            24 (hộp thoại, băng rôn). Tròn hẳn cho ảnh đại diện và chip.
    ============================================================ */
 :root {
   /* ---- Xanh ngọc (chủ đạo) ---- */
@@ -85,14 +84,21 @@
   --purple-bg:  var(--wood-50);
   --neutral-bg: #EAEFED;
 
+  /* ---- Màu minh họa (icon tượng hình, tranh nền, ô số liệu) ---- */
+  --sun:   #F2A224;  --sun-bg:   #FFF4DC;
+  --coral: #E9573B;  --coral-bg: #FFEBE4;
+  --sky:   #2D7FDC;  --sky-bg:   #E6F2FF;
+  --grape: #7858E0;  --grape-bg: #F0EBFF;
+  --leaf:  #2DA05D;  --leaf-bg:  #E5F6EA;
+
   /* ---- Chữ ---- */
-  --font-sans:    'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
-  --font-display: 'Bricolage Grotesque', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-sans:    'Nunito', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Baloo 2', 'Nunito', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 
-  --text-xs:   12px;
-  --text-sm:   14px;
-  --text-base: 15px;
+  --text-xs:   12.5px;
+  --text-sm:   14.5px;
+  --text-base: 15.5px;
   --text-lg:   17px;
   --text-xl:   20px;
   --text-2xl:  26px;
@@ -110,11 +116,11 @@
   --sp-12: 48px;
   --sp-16: 64px;
 
-  /* ---- Bo góc: 1 thang duy nhất ---- */
-  --r-sm:    6px;
-  --r-input: 10px;
-  --r-card:  14px;
-  --r-lg:    20px;
+  /* ---- Bo góc: 1 thang duy nhất (tròn hơn, hợp nét chữ tròn) ---- */
+  --r-sm:    8px;
+  --r-input: 12px;
+  --r-card:  18px;
+  --r-lg:    24px;
   --r-pill:  999px;
 
   /* ---- Bóng: nhuộm xanh ngọc, không dùng đen ---- */
@@ -124,7 +130,10 @@
   --shadow-dialog: 0 28px 64px rgba(7,43,42,.22), 0 8px 18px rgba(7,43,42,.10);
   --ring:          0 0 0 3px rgba(29,110,107,.22);
 
-  --sidebar-w: 256px;
+  --shadow-lift:   0 14px 34px rgba(10,58,57,.14), 0 3px 8px rgba(10,58,57,.06);
+
   --content-max: 1360px;
   --ease: cubic-bezier(.2,.7,.2,1);
+  --ease-out: cubic-bezier(.16,1,.3,1);      /* vào nhanh, dừng êm */
+  --spring: cubic-bezier(.34,1.56,.64,1);    /* nảy nhẹ khi dừng */
 }

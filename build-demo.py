@@ -15,7 +15,7 @@ OUT = os.path.join(OUT_DIR, 'happy-home-demo.html')
 
 CSS = ['tokens.css', 'base.css', 'layout.css', 'components.css', 'pages.css']
 JS = [
-    'js/utils.js', 'js/icons.js', 'js/charts.js',
+    'js/utils.js', 'js/icons.js', 'js/art.js', 'js/motion.js', 'js/charts.js',
     'js/backend.js', 'js/store.js', 'js/components.js',
     'js/pages/auth-dashboard.js', 'js/pages/rooms.js', 'js/pages/tenants.js',
     'js/pages/contracts.js', 'js/pages/billing.js', 'js/pages/misc.js', 'js/pages/more.js',
@@ -75,7 +75,7 @@ def main():
 <title>Happy Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500..800&family=Nunito:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%%20&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="%s">
 <style>

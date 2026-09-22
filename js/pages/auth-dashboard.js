@@ -20,15 +20,23 @@ HH.pages = HH.pages || {};
       const hint = backend
         ? `<div class="login-hints">Kết nối máy chủ <b>Supabase</b>. <a href="#" id="toggleMode">Chưa có tài khoản? Đăng ký</a></div>`
         : `<div class="login-hints">Bản demo: nhập email hợp lệ và mật khẩu bất kỳ. <a href="#" id="quickFill">Điền nhanh</a></div>`;
-      return h`<div class="login-split">
-        <div class="login-brand">
-          <img class="login-logo3d" src="assets/logo-3d.webp" alt="Logo Happy Home" width="2000" height="1804">
-          <div class="login-copy">
-            <div class="tagline">Quản lý nhà cho thuê thông minh</div>
-            <div class="sub">Vận hành tòa nhà, hợp đồng, hóa đơn và công nợ trong một hệ thống duy nhất.</div>
-          </div>
-        </div>
-        <div class="login-form-wrap">
+      // Dòng chữ lớn hiện lên từng chữ một
+      let wi = 0;
+      const words = (t, cls) => t.split(' ').map(w => `<span class="w ${cls || ''}" style="--i:${wi++}">${U.esc(w)}</span>`).join(' ');
+      return h`<div class="login-page">
+        <div class="login-art" aria-hidden="true">${HH.scene()}</div>
+        <div class="login-wrap">
+          <section class="login-brand">
+            <div class="login-sign"><img class="login-logo3d" src="assets/logo-3d.webp" alt="Logo Happy Home" width="2000" height="1804"></div>
+            <h2 class="login-h">${raw(words('Quản lý nhà cho thuê'))}<br>${raw(words('nhẹ tênh mỗi ngày', 'hl'))}</h2>
+            <p class="login-sub">Phòng, hợp đồng, hóa đơn và công nợ gọn trong một nơi.</p>
+            <ul class="login-feats">
+              <li>${HH.pic('receipt', 30)}<span>Hóa đơn tự tính điện nước</span></li>
+              <li>${HH.pic('card', 30)}<span>Tự khớp tiền chuyển khoản</span></li>
+              <li>${HH.pic('chat', 30)}<span>Trợ lý ảo trả lời số liệu</span></li>
+            </ul>
+          </section>
+          <div class="login-form-wrap">
           <form class="login-form" id="loginForm" novalidate>
             <div class="login-mini-logo"><img src="assets/logo-mark.svg" alt="" width="44" height="38"><span>happy home</span></div>
             <div><h1 id="authTitle">Đăng nhập</h1><p class="lead">${raw(backend ? 'Tài khoản của bạn' : 'Hệ thống quản lý')}</p></div>
@@ -55,6 +63,7 @@ HH.pages = HH.pages || {};
             ${raw(hint)}
             <a href="tenant-app/index.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
           </form>
+          </div>
         </div>
       </div>`;
     },
@@ -161,15 +170,25 @@ HH.pages = HH.pages || {};
     return `<span class="dl ${good ? 'up' : 'down'}">${up ? 'Tăng' : 'Giảm'} ${U.percent(Math.abs(r))} so với kỳ trước</span>`;
   }
 
+  const pic = (n, s) => String(HH.pic(n, s || 28));
+
   function panel(title, bodyHtml, opt) {
     opt = opt || {};
     return `<section class="card dh-panel ${opt.cls || ''}">
-      <header class="dh-panel-h"><h3>${U.esc(title)}</h3>${opt.right || ''}</header>
+      <header class="dh-panel-h">${opt.pic ? `<span class="dh-panel-pic">${pic(opt.pic, 26)}</span>` : ''}<h3>${U.esc(title)}</h3>${opt.right || ''}</header>
       <div class="dh-panel-b">${bodyHtml}</div>
     </section>`;
   }
 
   const TONE = { paid: '#2D7A4E', partial: '#1D6E6B', issued: '#E4B07A', overdue: '#B3402F', draft: '#C8D2CF' };
+
+  // Lời chào theo giờ trong ngày
+  function greeting() {
+    const hr = new Date().getHours();
+    return hr < 11 ? 'Chào buổi sáng' : hr < 14 ? 'Chào buổi trưa' : hr < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+  }
+  // Cách hiện số khi "chạy" (HH.fx.countUp)
+  const FMT = { money: (v) => U.currency(Math.round(v)), pct: (v) => U.percent(v), int: (v) => U.number(Math.round(v)) };
 
   HH.pages.dashboard = {
     render() {
@@ -179,26 +198,74 @@ HH.pages = HH.pages || {};
       const firstB = S.buildings[0] ? S.buildings[0].id : '';
       const K = a.kpi;
       const P = S.periodLabel(a.period);
+      const first = ((S.prefs && S.prefs.userName) || '').trim().split(/\s+/).slice(-1)[0];
+      const openInc = S.incidents.filter(x => x.status !== 'done').length;
 
       /* ---- Việc cần xử lý: xếp theo mức gấp ---- */
       const todo = [
-        { i: 'alert', tone: 'bad', n: d.alerts.expiredContracts || 0, t: 'hợp đồng đã quá hạn', href: `#/b/${firstB}/contracts?filter=expired` },
-        { i: 'receipt', tone: 'bad', n: d.alerts.overdueInvoices, t: 'hóa đơn quá hạn', href: `#/b/${firstB}/invoices?status=overdue` },
-        { i: 'bank', tone: '', n: S.pendingClaimCount(), t: 'phiếu chuyển khoản chờ duyệt', href: '#/transfers' },
-        { i: 'wrench', tone: '', n: S.incidents.filter(x => x.status !== 'done').length, t: 'sự cố đang mở', href: `#/b/${firstB}/incidents` },
-        { i: 'file', tone: 'warn', n: d.alerts.expiringContracts, t: 'hợp đồng hết hạn trong 30 ngày', href: `#/b/${firstB}/contracts?filter=soon` },
-        { i: 'gauge', tone: '', n: d.alerts.pendingReadings, t: 'phòng chưa ghi chỉ số', href: `#/b/${firstB}/readings` },
+        { p: 'alarm', tone: 'bad', n: d.alerts.expiredContracts || 0, t: 'hợp đồng đã quá hạn', href: `#/b/${firstB}/contracts?filter=expired` },
+        { p: 'receipt', tone: 'bad', n: d.alerts.overdueInvoices, t: 'hóa đơn quá hạn', href: `#/b/${firstB}/invoices?status=overdue` },
+        { p: 'card', tone: '', n: S.pendingClaimCount(), t: 'phiếu chuyển khoản chờ duyệt', href: '#/transfers' },
+        { p: 'wrench', tone: '', n: openInc, t: 'sự cố đang mở', href: `#/b/${firstB}/incidents` },
+        { p: 'calendar', tone: 'warn', n: d.alerts.expiringContracts, t: 'hợp đồng hết hạn trong 30 ngày', href: `#/b/${firstB}/contracts?filter=soon` },
+        { p: 'meter', tone: '', n: d.alerts.pendingReadings, t: 'phòng chưa ghi chỉ số', href: `#/b/${firstB}/readings` },
       ].filter(x => x.n > 0);
       const todoHtml = todo.length
-        ? `<ol class="dh-todo">${todo.map(x => `<li><a href="${x.href}">
-            <span class="dh-todo-n ${x.tone}">${x.n}</span><span class="dh-todo-t">${U.esc(x.t)}</span>${ic('chevron', 16)}</a></li>`).join('')}</ol>`
-        : `<div class="dh-calm">${ic('check', 22)}<p>Không có việc tồn đọng.</p></div>`;
+        ? `<ol class="dh-todo">${todo.map((x, i) => `<li style="--i:${i}"><a href="${x.href}">
+            <span class="dh-todo-pic">${pic(x.p, 30)}</span>
+            <span class="dh-todo-t"><b class="${x.tone}">${x.n}</b> ${U.esc(x.t)}</span>${ic('chevron', 16)}</a></li>`).join('')}</ol>`
+        : `<div class="dh-calm">${pic('house', 46)}<p>Mọi việc đã xong, không có gì tồn đọng.</p></div>`;
 
-      /* ---- Khối chính: tiền đã thu (chủ trọ) hoặc tình trạng phòng (nhân viên) ---- */
+      /* ---- Băng rôn: lời chào + con số chính, nền là tranh khu phố ---- */
       const remain = Math.max(0, K.billed - K.revenue);
+      const quick = [
+        { perm: 'readings', href: `#/b/${firstB}/readings`, p: 'meter', t: 'Ghi chỉ số' },
+        { perm: 'invoices', href: `#/b/${firstB}/invoices`, p: 'receipt', t: 'Hóa đơn' },
+        { perm: 'payments', href: '#/transfers', p: 'card', t: 'Duyệt chuyển khoản' },
+      ].filter(q => S.can(q.perm)).map(q => `<a class="dh-q" href="${q.href}">${pic(q.p, 26)}<span>${q.t}</span></a>`).join('');
+      const bannerBody = owner ? `
+          <div class="dh-hero-k">Đã thu kỳ ${P}</div>
+          <div class="dh-hero-v" data-count="${K.revenue}" data-fmt="money">${U.currency(K.revenue)}</div>
+          <div class="dh-hero-s">trên ${U.currency(K.billed)} đã phát hành, còn <b>${U.currency(remain)}</b> chưa thu</div>
+          <div class="dh-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(K.collectRate * 100)}"
+            aria-label="Tỷ lệ đã thu"><span style="width:${Math.min(100, Math.round(K.collectRate * 100))}%"></span></div>
+          <div class="dh-meter-l"><b>${U.percent(K.collectRate)}</b> đã thu ${delta(K.revenue, K.revenuePrev)}</div>`
+        : `
+          <div class="dh-hero-k">Tỷ lệ lấp đầy</div>
+          <div class="dh-hero-v" data-count="${K.occupancy}" data-fmt="pct">${U.percent(K.occupancy)}</div>
+          <div class="dh-hero-s">${K.occupiedRooms} trên ${K.totalRooms} phòng đang có người thuê</div>
+          <div class="dh-meter"><span style="width:${Math.round(K.occupancy * 100)}%"></span></div>`;
+      const banner = `<section class="dh-banner">
+          <div class="dh-banner-art" aria-hidden="true">${HH.scene()}</div>
+          <div class="dh-banner-in">
+            <p class="dh-greet">${greeting()}, <b>${U.esc(first)}</b></p>
+            ${bannerBody}
+            ${quick ? `<div class="dh-quick">${quick}</div>` : ''}
+          </div>
+        </section>`;
+
+      /* ---- Bốn ô số liệu, mỗi ô một hình + một màu nền nhạt ---- */
+      const vacant = S.buildings.reduce((s, b) => s + S.roomsOf(b.id).filter(r => r.status === 'vacant').length, 0);
+      const kpis = owner ? [
+        { p: 'wallet', t: 'sun', k: 'Công nợ phải thu', v: K.debt, f: 'money', cls: 'warn', sub: `<span class="dl flat">${a.debtorCount} phòng còn nợ</span>` },
+        { p: 'coins', t: 'coral', k: 'Chi phí vận hành', v: K.cost, f: 'money', sub: delta(K.cost, K.costPrev, { inverse: true }) },
+        { p: 'chart', t: 'leaf', k: 'Lợi nhuận ròng', v: K.profit, f: 'money', cls: K.profit < 0 ? 'bad' : '', sub: delta(K.profit, K.profitPrev) },
+        { p: 'house', t: 'sky', k: 'Lấp đầy', v: K.occupancy, f: 'pct', sub: `<span class="dl flat">${K.occupiedRooms}/${K.totalRooms} phòng</span>` },
+      ] : [
+        { p: 'door', t: 'leaf', k: 'Phòng trống', v: vacant, f: 'int', sub: '<span class="dl flat">sẵn sàng cho thuê</span>' },
+        { p: 'meter', t: 'sky', k: 'Chưa ghi chỉ số', v: d.alerts.pendingReadings, f: 'int', cls: 'warn', sub: '<span class="dl flat">phòng kỳ này</span>' },
+        { p: 'wrench', t: 'coral', k: 'Sự cố đang mở', v: openInc, f: 'int', sub: '<span class="dl flat">cần xử lý</span>' },
+        { p: 'calendar', t: 'grape', k: 'Hợp đồng sắp hết hạn', v: d.alerts.expiringContracts, f: 'int', sub: '<span class="dl flat">trong 30 ngày</span>' },
+      ];
+      const kpiHtml = `<div class="dh-kpis">${kpis.map(x => `<div class="dh-kpi t-${x.t}">
+          <span class="dh-kpi-pic">${pic(x.p, 36)}</span>
+          <span class="k">${x.k}</span>
+          <span class="v ${x.cls || ''}" data-count="${x.v}" data-fmt="${x.f}">${FMT[x.f](x.v)}</span>${x.sub}</div>`).join('')}</div>`;
+
+      /* ---- Dòng tiền 6 kỳ: cột đôi thu / chi, cột mọc lên lần lượt ---- */
       const maxS = Math.max(1, ...a.series.map(s => Math.max(s.revenue, s.cost)));
       const flow = `<div class="dh-flow" role="img" aria-label="Dòng tiền ${a.series.length} kỳ gần nhất">
-        ${a.series.map(s => `<div class="dh-flow-col ${s.period === a.period ? 'now' : ''}">
+        ${a.series.map((s, i) => `<div class="dh-flow-col ${s.period === a.period ? 'now' : ''}" style="--k:${i}">
           <div class="dh-flow-bars">
             <i class="rev" style="height:${Math.max(2, Math.round(s.revenue / maxS * 100))}%" title="Thu ${U.currency(s.revenue)}"></i>
             <i class="cost" style="height:${Math.max(2, Math.round(s.cost / maxS * 100))}%" title="Chi ${U.currency(s.cost)}"></i>
@@ -206,50 +273,13 @@ HH.pages = HH.pages || {};
         </div>
         <div class="dh-flow-leg"><span><i class="rev"></i>Đã thu</span><span><i class="cost"></i>Chi phí</span></div>`;
 
+      const mix = (label) => (a.invoiceMix.find(x => x.label === label) || {}).value || 0;
       const invStack = HH.chart.stack([
-        { label: 'Đã thu đủ', value: a.invoiceMix.find(x => x.label === 'Đã thu đủ') ? a.invoiceMix.find(x => x.label === 'Đã thu đủ').value : 0, color: TONE.paid },
-        { label: 'Thu một phần', value: (a.invoiceMix.find(x => x.label === 'Thu một phần') || {}).value || 0, color: TONE.partial },
-        { label: 'Chờ thu', value: (a.invoiceMix.find(x => x.label === 'Chờ thu') || {}).value || 0, color: TONE.issued },
-        { label: 'Quá hạn', value: (a.invoiceMix.find(x => x.label === 'Quá hạn') || {}).value || 0, color: TONE.overdue },
+        { label: 'Đã thu đủ', value: mix('Đã thu đủ'), color: TONE.paid },
+        { label: 'Thu một phần', value: mix('Thu một phần'), color: TONE.partial },
+        { label: 'Chờ thu', value: mix('Chờ thu'), color: TONE.issued },
+        { label: 'Quá hạn', value: mix('Quá hạn'), color: TONE.overdue },
       ], { fmt: (v) => v + ' HĐ', empty: `Kỳ ${P} chưa có hóa đơn` });
-
-      const hero = owner ? `<section class="dh-hero">
-          <div class="dh-hero-k">Đã thu kỳ ${P}</div>
-          <div class="dh-hero-v">${U.currency(K.revenue)}</div>
-          <div class="dh-hero-s">trên ${U.currency(K.billed)} đã phát hành, còn <b>${U.currency(remain)}</b> chưa thu</div>
-          <div class="dh-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(K.collectRate * 100)}"
-            aria-label="Tỷ lệ đã thu"><span style="width:${Math.min(100, Math.round(K.collectRate * 100))}%"></span></div>
-          <div class="dh-meter-l"><b>${U.percent(K.collectRate)}</b> đã thu ${delta(K.revenue, K.revenuePrev)}</div>
-          <div class="dh-hero-split">
-            <div><h4>Hóa đơn kỳ này</h4>${invStack}</div>
-            <div><h4>Dòng tiền ${a.series.length} kỳ</h4>${flow}</div>
-          </div>
-        </section>`
-        : `<section class="dh-hero">
-          <div class="dh-hero-k">Tỷ lệ lấp đầy</div>
-          <div class="dh-hero-v">${U.percent(K.occupancy)}</div>
-          <div class="dh-hero-s">${K.occupiedRooms} trên ${K.totalRooms} phòng đang có người thuê</div>
-          <div class="dh-meter"><span style="width:${Math.round(K.occupancy * 100)}%"></span></div>
-          <div class="dh-hero-split"><div><h4>Hóa đơn kỳ này</h4>${invStack}</div><div></div></div>
-        </section>`;
-
-      /* ---- Dải số liệu ---- */
-      const vacant = S.buildings.reduce((s, b) => s + S.roomsOf(b.id).filter(r => r.status === 'vacant').length, 0);
-      const strip = owner ? [
-        ['Công nợ phải thu', U.currency(K.debt), delta(K.debt, 0), 'warn'],
-        ['Chi phí vận hành', U.currency(K.cost), delta(K.cost, K.costPrev, { inverse: true }), ''],
-        ['Lợi nhuận ròng', U.currency(K.profit), delta(K.profit, K.profitPrev), K.profit < 0 ? 'bad' : ''],
-        ['Lấp đầy', U.percent(K.occupancy), `<span class="dl flat">${K.occupiedRooms}/${K.totalRooms} phòng</span>`, ''],
-      ] : [
-        ['Phòng trống', String(vacant), '<span class="dl flat">sẵn sàng cho thuê</span>', ''],
-        ['Chưa ghi chỉ số', String(d.alerts.pendingReadings), '<span class="dl flat">phòng kỳ này</span>', 'warn'],
-        ['Sự cố đang mở', String(S.incidents.filter(x => x.status !== 'done').length), '<span class="dl flat">cần xử lý</span>', ''],
-        ['Hợp đồng sắp hết hạn', String(d.alerts.expiringContracts), '<span class="dl flat">trong 30 ngày</span>', ''],
-      ];
-      // Công nợ không có số kỳ trước tương ứng -> không ghi "chưa có kỳ trước"
-      if (owner) strip[0][2] = `<span class="dl flat">${a.debtorCount} phòng còn nợ</span>`;
-      const stripHtml = `<div class="dh-strip">${strip.map(x => `<div class="dh-stat">
-          <span class="k">${x[0]}</span><span class="v ${x[3]}">${x[1]}</span>${x[2]}</div>`).join('')}</div>`;
 
       /* ---- Phòng (trạng thái) ---- */
       const roomColors = { 'Đang thuê': '#1D6E6B', 'Báo trả': '#E4B07A', 'Đã cọc giữ': '#7DB6B1', 'Trống': '#C8D2CF', 'Bảo trì': '#B3402F' };
@@ -257,17 +287,17 @@ HH.pages = HH.pages || {};
           <span class="muted">lấp đầy, ${K.occupiedRooms}/${K.totalRooms} phòng</span></div>
         ${HH.chart.stack(a.roomMix.map(x => ({ label: x.label, value: x.value, color: roomColors[x.label] })), { fmt: (v) => v + ' phòng' })}
         <div class="dh-usage">
-          <div>${ic('bolt', 16)}<span><b>${U.number(Math.round(a.usage.elecKwh))}</b> kWh điện</span></div>
-          <div>${ic('drop', 16)}<span><b>${U.number(Math.round(a.usage.waterM3))}</b> m³ nước</span></div>
-          <div>${ic('gauge', 16)}<span><b>${a.usage.roomsRead}/${K.occupiedRooms}</b> phòng đã ghi số</span></div>
+          <div>${pic('bolt', 24)}<span><b>${U.number(Math.round(a.usage.elecKwh))}</b> kWh điện</span></div>
+          <div>${pic('drop', 24)}<span><b>${U.number(Math.round(a.usage.waterM3))}</b> m³ nước</span></div>
+          <div>${pic('meter', 24)}<span><b>${a.usage.roomsRead}/${K.occupiedRooms}</b> phòng đã ghi số</span></div>
         </div>`;
 
-      /* ---- Các tòa nhà (gộp "hiệu suất thu" + "tình hình các tòa") ---- */
+      /* ---- Các tòa nhà ---- */
       const bRows = a.byBuilding.map(b => {
         const dd = d.buildings.find(x => x.id === b.id) || {};
         const rate = b.billed ? b.collected / b.billed : 0;
         return `<tr data-bid="${b.id}" tabindex="0">
-          <td><b>${U.esc(b.name)}</b><div class="faint text-xs">${b.rooms} phòng, ${b.vacant} trống</div></td>
+          <td><div class="dh-bname">${pic('building', 30)}<span><b>${U.esc(b.name)}</b><small>${b.rooms} phòng, ${b.vacant} trống</small></span></div></td>
           <td><div class="dh-mini"><span style="width:${Math.round(b.occupancy * 100)}%"></span></div>
             <span class="num text-xs">${U.percent(b.occupancy)}</span></td>
           ${owner ? `<td class="num">${U.currency(b.collected)}<div class="faint text-xs">${U.percent(rate)} đã thu</div></td>
@@ -279,18 +309,19 @@ HH.pages = HH.pages || {};
         <tbody id="bldRows">${bRows}</tbody></table></div>`;
 
       /* ---- Tiền vào gần đây / nợ nhiều nhất ---- */
+      const av = (name) => `<span class="dh-av" aria-hidden="true">${U.esc(U.initials(name || '?'))}</span>`;
       const recent = a.recentPayments.length
-        ? `<ul class="dh-list">${a.recentPayments.map(p => `<li>
+        ? `<ul class="dh-list">${a.recentPayments.map(p => `<li>${av(p.tenantName)}
             <span class="dh-list-m"><b>Phòng ${U.esc(p.roomCode || '')}</b>${p.tenantName ? `<span>${U.esc(p.tenantName)}</span>` : ''}</span>
             <span class="dh-list-s">${U.fmtDate(p.date)}</span>
             <span class="dh-list-v in">+${U.currency(p.amount)}</span></li>`).join('')}</ul>`
-        : `<div class="dh-calm">${ic('wallet', 22)}<p>Chưa có khoản thu nào.</p></div>`;
+        : `<div class="dh-calm">${pic('wallet', 44)}<p>Chưa có khoản thu nào.</p></div>`;
       const debtors = a.topDebtors.length
-        ? `<ul class="dh-list">${a.topDebtors.map(t => `<li>
+        ? `<ul class="dh-list">${a.topDebtors.map(t => `<li>${av(t.tenantName)}
             <a class="dh-list-m" href="#/b/${t.buildingId}/invoices"><b>Phòng ${U.esc(t.roomCode)}</b><span>${U.esc(t.tenantName || '')}</span></a>
             <span class="dh-list-s">${U.esc((t.buildingName || '').replace(/^Happy Home\s*/, ''))}</span>
             <span class="dh-list-v out">${U.currency(t.amount)}</span></li>`).join('')}</ul>`
-        : `<div class="dh-calm">${ic('check', 22)}<p>Không còn khoản nợ nào.</p></div>`;
+        : `<div class="dh-calm">${pic('house', 44)}<p>Không còn khoản nợ nào.</p></div>`;
 
       return h`
       <div class="page-head">
@@ -302,23 +333,26 @@ HH.pages = HH.pages || {};
       </div>
 
       <div class="dh-top">
-        ${raw(hero)}
+        ${raw(banner)}
         <section class="card dh-todo-card">
-          <header class="dh-panel-h"><h3>Cần xử lý</h3><span class="faint text-xs">xếp theo mức gấp</span></header>
+          <header class="dh-panel-h"><span class="dh-panel-pic">${raw(pic('clipboard', 26))}</span><h3>Cần xử lý</h3><span class="faint text-xs">xếp theo mức gấp</span></header>
           ${raw(todoHtml)}
         </section>
       </div>
 
-      ${raw(stripHtml)}
+      ${raw(kpiHtml)}
 
-      <div class="dh-row dh-row-a">
-        ${raw(panel('Phòng', roomsHtml))}
-        ${raw(panel('Các tòa nhà', bTable, { cls: 'flush' }))}
+      <div class="dh-row ${raw(owner ? 'dh-row-a' : 'dh-row-a2')}">
+        ${raw(owner ? panel(`Dòng tiền ${a.series.length} kỳ`, flow, { pic: 'coins' }) : '')}
+        ${raw(panel('Hóa đơn kỳ này', invStack, { pic: 'receipt' }))}
+        ${raw(panel('Phòng', roomsHtml, { pic: 'door' }))}
       </div>
 
+      <div class="dh-row">${raw(panel('Các tòa nhà', bTable, { cls: 'flush', pic: 'building' }))}</div>
+
       <div class="dh-row dh-row-b">
-        ${raw(panel('Tiền vào gần đây', recent, { right: `<a class="link-sm" href="#/b/${firstB}/payments">Xem tất cả</a>` }))}
-        ${raw(panel('Nợ nhiều nhất', debtors))}
+        ${raw(panel('Tiền vào gần đây', recent, { pic: 'card', right: `<a class="link-sm" href="#/b/${firstB}/payments">Xem tất cả</a>` }))}
+        ${raw(panel('Nợ nhiều nhất', debtors, { pic: 'wallet' }))}
       </div>`;
     },
     mount() {
@@ -332,6 +366,7 @@ HH.pages = HH.pages || {};
         psel.innerHTML = UI.periodSelector(opt);
         UI.attachPeriod(psel.querySelector('[data-period-root]'), opt);
       }
+      HH.fx.countUp(document.getElementById('pageRoot'), FMT);
       const ex = document.getElementById('exportReport');
       if (ex) ex.onclick = () => {
         const d = S.dashboardSummary(), a = S.dashboardAnalytics();
@@ -354,21 +389,24 @@ HH.pages = HH.pages || {};
         const occ = rs.filter(r => r.status === 'occupied' || r.status === 'notice').length;
         const vacant = rs.filter(r => r.status === 'vacant').length;
         const debt = S.invoicesOf(b.id).reduce((s, i) => s + (i.total - i.paid), 0);
-        return h`<a class="card card-pad" href="#/b/${b.id}/units" style="display:block">
-          <div class="between"><h3>${b.name}</h3><span class="badge s-info"><span class="dot"></span>${rs.length} phòng</span></div>
-          <div class="muted text-sm" style="margin:4px 0 12px">${b.address}</div>
-          <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
-            <div><div class="m-label muted">Lấp đầy</div><div class="mono b text-lg">${U.percent(occ / rs.length)}</div></div>
-            <div><div class="m-label muted">Phòng trống</div><div class="mono b text-lg">${vacant}</div></div>
-            <div><div class="m-label muted">Công nợ</div><div class="mono b text-lg">${U.currency(debt)}</div></div>
+        return h`<a class="card bl-card" href="#/b/${b.id}/units">
+          <div class="bl-art" aria-hidden="true">${HH.scene()}</div>
+          <div class="bl-body">
+            <div class="between"><h3>${b.name}</h3><span class="badge s-info">${rs.length} phòng</span></div>
+            <div class="muted text-sm bl-addr">${HH.ic('pin', 14)} ${b.address || 'Chưa có địa chỉ'}</div>
+            <div class="bl-stats">
+              <div>${HH.pic('house', 28)}<span><small>Lấp đầy</small><b>${U.percent(rs.length ? occ / rs.length : 0)}</b></span></div>
+              <div>${HH.pic('door', 28)}<span><small>Phòng trống</small><b>${vacant}</b></span></div>
+              <div>${HH.pic('wallet', 28)}<span><small>Công nợ</small><b>${U.currency(debt)}</b></span></div>
+            </div>
           </div>
         </a>`;
       });
-      return h`<div class="page-head"><div><div class="page-title">Tòa nhà</div>
+      return h`<div class="page-head"><div><h1 class="page-title">Tòa nhà</h1>
         <div class="page-sub">Chọn một tòa để vào quản lý chi tiết</div></div>
-        ${raw(S.isOwner() ? `<div class="page-actions"><button class="btn btn-primary" data-primary-new>+ Thêm tòa nhà</button></div>` : '')}
+        ${raw(S.isOwner() ? `<div class="page-actions"><button class="btn btn-primary" data-primary-new>${HH.ic('plus', 16)} Thêm tòa nhà</button></div>` : '')}
         </div>
-        <div class="grid-3">${cards}</div>`;
+        <div class="bl-grid">${cards}</div>`;
     },
     mount() {
       const b = document.querySelector('[data-primary-new]');

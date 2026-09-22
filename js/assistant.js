@@ -103,10 +103,10 @@ HH.assistant = (function () {
 
     el.innerHTML = `
       <button class="as-fab ${state.open ? 'hide' : ''}" id="asFab" aria-label="Mở trợ lý ảo">
-        ${ic('bot', 22)}<span>Trợ lý</span></button>
+        <span class="as-fab-pic">${HH.pic('chat', 28)}</span><span>Trợ lý</span></button>
       <div class="as-panel ${state.open ? 'open' : ''}" role="dialog" aria-label="Trợ lý Happy Home">
         <div class="as-head">
-          <span class="as-avt">${ic('bot', 18)}</span>
+          <span class="as-avt">${HH.pic('chat', 24)}</span>
           <div class="as-ttl"><b>Trợ lý Happy Home</b>
             <span>${G && G.configured() ? 'Gemini Flash, còn ' + (G.quotaLimit - G.quotaUsed()) + ' lượt hôm nay' : 'Tra cứu dữ liệu thật, không tốn phí'}</span></div>
           <button class="as-x" id="asReset" title="Bắt đầu hội thoại mới" aria-label="Bắt đầu hội thoại mới">${ic('refresh', 15)}</button>

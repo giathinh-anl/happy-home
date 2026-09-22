@@ -27,6 +27,8 @@ img { max-width: 100%; display: block; }
 
 /* Thanh bên chỉ dùng cho máy tính */
 .t-side { display: none; }
+/* Tiêu đề trang lớn chỉ dùng cho máy tính (điện thoại đã có tiêu đề trên thanh trên) */
+.t-page-head { display: none; }
 
 /* ============================================================
    BỐ CỤC MÁY TÍNH (≥ 900px): thanh bên + nội dung rộng 2 cột
@@ -503,3 +505,157 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.015em; }
   .t-side .s-me .rm { color: var(--wood-700); }
 }
 .t-tab .ic { display: grid; place-items: center; }
+
+/* ============================================================
+   Bản sống động (cùng hệ với web quản trị)
+   Chữ tròn Baloo 2 + Nunito, icon tượng hình nhiều màu, tranh khu phố
+   làm nền, chuyển động mềm. Máy bật "giảm chuyển động" thì đứng yên.
+   ============================================================ */
+body { font-size: 15.5px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing: -.01em; }
+
+/* --- Hình minh họa dùng chung (web quản trị lấy từ base.css) --- */
+.pic { flex: 0 0 auto; display: inline-block; vertical-align: middle; overflow: visible; transition: transform .35s var(--spring); }
+button:hover > .pic, .quick-item:hover .pic, .t-nav:hover .pic, .t-action:hover .pic { transform: translateY(-2px) rotate(-6deg) scale(1.06); }
+.scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.scene .sc-cloud { animation: scDrift 38s ease-in-out infinite alternate; }
+.scene .sc-cloud.c2 { animation-duration: 46s; animation-delay: -12s; }
+.scene .sc-cloud.c3 { animation-duration: 52s; animation-delay: -20s; }
+.scene .sc-tw { animation: scTwinkle 7s ease-in-out infinite; }
+@keyframes scDrift { from { translate: -30px 0; } to { translate: 40px 0; } }
+@keyframes scTwinkle { 0%, 60%, 100% { fill: #FFE9AE; } 70%, 90% { fill: #9FD0CB; } }
+.fx-in { animation: fxUp .6s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 55ms); }
+.fx-wait { opacity: 0; }
+@keyframes fxUp { from { opacity: 0; transform: translateY(18px); } }
+@keyframes popIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes signIn { from { opacity: 0; transform: rotate(-16deg) scale(.7); } }
+.slide-ind { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0; transition: transform .5s var(--spring), opacity .2s; }
+
+/* --- Thanh trên (điện thoại): nền trắng, chữ đậm --- */
+.t-header { background: rgba(253,254,254,.92); color: var(--ink); border-bottom: 1px solid var(--line);
+  backdrop-filter: saturate(1.5) blur(12px); -webkit-backdrop-filter: saturate(1.5) blur(12px); }
+.t-header .brand .wordmark { color: var(--wood-700); font-size: 19px; }
+.t-header .brand .mark { width: 40px; height: 40px; border-radius: 13px; flex-basis: 40px; }
+.t-header .iconbtn, .t-header .back { background: var(--surface-2); color: var(--ink); border-radius: 13px; display: grid; place-items: center; }
+.t-header .htitle { font-family: var(--font-display); font-size: 19px; font-weight: 800; }
+.chat-wrap .t-header { background: var(--teal-800); color: #FDFEFE; border-bottom: none; }
+.chat-wrap .t-header .back { background: rgba(255,255,255,.15); color: #FDFEFE; }
+/* Hàng gợi ý vuốt ngang không được đẩy rộng cả trang trên điện thoại */
+.chat-wrap { width: 100%; min-width: 0; }
+.chat-sugg { min-width: 0; max-width: 100%; }
+
+/* --- Băng rôn trang chủ: tranh khu phố + lời chào --- */
+.t-hero {
+  position: relative; overflow: hidden; isolation: isolate; min-height: 180px; border-radius: 24px;
+  background: linear-gradient(180deg, #D3EFE9 0%, #EAF6F1 60%, #FBF2E4 100%); box-shadow: var(--shadow-card);
+}
+.t-hero-art {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 30%; z-index: -1;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 26%); mask-image: linear-gradient(90deg, transparent 0, #000 26%);
+}
+.t-hero-in { padding: 18px 18px 60px; max-width: 72%; }
+.t-hero .hi { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--teal-700); }
+.t-hero .hi b { font-weight: 800; }
+.t-hero .rm { font-family: var(--font-display); font-size: 32px; font-weight: 800; line-height: 1.15; color: var(--teal-900); }
+.t-hero .bn { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 13.5px; font-weight: 700; color: var(--ink-2); }
+/* Thẻ công nợ nổi đè lên mép dưới băng rôn */
+.t-hero + .t-grid2 { margin-top: -46px; }
+.t-hero + .t-grid2 .due-card { position: relative; margin-left: 10px; margin-right: 10px; }
+.t-hero + .t-err { margin-top: 14px; }
+
+/* --- Thẻ công nợ: dải màu có khối --- */
+.due-card { border-radius: 22px; box-shadow: 0 14px 30px rgba(10,58,57,.18); }
+.due-card.paid { background: linear-gradient(135deg, #1D8C85, var(--teal-700)); }
+.due-card.warn { background: linear-gradient(135deg, #D8914F, var(--wood-700)); }
+.due-card.danger { background: linear-gradient(135deg, #EE6A4C, #B3402F); }
+.due-card .label { font-weight: 700; }
+.due-card .amount { font-family: var(--font-display); font-size: 38px; font-weight: 800; line-height: 1.15; margin: 6px 0 4px; }
+.due-card .t-btn { background: #FDFEFE; color: var(--teal-800); font-weight: 800; backdrop-filter: none; }
+.due-card.warn .t-btn { color: var(--wood-700); }
+.due-card.danger .t-btn { color: #B3402F; }
+.due-card .t-btn:hover { background: #fff; transform: translateY(-1px); }
+
+/* --- Truy cập nhanh: mỗi ô một màu --- */
+.section-title { font-family: var(--font-display); font-size: 18px; font-weight: 800; }
+.quick-item { border-radius: 18px; transition: transform .35s var(--spring), box-shadow .2s; }
+.quick-item:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+.quick-item:active { transform: scale(.96); }
+.quick-item .qic { width: 54px; height: 54px; border-radius: 17px; }
+.quick-item .qic.t-sky { background: var(--sky-bg) !important; }
+.quick-item .qic.t-leaf { background: var(--leaf-bg) !important; }
+.quick-item .qic.t-coral { background: var(--coral-bg) !important; }
+.quick-item .qic.t-grape { background: var(--grape-bg) !important; }
+.quick-item .qlabel { font-weight: 800; color: var(--ink); }
+
+/* --- Danh sách hành động --- */
+.t-action .aic { width: 40px; height: 40px; flex-basis: 40px; border-radius: 13px; }
+.t-action .aic.t-leaf { background: var(--leaf-bg) !important; }
+.t-action .aic.t-sun { background: var(--sun-bg) !important; }
+.t-action .aic.t-sky { background: var(--sky-bg) !important; color: var(--sky); }
+.t-action .aic.t-grape { background: var(--grape-bg) !important; }
+.t-action .aic.t-coral { background: var(--coral-bg) !important; }
+.t-action { font-weight: 700; transition: background .15s; }
+.t-action:hover { background: var(--surface-2); }
+.t-row .k { display: inline-flex; align-items: center; gap: 6px; }
+
+/* --- Trạng thái rỗng --- */
+.t-empty .eic { display: grid; place-items: center; margin-bottom: 6px; }
+.t-empty .eic .pic { animation: floaty 4s ease-in-out infinite; }
+@keyframes floaty { 50% { transform: translateY(-6px); } }
+.t-empty p { font-weight: 700; }
+
+/* --- Báo hỏng: hạng mục --- */
+.cat-item { border-radius: 18px; transition: transform .3s var(--spring), border-color .2s, background .2s; }
+.cat-item:active { transform: scale(.96); }
+.cat-item .cic { display: grid; place-items: center; }
+.cat-item .clabel { font-weight: 800; }
+
+/* --- Thanh tab dưới: viên nền trượt theo tab đang chọn --- */
+.t-tabbar { height: calc(68px + env(safe-area-inset-bottom, 0px)); background: rgba(253,254,254,.95);
+  backdrop-filter: saturate(1.5) blur(14px); -webkit-backdrop-filter: saturate(1.5) blur(14px); box-shadow: 0 -6px 24px rgba(10,58,57,.07); }
+.t-tabbar .slide-ind { top: 7px; width: 60px; height: 36px; border-radius: 13px; background: var(--teal-50); }
+.t-tab { z-index: 1; padding-top: 11px; gap: 3px; color: var(--ink-3); font-size: 11.5px; font-weight: 800; }
+.t-tab .ic { height: 30px; }
+.t-tab.on { color: var(--teal-700); }
+.t-tab.on .pic { transform: translateY(-1px) scale(1.1); }
+.t-tab .dot-badge { top: 5px; margin-right: -22px; background: var(--coral); border: 2px solid #fff; min-width: 19px; height: 19px; font-size: 10px; }
+
+/* --- Nút trợ lý nổi --- */
+.chat-fab { width: 58px; height: 58px; background: #FDFEFE !important; border: 3px solid var(--teal-600);
+  box-shadow: 0 10px 24px rgba(10,58,57,.25); bottom: calc(82px + env(safe-area-inset-bottom, 0px)); transition: transform .35s var(--spring); }
+.chat-fab:hover { transform: translateY(-2px) rotate(-6deg); }
+
+/* --- Đăng nhập / OTP: dải tranh khu phố + biển logo gỗ --- */
+.t-login-art { position: relative; overflow: hidden; margin: -28px -20px 0; height: 210px; background: #D3EFE9; }
+.t-login-art.short { height: 140px; }
+.t-login .logo { position: relative; z-index: 1; margin: -70px 0 10px; }
+.t-sign {
+  width: 136px; aspect-ratio: 1.1; margin: 0 auto; border-radius: 26px; overflow: hidden; background: #EFEEEA;
+  box-shadow: 0 16px 36px rgba(10,58,57,.2), 0 0 0 5px #fff; transform: rotate(-4deg);
+  animation: signIn .8s var(--spring) backwards;
+}
+.t-login .logo .t-sign .logo3d { width: 100%; height: 100%; margin: 0; object-fit: cover; transform: scale(1.2); -webkit-mask-image: none; mask-image: none; }
+.t-login .logo .mark { width: 76px; height: 76px; border-radius: 22px; box-shadow: 0 12px 28px rgba(10,58,57,.18), 0 0 0 5px #fff; animation: signIn .8s var(--spring) backwards; }
+.t-login .lead { font-weight: 600; }
+.t-login > *:not(.t-login-art):not(.logo) { animation: fxUp .6s var(--ease-out) .2s backwards; }
+.t-hint { border-radius: 14px; font-weight: 600; }
+.otp-boxes input { border-radius: 14px; font-family: var(--font-display); font-weight: 800; }
+
+/* --- Máy tính --- */
+@media (min-width: 900px) {
+  body { background: linear-gradient(180deg, #E4F2EE 0, var(--bg) 320px); }
+  .t-login { max-width: 440px; min-height: 0; margin: 40px auto; border-radius: 28px; overflow: hidden;
+    background: var(--surface); box-shadow: 0 30px 80px rgba(10,58,57,.16), 0 6px 18px rgba(10,58,57,.08); }
+  .t-nav .nic { width: 28px; flex-basis: 28px; display: grid; place-items: center; }
+  .t-side .s-me .nm, .t-side .s-me .rm { display: block; }
+  .t-login .t-btn { max-width: none; }
+  .t-nav { font-weight: 700; }
+  .t-nav.on .nic .pic { transform: scale(1.08); }
+  .t-hero { min-height: 210px; margin-bottom: 20px; }
+  .t-hero-art { left: 40%; }
+  .t-hero-in { padding: 26px 28px 30px; }
+  .t-hero .rm { font-size: 40px; }
+  .t-hero + .t-grid2 { margin-top: 0; }
+  .t-hero + .t-grid2 .due-card { margin-left: 0; margin-right: 0; }
+  .t-page-head h1 { font-weight: 800; color: var(--teal-900); }
+}
