@@ -325,3 +325,6 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 .overlay.fx-leave { animation: vtFadeOut .2s ease forwards; }
 .overlay.fx-leave .dialog { animation: popOut .2s var(--ease) forwards; }
 @keyframes popOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
+
+/* Nút làm mới dữ liệu: quay tròn trong lúc tải */
+.hd-bell.spin .pic, .mt-btn.spin .pic { animation: spin 1s linear infinite; transform-origin: 50% 50%; }

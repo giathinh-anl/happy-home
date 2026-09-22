@@ -294,8 +294,15 @@
     };
   }
 
+  // Phòng truyền qua đường dẫn: #/b/<bid>/tenants/new?room=P101
+  function roomFromUrl() {
+    const m = /[?&]room=([^&]+)/.exec(HH.router.current() || '');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
   function showForm(ctx, data, imgUrl) {
     const card = document.getElementById('ocrCard');
+    const preRoom = roomFromUrl();
     const existing = data.idNumber && data.idNumber.value ? S.tenantByIdNumber(data.idNumber.value.replace(/\s/g, '')) : null;
     const fieldsHtml = OCR_FIELDS.map(f => {
       const d = data[f.key] || { value: '', confidence: 1 };
@@ -328,7 +335,7 @@
               <select class="select" data-k="roomCode">
                 <option value="">Chưa gắn phòng</option>
                 ${raw(S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code))
-                  .map(r => `<option value="${r.code}">${r.code} · ${U.esc(r.typeLabel)}${r.tenantName ? ' (đang có khách)' : ''}</option>`).join(''))}
+                  .map(r => `<option value="${r.code}" ${r.code === preRoom ? 'selected' : ''}>${r.code} · ${U.esc(r.typeLabel)}${r.tenantName ? ' (đang có khách)' : ''}</option>`).join(''))}
               </select>
               <span class="hint">Chọn phòng để khách hiện trong danh sách phòng đó</span></div>
           </div>
@@ -350,18 +357,23 @@
       }
       btn.classList.add('loading');
       setTimeout(() => {
+        const room = get('roomCode').trim() || null;
+        // Người đầu tiên của phòng là đại diện hợp đồng (app khách thuê đăng nhập theo số này)
+        const isFirst = !!room && !S.tenantsOf(ctx.bid).some(t => t.roomCode === room);
         S.addTenant({
-          id: U.uid('tn'), buildingId: ctx.bid, roomCode: get('roomCode').trim() || null,
+          id: U.uid('tn'), buildingId: ctx.bid, roomCode: room,
           fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\s/g, ''),
           dob: get('dateOfBirth'), gender: get('gender'), hometown: get('hometown'),
           phone: get('phone'), occupation: get('occupation') || '', address: get('address') || '',
           cccdIssueDate: '', cccdIssuePlace: get('cccdIssuePlace') || 'Cục CSQLHC về TTXH',
           cccdFront: true, cccdBack: !!get('backUploaded'), vehiclePlate: null,
-          ttlock: false, tamtru: false, occupants: 1, isRep: false,
+          ttlock: false, tamtru: false, occupants: 1, isRep: isFirst,
         });
-        S.log('tenant.create', `Thêm khách thuê ${get('fullName')}`);
-        UI.toast('Đã lưu hồ sơ khách thuê', { type: 'ok' });
-        HH.router.go(`/b/${ctx.bid}/tenants`);
+        // Phòng chưa ghi tên khách thì lấy tên người đầu tiên cho khớp danh sách phòng
+        if (isFirst) { const rm = S.room(ctx.bid, room); if (rm && !rm.tenantName) S.updateRoom(ctx.bid, room, { tenantName: get('fullName').trim() }); }
+        S.log('tenant.create', `Thêm khách thuê ${get('fullName')}${room ? ' vào phòng ' + room : ''}`);
+        UI.toast(room ? `Đã thêm ${get('fullName')} vào phòng ${room}` : 'Đã lưu hồ sơ khách thuê', { type: 'ok' });
+        HH.router.go(room ? `/b/${ctx.bid}/tenants?room=${encodeURIComponent(room)}` : `/b/${ctx.bid}/tenants`);
       }, 500);
     };
   }

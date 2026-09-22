@@ -288,7 +288,6 @@ HH.pages = HH.pages || {};
         ${HH.chart.stack(a.roomMix.map(x => ({ label: x.label, value: x.value, color: roomColors[x.label] })), { fmt: (v) => v + ' phòng' })}
         <div class="dh-usage">
           <div>${pic('bolt', 24)}<span><b>${U.number(Math.round(a.usage.elecKwh))}</b> kWh điện</span></div>
-          <div>${pic('drop', 24)}<span><b>${U.number(Math.round(a.usage.waterM3))}</b> m³ nước</span></div>
           <div>${pic('meter', 24)}<span><b>${a.usage.roomsRead}/${K.occupiedRooms}</b> phòng đã ghi số</span></div>
         </div>`;
 

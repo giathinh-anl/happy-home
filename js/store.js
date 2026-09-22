@@ -143,15 +143,12 @@ HH.store = (function () {
 
           // chỉ số kỳ trước (đã có) + kỳ này (một phần)
           const elecPrev = 8000 + seq * 210;
-          const waterPrev = 40 + seq * 3;
           const hasCurrent = !((bi === 0) && (n % 4 === 0)); // vài phòng tòa 1 chưa ghi -> "18/24"
           const elecUse = 150 + (seq * 37) % 120;
-          const waterUse = 3 + (seq % 4);
           const reading = {
             id: U.uid('rd'), buildingId: b.id, roomCode: code, period: CUR_PERIOD,
             elecPrev, elecCurr: hasCurrent ? elecPrev + elecUse : null,
-            waterPrev, waterCurr: hasCurrent ? waterPrev + waterUse : null,
-            elecPhoto: hasCurrent, waterPhoto: hasCurrent,
+            elecPhoto: hasCurrent,
             elecAvg: 190, // trung bình 3 kỳ (để tính bất thường)
             source: (n % 9 === 0) ? 'tenant' : 'staff',
             approved: (n % 9 === 0) ? false : true,
@@ -436,6 +433,22 @@ HH.store = (function () {
       return 'loaded';
     },
 
+    /* Tải lại dữ liệu từ máy chủ.
+       Khách gửi chỉ số, báo hỏng hay báo chuyển khoản trong lúc web đang mở thì
+       phải tải lại mới thấy (dữ liệu chỉ nạp một lần lúc đăng nhập). */
+    async refreshFromServer() {
+      if (!usingBackend()) return { ok: false, reason: 'demo' };
+      const stamp = () => JSON.stringify([incidents.length, claims.length, readings.length,
+        invoices.length, payments.length, tenants.length,
+        incidents.map(x => x.status).join(''), claims.map(x => x.status).join('')]);
+      const before = stamp();
+      const res = await HH.backend.loadAll();
+      if (res.error) return { ok: false, reason: 'error' };
+      replaceAll(res.data);
+      api.refreshExpiryFlags(); api.refreshInvoiceStatus();
+      return { ok: true, changed: before !== stamp() };
+    },
+
     buildings, services, assets, auditLog, incidents,
     incidentsOf: (bid) => incidents.filter(x => x.buildingId === bid && x.status !== 'done'),
     allIncidentsOf: (bid) => incidents.filter(x => x.buildingId === bid),
@@ -658,10 +671,9 @@ HH.store = (function () {
       const allDebtors = Object.values(debtMap).sort((a, b) => b.amount - a.amount);
       const topDebtors = allDebtors.slice(0, 5);
 
-      // ----- Tiêu thụ điện nước kỳ này -----
+      // ----- Tiêu thụ điện kỳ này -----
       const rdPer = RD.filter(r => r.period === per);
       const elecKwh = rdPer.reduce((s, r) => s + Math.max(0, api.consumptionOf(r, 'elec') || 0), 0);
-      const waterM3 = rdPer.reduce((s, r) => s + Math.max(0, api.consumptionOf(r, 'water') || 0), 0);
 
       const totalRooms = ROOMS.length;
       const occAll = ROOMS.filter(r => r.status === 'occupied' || r.status === 'notice').length;
@@ -682,7 +694,7 @@ HH.store = (function () {
         },
         series, revenueMix, expenseMix, roomMix, invoiceMix, byBuilding,
         recentPayments: recent, topDebtors, allDebtors, debtorCount: allDebtors.length,
-        usage: { elecKwh, waterM3, roomsRead: rdPer.length },
+        usage: { elecKwh, roomsRead: rdPer.length },
       };
     },
 
@@ -835,8 +847,7 @@ HH.store = (function () {
       const prev = readings.find(r => r.buildingId === bid && r.roomCode === code && r.period === api.prevPeriodOf(period));
       rd = { id: U.uid('rd'), buildingId: bid, roomCode: code, period,
         elecPrev: prev ? (prev.elecCurr != null ? prev.elecCurr : prev.elecPrev) : 0,
-        waterPrev: prev ? (prev.waterCurr != null ? prev.waterCurr : prev.waterPrev) : 0,
-        elecCurr: null, waterCurr: null, elecPhoto: false, waterPhoto: false,
+        elecCurr: null, elecPhoto: false,
         elecAvg: prev ? prev.elecAvg || 190 : 190, source: 'staff', approved: true };
       readings.push(rd);
       return rd;

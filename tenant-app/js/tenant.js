@@ -56,6 +56,27 @@
   /* ---------- trạng thái ---------- */
   const state = { phone: null, pendingPhone: null, data: null, otpTries: 0, repair: { cat: null, time: 'Bất kỳ', photos: [] } };
 
+  /* Ảnh chụp từ điện thoại rất nặng, nén lại trước khi gửi lên máy chủ */
+  function compressImg(file, maxSize, quality) {
+    return new Promise((resolve, reject) => {
+      const rd = new FileReader();
+      rd.onerror = reject;
+      rd.onload = () => {
+        const img = new Image();
+        img.onerror = () => resolve(rd.result);
+        img.onload = () => {
+          const sc = Math.min(1, (maxSize || 1000) / Math.max(img.width, img.height));
+          const cv = document.createElement('canvas');
+          cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          try { resolve(cv.toDataURL('image/jpeg', quality || 0.72)); } catch (e) { resolve(rd.result); }
+        };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(file);
+    });
+  }
+
   const INV_STATUS = {
     draft: ['Nháp', 'neutral'], issued: ['Đã phát hành', 'info'], partial: ['Trả một phần', 'warning'],
     paid: ['Đã thanh toán', 'success'], overdue: ['Quá hạn', 'danger'], cancelled: ['Đã hủy', 'neutral'],
@@ -144,10 +165,10 @@
     { hash: '#/contract', ic: HH.pic('contract', 26), label: 'Hợp đồng', key: 'contract' },
   ];
   const SIDE_MORE = [
-    { hash: '#/readings', ic: HH.pic('camera', 26), label: 'Gửi chỉ số', key: 'readings' },
+    { hash: '#/readings', ic: HH.pic('camera', 26), label: 'Gửi chỉ số điện', key: 'readings' },
     { hash: '#/repair', ic: HH.pic('wrench', 26), label: 'Báo hỏng', key: 'repair' },
     { hash: '#/track', ic: HH.pic('clipboard', 26), label: 'Yêu cầu sửa chữa', key: 'track' },
-    { hash: '#/usage', ic: HH.pic('chart', 26), label: 'Lịch sử điện nước', key: 'usage' },
+    { hash: '#/usage', ic: HH.pic('chart', 26), label: 'Lịch sử điện', key: 'usage' },
     { hash: '#/history', ic: HH.pic('card', 26), label: 'Lịch sử thanh toán', key: 'history' },
     { hash: '#/services', ic: HH.pic('concierge', 26), label: 'Bảng giá dịch vụ', key: 'services' },
     { hash: '#/chat', ic: HH.pic('chat', 26), label: 'Trợ lý ảo', key: 'chat' },
@@ -358,7 +379,6 @@
       <div class="t-section-head" style="margin-bottom:4px"><h3>Tiêu thụ ${esc(usage.label)}</h3>
         <a href="#/usage">Xem lịch sử →</a></div>
       <div class="t-row"><span class="k">${HH.pic('bolt', 26)} Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
-      <div class="t-row"><span class="k">${HH.pic('drop', 26)} Nước</span><span class="v mono">${num(usage.water)} m³</span></div>
     </div>` : '';
 
     const contractCardHtml = c ? contractCard(c) : '';
@@ -376,7 +396,7 @@
           <div class="section-title">Truy cập nhanh</div>
           <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
             <button class="quick-item" data-nav="#/invoices"><div class="qic t-sky">${HH.pic('receipt', 34)}</div><div class="qlabel">Hóa đơn</div></button>
-            <button class="quick-item" data-nav="#/readings"><div class="qic t-leaf">${HH.pic('camera', 34)}</div><div class="qlabel">Ghi chỉ số</div></button>
+            <button class="quick-item" data-nav="#/readings"><div class="qic t-leaf">${HH.pic('camera', 34)}</div><div class="qlabel">Gửi chỉ số</div></button>
             <button class="quick-item" data-nav="#/repair"><div class="qic t-coral">${HH.pic('wrench', 34)}</div><div class="qlabel">Báo hỏng</div></button>
             <button class="quick-item" data-nav="#/chat"><div class="qic t-grape">${HH.pic('chat', 34)}</div><div class="qlabel">Trợ lý ảo</div></button>
           </div>
@@ -396,11 +416,10 @@
 
   /* ---------- tính tiêu thụ ---------- */
   function usageList() {
-    return (state.data.readings || []).filter(r => r.elecCurr != null || r.waterCurr != null)
+    return (state.data.readings || []).filter(r => r.elecCurr != null)
       .map(r => ({
         period: r.period, label: vnPeriod(r.period),
         elec: (r.elecCurr != null && r.elecPrev != null) ? Math.max(0, r.elecCurr - r.elecPrev) : null,
-        water: (r.waterCurr != null && r.waterPrev != null) ? Math.max(0, r.waterCurr - r.waterPrev) : null,
       })).sort((a, b) => (b.period || '').localeCompare(a.period || ''));
   }
   function latestUsage() { const l = usageList(); return l.length ? l[0] : null; }
@@ -593,9 +612,9 @@
     document.querySelectorAll('[data-time]').forEach(b => b.onclick = () => { r.time = b.dataset.time; screenRepair(); });
     el('desc').oninput = (e) => r.desc = e.target.value;
     renderPhotos();
-    el('photoInput').onchange = (e) => {
+    el('photoInput').onchange = async (e) => {
       const f = e.target.files[0]; if (!f || r.photos.length >= 5) return;
-      const rd = new FileReader(); rd.onload = () => { r.photos.push(rd.result); renderPhotos(); }; rd.readAsDataURL(f);
+      r.photos.push(await compressImg(f, 1100, 0.7)); renderPhotos();
     };
     el('send').onclick = async (e) => {
       if (!r.cat) { toast('Vui lòng chọn hạng mục'); return; }
@@ -622,7 +641,7 @@
       const box = el('photos');
       const thumbs = r.photos.map((p, i) => `<div class="photo-slot filled"><img src="${p}"></div>`).join('');
       box.innerHTML = thumbs + (r.photos.length < 5 ? `<label class="photo-slot">${HH.ic('plus', 16)}<input type="file" accept="image/*" id="photoInput" hidden></label>` : '');
-      const pin = el('photoInput'); if (pin) pin.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { r.photos.push(rd.result); renderPhotos(); }; rd.readAsDataURL(f); };
+      const pin = el('photoInput'); if (pin) pin.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; r.photos.push(await compressImg(f, 1100, 0.7)); renderPhotos(); };
     }
   }
 
@@ -647,26 +666,49 @@
     const nr = el('newReq'); if (nr) nr.onclick = () => go('#/repair');
   }
 
-  /* ---------- màn hình: GHI CHỈ SỐ ---------- */
+  /* ---------- màn hình: GHI CHỈ SỐ ĐIỆN ----------
+     Tiền nước tính theo số người nên không cần chỉ số nước.
+     Ảnh đồng hồ gửi kèm để chủ trọ xem rồi duyệt. */
   function screenReadings() {
-    shell('Ghi chỉ số', `
-      <p style="color:var(--neutral-600);margin-bottom:16px">Tự ghi chỉ số điện, nước kỳ <b>${CUR_PERIOD_LABEL}</b>. Chủ trọ sẽ đối chiếu & duyệt.</p>
-      <div class="t-field"><label>${HH.ic('bolt', 16)} Chỉ số điện (kWh)</label><input class="t-input mono" id="elec" inputmode="numeric" placeholder="VD: 12680"></div>
-      <div class="t-field"><label>${HH.ic('drop', 16)} Chỉ số nước (m³)</label><input class="t-input mono" id="water" inputmode="numeric" placeholder="VD: 48"></div>
-      <div class="t-field"><label>Ảnh đồng hồ (tùy chọn)</label>
-        <div class="photo-grid"><label class="photo-slot">${HH.ic('camera', 16)}<input type="file" accept="image/*" hidden></label></div></div>
+    const rd = { photos: [] };
+    shell('Gửi chỉ số điện', `
+      <p style="color:var(--neutral-600);margin-bottom:16px">Tự gửi chỉ số điện kỳ <b>${CUR_PERIOD_LABEL}</b>. Chủ trọ xem ảnh rồi duyệt.
+        Tiền nước tính theo số người ở nên không cần gửi chỉ số nước.</p>
+      <div class="t-field"><label>${HH.pic('bolt', 26)} Chỉ số điện (kWh)</label><input class="t-input mono" id="elec" inputmode="numeric" placeholder="VD: 12680"></div>
+      <div class="t-field"><label>Ảnh đồng hồ điện</label>
+        <div class="photo-grid" id="rdPhotos"></div>
+        <div class="t-note" style="margin-top:8px">Chụp rõ dãy số trên đồng hồ. Ảnh này gửi thẳng cho chủ trọ.</div></div>
       <button class="t-btn" id="submitR">Gửi chỉ số</button>
     `);
+    drawRdPhotos();
     el('submitR').onclick = async (e) => {
       const elec = parseInt((el('elec').value || '').replace(/\D/g, ''), 10);
-      const water = parseInt((el('water').value || '').replace(/\D/g, ''), 10);
-      if (!elec && !water) { toast('Nhập ít nhất một chỉ số'); return; }
+      if (!elec) { toast('Nhập chỉ số điện'); return; }
       e.currentTarget.classList.add('loading');
       try {
-        await rpc('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec || null, p_water: water || null });
+        // Gửi kèm ảnh; máy chủ chưa cập nhật hàm thì gửi số không ảnh
+        try {
+          await rpc('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null, p_photos: rd.photos });
+        } catch (e1) {
+          await rpc('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null });
+        }
+        state.data = await loadData(state.phone);
         toast('Đã gửi chỉ số, chờ chủ trọ duyệt'); go('#/home');
       } catch (err) { toast(err.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại'); e.currentTarget.classList.remove('loading'); }
     };
+
+    function drawRdPhotos() {
+      const box = el('rdPhotos'); if (!box) return;
+      box.innerHTML = rd.photos.map((p, i) => `<div class="photo-slot filled"><img src="${p}"><button class="ph-del" data-del="${i}" aria-label="Xóa ảnh">${HH.ic('x', 14)}</button></div>`).join('')
+        + (rd.photos.length < 3 ? `<label class="photo-slot">${HH.ic('camera', 16)}<input type="file" accept="image/*" capture="environment" id="rdPhotoInput" hidden></label>` : '');
+      const inp = el('rdPhotoInput');
+      if (inp) inp.onchange = async (ev) => {
+        const f = ev.target.files[0]; if (!f) return;
+        rd.photos.push(await compressImg(f, 1100, 0.7));
+        drawRdPhotos();
+      };
+      box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rd.photos.splice(+b.dataset.del, 1); drawRdPhotos(); });
+    }
   }
 
   /* ---------- màn hình: PHÒNG CỦA TÔI ---------- */
@@ -694,7 +736,7 @@
           ${a.icon || '📦'} ${esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>
         <p style="color:var(--neutral-500);font-size:12px;margin-top:10px">Vui lòng giữ gìn tài sản. Hư hỏng do lỗi sử dụng sẽ bồi thường theo giá trị còn lại.</p></div>` : ''}
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/usage"><span class="aic t-leaf">${HH.pic('chart', 26)}</span>Lịch sử điện nước<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/usage"><span class="aic t-leaf">${HH.pic('chart', 26)}</span>Lịch sử điện<span class="chev">›</span></button>
         <button class="t-action" data-nav="#/services"><span class="aic t-sun">${HH.pic('concierge', 26)}</span>Bảng giá dịch vụ<span class="chev">›</span></button>
         <button class="t-action" data-nav="#/track"><span class="aic t-coral">${HH.pic('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
       </div>
@@ -754,25 +796,22 @@
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
 
-  /* ---------- màn hình: LỊCH SỬ ĐIỆN NƯỚC ---------- */
+  /* ---------- màn hình: LỊCH SỬ ĐIỆN ---------- */
   function screenUsage() {
     const list = usageList();
-    if (!list.length) { shell('Lịch sử điện nước', `<div class="t-empty"><div class="eic">${HH.pic('chart', 64)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
+    if (!list.length) { shell('Lịch sử điện', `<div class="t-empty"><div class="eic">${HH.pic('chart', 64)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
     const recent = list.slice(0, 6).reverse();
     const maxE = Math.max(1, ...recent.map(x => x.elec || 0));
-    const maxW = Math.max(1, ...recent.map(x => x.water || 0));
-    const bars = (key, cls, max) => recent.map(x => `<div class="usage-col">
-      <div class="val">${x[key] != null ? num(x[key]) : ''}</div>
-      <div class="usage-bar ${cls}" style="height:${Math.round(((x[key] || 0) / max) * 78)}%"></div>
+    const bars = recent.map(x => `<div class="usage-col">
+      <div class="val">${x.elec != null ? num(x.elec) : ''}</div>
+      <div class="usage-bar" style="height:${Math.round(((x.elec || 0) / maxE) * 78)}%"></div>
       <div class="cap">${esc(x.label)}</div></div>`).join('');
-    shell('Lịch sử điện nước', `
-      <div class="t-card"><div class="t-section-head"><h3>${HH.ic('bolt', 16)} Điện (kWh)</h3></div>
-        <div class="usage-chart">${bars('elec', '', maxE)}</div></div>
-      <div class="t-card"><div class="t-section-head"><h3>${HH.ic('drop', 16)} Nước (m³)</h3></div>
-        <div class="usage-chart">${bars('water', 'water', maxW)}</div></div>
+    shell('Lịch sử điện', `
+      <div class="t-card"><div class="t-section-head"><h3>${HH.pic('bolt', 26)} Điện (kWh)</h3></div>
+        <div class="usage-chart">${bars}</div></div>
       <div class="t-card"><div class="t-section-head"><h3>Chi tiết theo kỳ</h3></div>
         ${list.map(x => `<div class="t-row"><span class="k">${esc(x.label)}</span>
-          <span class="v mono" style="font-size:13px">${HH.ic('bolt', 16)} ${x.elec != null ? num(x.elec) : '-'} · ${HH.ic('drop', 16)} ${x.water != null ? num(x.water) : '-'}</span></div>`).join('')}
+          <span class="v mono" style="font-size:13px">${x.elec != null ? num(x.elec) + ' kWh' : '-'}</span></div>`).join('')}
       </div>`);
   }
 
@@ -837,7 +876,7 @@
       <p style="text-align:center;color:var(--neutral-400);font-size:12px;margin-top:12px">Happy Home · App khách thuê</p>
     `, { tab: 'account' });
     document.querySelectorAll('[data-nav]').forEach(x => x.onclick = () => go(x.dataset.nav));
-    el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Ghi chỉ số: tự gửi số điện/nước cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
+    el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     el('logoutBtn').onclick = () => {
       if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
       try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem('hh_tchat_' + state.phone); } catch (e) {}
@@ -967,28 +1006,27 @@
   };
 
   TI.utilities = {
-    desc: 'Điện nước của một tháng: số kWh, số khối, tiền điện, tiền nước',
+    desc: 'Điện nước của một tháng: số kWh, tiền điện, tiền nước',
     kw: ['dien nuoc', 'tien dien', 'tien nuoc', 'so dien', 'so nuoc', 'kwh', 'tieu thu', 'xai dien', 'dung dien',
       'so khoi', 'chi so', 'xai het', 'dung het'],
     run(sl) {
       const u = sl.period ? readingOf(sl.period) : latestUsage();
       if (!u) return { facts: {},
-        html: sl.period ? `Em chưa thấy chỉ số điện nước <b>${vnPeriod(sl.period)}</b> của phòng mình ạ.`
-          : 'Em chưa thấy chỉ số điện nước của phòng mình. Anh/chị có thể tự gửi chỉ số để chủ nhà duyệt ạ.',
+        html: sl.period ? `Em chưa thấy chỉ số điện <b>${vnPeriod(sl.period)}</b> của phòng mình ạ.`
+          : 'Em chưa thấy chỉ số điện của phòng mình. Anh/chị có thể tự gửi chỉ số để chủ nhà duyệt ạ.',
         actions: [{ label: 'Gửi chỉ số', go: '#/readings', solid: true }] };
       // Tiền điện/nước lấy từ hóa đơn CÙNG KỲ với chỉ số (không lẫn kỳ khác)
       const inv = invOf(u.period);
       const eAmt = lineAmt(inv, /điện/i), wAmt = lineAmt(inv, /nước/i);
-      return { facts: { kỳ: u.label, điện_kWh: u.elec, nước_m3: u.water, tiền_điện: eAmt != null ? vnd(eAmt) : null, tiền_nước: wAmt != null ? vnd(wAmt) : null },
+      return { facts: { kỳ: u.label, điện_kWh: u.elec, tiền_điện: eAmt != null ? vnd(eAmt) : null, tiền_nước: wAmt != null ? vnd(wAmt) : null },
         html: `<div class="b-title">Điện nước ${esc(u.label)}</div>
           <table>
             <tr><td>Điện</td><td>${u.elec != null ? num(u.elec) + ' kWh' : '-'}</td></tr>
             ${eAmt != null ? `<tr><td>Tiền điện</td><td>${vnd(eAmt)}</td></tr>` : ''}
-            <tr><td>Nước</td><td>${u.water != null ? num(u.water) + ' m³' : '-'}</td></tr>
             ${wAmt != null ? `<tr><td>Tiền nước</td><td>${vnd(wAmt)}</td></tr>` : ''}
           </table>
-          <div class="b-note">Số liệu lấy từ chỉ số chủ nhà đã ghi.</div>`,
-        actions: [{ label: 'Lịch sử điện nước', go: '#/usage' }],
+          <div class="b-note">Tiền nước tính theo số người ở, không theo chỉ số.</div>`,
+        actions: [{ label: 'Lịch sử điện', go: '#/usage' }],
         suggest: ['So với tháng trước', 'Giá điện bao nhiêu một số?'] };
     },
   };
@@ -1016,18 +1054,17 @@
       if (main) {
         why = `, chủ yếu do <b>${esc(main.lb)}</b> ${main.d > 0 ? 'tăng' : 'giảm'} ${vnd(Math.abs(main.d))}`;
         if (/điện/i.test(main.lb) && ru && rb && ru.elec != null && rb.elec != null) why += ` (dùng ${num(ru.elec)} kWh so với ${num(rb.elec)} kWh)`;
-        else if (/nước/i.test(main.lb) && ru && rb && ru.water != null && rb.water != null) why += ` (dùng ${num(ru.water)} m³ so với ${num(rb.water)} m³)`;
       }
       const head = total === 0 ? `Hóa đơn <b>${P1}</b> bằng đúng <b>${P0}</b>: ${vnd(cur.total)}.`
         : `Hóa đơn <b>${P1}</b> ${total > 0 ? 'cao' : 'thấp'} hơn <b>${P0}</b> <b>${vnd(Math.abs(total))}</b>${why}.`;
       return { facts: { kỳ_gốc: P0, kỳ_so: P1, tổng_kỳ_gốc: vnd(base.total), tổng_kỳ_so: vnd(cur.total), chênh: diffTxt(total),
           theo_khoản: diffs.map(x => ({ khoản: x.lb, [P0]: vnd(x.a), [P1]: vnd(x.b), chênh: diffTxt(x.d) })),
-          điện_kWh: { [P0]: rb && rb.elec, [P1]: ru && ru.elec }, nước_m3: { [P0]: rb && rb.water, [P1]: ru && ru.water } },
+          điện_kWh: { [P0]: rb && rb.elec, [P1]: ru && ru.elec } },
         html: `${head}
           <table><tr><td></td><td><b>${P0}</b></td><td><b>${P1}</b></td></tr>
           ${diffs.map(x => `<tr><td>${esc(x.lb)}</td><td>${vnd(x.a)}</td><td>${vnd(x.b)}${x.d ? `<br><span class="${x.d > 0 ? 'b-warn' : 'b-good'}">${diffTxt(x.d)}</span>` : ''}</td></tr>`).join('')}
           <tr class="sum"><td>Tổng</td><td>${vnd(base.total)}</td><td>${vnd(cur.total)}</td></tr></table>`,
-        actions: [{ label: 'Lịch sử điện nước', go: '#/usage' }],
+        actions: [{ label: 'Lịch sử điện', go: '#/usage' }],
         suggest: ['Giá điện bao nhiêu một số?', 'Tháng này tôi đóng bao nhiêu?'] };
     },
   };

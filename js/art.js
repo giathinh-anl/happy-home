@@ -221,6 +221,11 @@ HH.art = (function () {
       <rect x="21.7" y="16" width="4.6" height="14" rx="2.3" fill="#fff"/>
       <circle cx="24" cy="35.5" r="2.7" fill="#fff"/>`,
 
+    sync: `<path d="M13.5 33a9.5 9.5 0 0 1-.6-19 12.5 12.5 0 0 1 23.8 3.2A8.6 8.6 0 0 1 35 33z" fill="{sky}"/>
+      <circle cx="31" cy="32" r="12.5" fill="{teal}"/>
+      <g transform="translate(23 24) scale(.667)" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></g>`,
+
     phone: `<rect x="12" y="3.5" width="24" height="41" rx="6" fill="{sea}"/>
       <rect x="15" y="9" width="18" height="28" rx="2.5" fill="{sky}"/>
       <rect x="20" y="5.8" width="8" height="1.6" rx=".8" ${W(.5)}/>
@@ -232,7 +237,7 @@ HH.art = (function () {
   const ALIAS = {
     home: 'house', settings: 'gear', file: 'contract', box: 'sofa', gauge: 'meter',
     sheet: 'chart', track: 'clipboard', bank: 'card', expense: 'coins', config: 'sliders',
-    noti: 'bell', history: 'card', grid: 'apps', alert: 'alarm',
+    noti: 'bell', history: 'card', grid: 'apps', alert: 'alarm', refresh: 'sync', refresh2: 'sync',
   };
 
   let seq = 0;

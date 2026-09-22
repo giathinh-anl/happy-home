@@ -7,35 +7,30 @@
   /* ================= GHI CHỈ SỐ (§3.6) ================= */
   HH.pages.readings = {
     render(ctx) {
-      ctx._tab = ctx._tab || 'elec';
       const rooms = S.roomsOf(ctx.bid).filter(r => r.status === 'occupied' || r.status === 'notice')
         .sort((a, b) => a.code.localeCompare(b.code));
       const period = S.period();
       const done = rooms.filter(r => { const rd = S.reading(ctx.bid, r.code, period); return rd && rd.elecCurr != null; }).length;
       return h`<div class="page-head">
-        <div><div class="page-title">Chỉ số điện nước</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
+        <div><div class="page-title">Chỉ số điện</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
         <div class="page-actions">
           <span class="badge s-info" style="align-self:center"><span class="dot"></span>Đã ghi ${done}/${rooms.length} phòng</span>
           <button class="btn btn-outline" id="importXls">Nhập từ Excel</button>
           <button class="btn btn-primary" id="toBill">Xong, lập hóa đơn →</button>
         </div></div>
         <div id="periodSel" style="margin-bottom:16px"></div>
-        <div class="tabs" style="margin-bottom:16px">
-          <button class="tab ${raw(ctx._tab === 'elec' ? 'active' : '')}" data-tab="elec">${HH.ic('bolt', 16)} Điện</button>
-          <button class="tab ${raw(ctx._tab === 'water' ? 'active' : '')}" data-tab="water">${HH.ic('drop', 16)} Nước</button>
-        </div>
+        <p class="muted text-sm" style="margin-bottom:12px">Tiền nước tính theo số người ở (xem Dịch vụ), không cần ghi chỉ số nước.</p>
         <div class="dt-wrap"><div class="dt-scroll"><table class="dt" id="readTable">
           <thead><tr><th>Phòng</th><th>Khách</th>
-            <th class="num">${raw(ctx._tab === 'elec' ? 'Điện' : 'Nước')} kỳ trước</th>
-            <th class="num">${raw(ctx._tab === 'elec' ? 'Điện' : 'Nước')} kỳ này</th>
-            <th class="num">Tiêu thụ</th><th class="center">Ảnh</th><th></th></tr></thead>
+            <th class="num">Điện kỳ trước</th>
+            <th class="num">Điện kỳ này</th>
+            <th class="num">Tiêu thụ (kWh)</th><th class="center">Ảnh</th><th></th></tr></thead>
           <tbody>${raw(readingRows(ctx, rooms, period))}</tbody>
         </table></div></div>
         <p class="muted text-xs" style="margin-top:10px">Mẹo: dùng <kbd>Enter</kbd> hoặc <kbd>Tab</kbd> để nhảy xuống phòng kế tiếp.</p>`;
     },
     mount(ctx) {
       mountPeriodSelector();
-      document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { ctx._tab = b.dataset.tab; HH.router.render(); });
       document.getElementById('toBill').onclick = () => HH.router.go(`/b/${ctx.bid}/invoices`);
       document.getElementById('importXls').onclick = () => importExcel(ctx);
       wireReadingInputs(ctx);
@@ -43,7 +38,6 @@
   };
 
   function readingRows(ctx, rooms, period) {
-    const tab = ctx._tab;
     const prevPeriod = S.prevPeriodOf(period);
     return rooms.map((r, idx) => {
       const rd = S.reading(ctx.bid, r.code, period) || {};
@@ -53,11 +47,11 @@
         if (prevRd) return prevRd[w + 'Curr'] != null ? prevRd[w + 'Curr'] : prevRd[w + 'Prev'];
         return 0;
       };
-      const prev = tab === 'elec' ? prevOf('elec') : prevOf('water');
-      const curr = tab === 'elec' ? rd.elecCurr : rd.waterCurr;
+      const prev = prevOf('elec');
+      const curr = rd.elecCurr;
       const use = (curr != null && prev != null)
-        ? Math.max(0, curr - prev) + (rd[tab + 'Extra'] || 0) : null;
-      const avg = tab === 'elec' ? (rd.elecAvg || 190) : 4;
+        ? Math.max(0, curr - prev) + (rd.elecExtra || 0) : null;
+      const avg = rd.elecAvg || 190;
       const abnormal = use != null && use > avg * 3;
       const isTenant = rd.source === 'tenant' && !rd.approved;
       const rowCls = abnormal ? 'warn-row' : (isTenant ? 'tenant-row' : '');
@@ -69,7 +63,9 @@
         <td class="num"><input class="input reading-input mono" data-read="${idx}" data-code="${r.code}" value="${curr != null ? curr : ''}" ${isTenant ? 'style="background:var(--info-bg)"' : ''}></td>
         <td class="num"><span class="consume" data-use="${r.code}" style="${abnormal ? 'color:var(--warning)' : ''}">${use != null ? U.number(use) : ''}</span>
           ${abnormal ? `<div class="reading-note" data-note="${r.code}">Cao gấp ${(use / avg).toFixed(1)} lần</div>` : ''}</td>
-        <td class="center"><button class="photo-btn" title="Ảnh đồng hồ">${done ? HH.ic('camera', 16) : HH.ic('plus', 16)}</button></td>
+        <td class="center">${(rd.photos || []).length
+          ? `<button class="photo-btn" data-rdphoto="${r.code}" title="Xem ${rd.photos.length} ảnh đồng hồ khách gửi">${HH.ic('camera', 16)}<span class="ph-n">${rd.photos.length}</span></button>`
+          : '<span class="faint">-</span>'}</td>
         <td class="center">${isTenant ? `<button class="btn btn-sm btn-outline" data-approve="${r.code}">Duyệt</button>` : (done ? '<span style="color:var(--success)">✓</span>' : '')}</td>
       </tr>`;
     }).join('');
@@ -78,7 +74,7 @@
   function wireReadingInputs(ctx) {
     const inputs = Array.from(document.querySelectorAll('[data-read]'));
     const savePersist = U.debounce(() => S.persist(), 400);
-    const kind = ctx._tab; // 'elec' | 'water'
+    const kind = 'elec';   // chỉ còn điện, nước tính theo số người
     // Vẽ lại ô Tiêu thụ + cảnh báo cho 1 dòng
     function refreshRow(inp, rd, code) {
       const useEl = document.querySelector(`[data-use="${code}"]`);
@@ -96,7 +92,7 @@
       }
       const use = S.consumptionOf(rd, kind);
       useEl.textContent = U.number(use);
-      const avg = kind === 'elec' ? (rd.elecAvg || 190) : 4;
+      const avg = rd.elecAvg || 190;
       if (use > avg * 3) {
         tr.classList.add('warn-row'); useEl.style.color = 'var(--warning)';
         const note = document.createElement('div');
@@ -138,6 +134,28 @@
           if (next) { next.focus(); next.select(); }
         }
       };
+    });
+    // Xem ảnh đồng hồ khách gửi kèm, duyệt ngay trong hộp thoại
+    document.querySelectorAll('[data-rdphoto]').forEach(b => b.onclick = () => {
+      const code = b.dataset.rdphoto;
+      const rd = S.reading(ctx.bid, code, S.period()) || {};
+      const photos = rd.photos || [];
+      const needOk = rd.source === 'tenant' && !rd.approved;
+      UI.modal({
+        size: 'wide', title: `Ảnh đồng hồ phòng ${code}`,
+        bodyHtml: `<p class="muted text-sm" style="margin-bottom:12px">Khách gửi chỉ số <b class="num">${rd.elecCurr != null ? U.number(rd.elecCurr) : '-'}</b> kWh,
+            kỳ trước <span class="num">${rd.elecPrev != null ? U.number(rd.elecPrev) : '-'}</span>.</p>
+          <div class="rd-photos">${photos.map(src => `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="Ảnh đồng hồ phòng ${code}"></a>`).join('')}</div>`,
+        footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
+          ${needOk ? `<button class="btn btn-primary" id="rdOk">${HH.ic('check', 16)} Duyệt chỉ số</button>` : ''}`,
+        onMount(el, close) {
+          const ok = el.querySelector('#rdOk');
+          if (ok) ok.onclick = () => {
+            rd.approved = true; S.persist();
+            close(); UI.toast(`Đã duyệt chỉ số phòng ${code}`, { type: 'ok' }); HH.router.render();
+          };
+        },
+      });
     });
     document.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => {
       const rd = S.reading(ctx.bid, b.dataset.approve, S.period()); if (rd) rd.approved = true;

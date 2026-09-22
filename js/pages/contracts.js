@@ -591,7 +591,6 @@
     </div>`).join('') : '<p class="muted">Phòng chưa khai báo tài sản.</p>';
     body.innerHTML = `<h3 style="margin-bottom:16px">Bàn giao</h3>
       <div class="field"><label>Chỉ số điện ban đầu</label><input class="input mono" data-h="elec" placeholder="VD: 12450"></div>
-      <div class="field" style="margin-top:12px"><label>Chỉ số nước ban đầu</label><input class="input mono" data-h="water" placeholder="VD: 45"></div>
       <div class="field" style="margin-top:12px"><label>Ảnh đồng hồ</label>
         <label class="btn btn-outline" style="width:fit-content">${HH.ic('camera', 16)} Tải ảnh<input type="file" accept="image/*" hidden></label></div>
       <h4 style="margin:20px 0 4px">Biên bản bàn giao tài sản</h4>
@@ -648,10 +647,9 @@
         w.tenants.forEach((t, i) => S.updateTenant(t.id, { roomCode: room.code, isRep: i === 0 }));
         // ghi lại chỉ số đầu kỳ nếu có nhập ở bước bàn giao
         const hd = w.handoverReadings || {};
-        if (hd.elec != null || hd.water != null) {
+        if (hd.elec != null) {
           const rd = S.readingFor(ctx.bid, room.code, S.period());
-          if (hd.elec != null) rd.elecPrev = hd.elec;
-          if (hd.water != null) rd.waterPrev = hd.water;
+          rd.elecPrev = hd.elec;
         }
         S.log('contract.sign', `Ký hợp đồng phòng ${room.code} cho ${c.tenantName}`);
         S.persist();
@@ -765,7 +763,6 @@
       <span class="a-amt">${U.currency(i.total - i.paid)}</span></div>`).join('') : '<p class="muted">Không còn công nợ hóa đơn.</p>';
     body.innerHTML = `<h3 style="margin-bottom:16px">Chốt công nợ</h3>
       <div class="field"><label>Chỉ số điện chốt</label><input class="input mono" placeholder="Nhập chỉ số cuối"></div>
-      <div class="field" style="margin-top:12px"><label>Chỉ số nước chốt</label><input class="input mono" placeholder="Nhập chỉ số cuối"></div>
       <h4 style="margin:20px 0 8px">Công nợ hóa đơn còn lại</h4>
       <div class="alloc-box">${rows}<div class="alloc-row" style="border-top:2px solid var(--neutral-200);margin-top:4px"><b>Tổng công nợ</b><b class="a-amt">${U.currency(debt)}</b></div></div>
       ${tFoot(ctx)}`;

@@ -27,7 +27,7 @@ HH.app = (function () {
     { ic: 'users',     label: 'Khách thuê', seg: 'tenants', perm: 'tenants' },
   ];
   const MORE = [
-    { ic: 'gauge',    label: 'Chỉ số điện nước',     seg: 'readings', perm: 'readings' },
+    { ic: 'gauge',    label: 'Chỉ số điện',          seg: 'readings', perm: 'readings' },
     { ic: 'wallet',   label: 'Thanh toán & công nợ', seg: 'payments', perm: 'payments' },
     { ic: 'wrench',   label: 'Sự cố phòng',          seg: 'incidents', perm: 'incidents' },
     { ic: 'chart',    label: 'Thu chi',              seg: 'expenses', perm: 'expenses', pic: 'coins' },
@@ -74,6 +74,7 @@ HH.app = (function () {
         <span class="word"><b>happy home</b><small>Quản lý nhà cho thuê</small></span></a>
       <nav class="hd-nav" id="hdNav" aria-label="Công ty"><span class="slide-ind" data-mode="box" aria-hidden="true"></span>${nav}</nav>
       <div class="hd-right">
+        <button class="hd-bell pic-hop" id="btnSync" title="Tải lại dữ liệu khách gửi" aria-label="Tải lại dữ liệu">${pic('refresh2', 28)}</button>
         <a class="hd-bell pic-hop ${path === '/noti' ? 'active' : ''}" href="#/noti" aria-label="Thông báo${c.noti ? ', ' + c.noti + ' mục' : ''}">
           ${pic('bell', 28)}${cntBadge(c.noti > 9 ? '9+' : c.noti, 'hd-cnt')}</a>
         <button class="hd-user" data-act="account" aria-haspopup="menu" aria-label="Tài khoản">
@@ -116,6 +117,7 @@ HH.app = (function () {
       <a class="mt-logo" href="#/buildings" aria-label="Happy Home, về trang quản lý nhà"><img src="assets/logo-mark.svg" alt="" width="29" height="25"></a>
       <button class="mt-bld" id="bCardM" aria-haspopup="menu" aria-label="Đổi tòa nhà đang quản lý">
         <small>Đang quản lý</small><span><b>${U.esc(b ? b.name : 'Chưa có tòa nhà')}</b>${ic('chevron', 14)}</span></button>
+      <button class="mt-btn" id="btnSyncM" aria-label="Tải lại dữ liệu khách gửi">${pic('refresh2', 26)}</button>
       <a class="mt-btn" href="#/noti" aria-label="Thông báo${c.noti ? ', ' + c.noti + ' mục' : ''}">${pic('bell', 26)}${cntBadge(c.noti > 9 ? '9+' : c.noti, 'hd-cnt')}</a>
       <button class="av" data-act="account" aria-haspopup="menu" aria-label="Tài khoản">${U.esc(U.initials(name || 'H'))}</button>
     </header>`;
@@ -296,7 +298,39 @@ HH.app = (function () {
     if (more) more.onclick = () => openMoreMenu(more, params.bid);
     const mm = document.getElementById('mMenu');
     if (mm) mm.onclick = () => openSheet(params.bid);
+    ['btnSync', 'btnSyncM'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.onclick = () => pullServer(true, b);
+    });
   }
+
+  /* ---------- Dữ liệu khách gửi trong lúc web đang mở ----------
+     Chỉ số điện, báo hỏng, báo chuyển khoản từ app khách nằm trên máy chủ.
+     Web quản trị nạp dữ liệu lúc đăng nhập, nên phải tải lại thì mới thấy:
+     tự tải khi quay lại tab, mỗi 2 phút, và khi bấm nút làm mới. */
+  let lastPull = Date.now(), pulling = false;
+  async function pullServer(manual, btn) {
+    if (!S.usingBackend()) {
+      if (manual) HH.ui.toast('Bản demo không có máy chủ để tải lại', { type: 'warning' });
+      return;
+    }
+    if (pulling || (!manual && Date.now() - lastPull < 60000)) return;
+    pulling = true;
+    if (btn) btn.classList.add('spin');
+    try {
+      const r = await S.refreshFromServer();
+      lastPull = Date.now();
+      if (!r.ok) { if (manual) HH.ui.toast('Không tải được dữ liệu mới', { type: 'error' }); return; }
+      if (r.changed) { HH.router.render(); if (manual) HH.ui.toast('Đã cập nhật dữ liệu mới', { type: 'ok' }); }
+      else if (manual) HH.ui.toast('Dữ liệu đã là mới nhất', { type: 'ok' });
+    } finally {
+      pulling = false;
+      const b2 = btn && btn.isConnected ? btn : document.getElementById(btn && btn.id);
+      if (b2) b2.classList.remove('spin');
+    }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullServer(false); });
+  setInterval(() => { if (document.visibilityState === 'visible') pullServer(false); }, 120000);
 
   function openMoreMenu(anchor, bid) {
     const seg = (HH.router.current().split('?')[0].split('/')[3]) || '';

@@ -413,7 +413,7 @@ HH.ai = (function () {
   };
 
   I.readings = {
-    desc: 'Phòng chưa ghi chỉ số điện nước trong kỳ', uses: 'period, building',
+    desc: 'Phòng chưa ghi chỉ số điện trong kỳ', uses: 'period, building',
     kw: ['chi so', 'ghi dien', 'ghi nuoc', 'chua ghi', 'chot so', 'cong to', 'dong ho dien', 'dong ho nuoc'],
     run(sl) {
       const per = sl.period || S.period(), miss = [];
@@ -424,7 +424,7 @@ HH.ai = (function () {
       const facts = { kỳ: plabel(per), phạm_vi: sl.buildingId ? bOf(sl.buildingId).name : 'toàn công ty',
         số_phòng_chưa_ghi: miss.length, danh_sách: miss.slice(0, 20).map((x) => x.code + ' · ' + x.b.name) };
       if (!miss.length) return { facts, html: `Tất cả phòng${where(sl)} đã ghi chỉ số kỳ <b>${plabel(per)}</b> ✓`,
-        suggest: [`Tiêu thụ điện nước ${plabel(per)}`] };
+        suggest: [`Tiêu thụ điện ${plabel(per)}`] };
       return { facts,
         html: `Còn <b>${miss.length}</b> phòng${where(sl)} chưa ghi chỉ số kỳ ${plabel(per)}: `
           + miss.slice(0, 15).map((x) => `<b>${esc(x.code)}</b>` + (sl.buildingId ? '' : ` <span class="as-muted">${esc(shortName(x.b))}</span>`)).join(', '),
@@ -433,27 +433,27 @@ HH.ai = (function () {
   };
 
   I.usage = {
-    desc: 'Tiêu thụ điện (kWh) và nước (m³) trong kỳ', uses: 'period, building, room',
+    desc: 'Tiêu thụ điện (kWh) trong kỳ', uses: 'period, building, room',
     kw: ['tieu thu', 'bao nhieu kwh', 'so kwh', 'bao nhieu khoi', 'so khoi', 'dien nuoc', 'xai bao nhieu', 'dung bao nhieu dien', 'so dien', 'so nuoc'],
     neg: ['chua ghi', 'ghi chi so'],
     run(sl) {
       const per = sl.period || S.period();
       if (sl.room) {
         const rd = S.reading(sl.room.buildingId, sl.room.code, per);
-        const e = rd ? S.consumptionOf(rd, 'elec') : null, w = rd ? S.consumptionOf(rd, 'water') : null;
-        const facts = { phòng: sl.room.code, kỳ: plabel(per), điện_kWh: e, nước_m3: w };
+        const e = rd ? S.consumptionOf(rd, 'elec') : null;
+        const facts = { phòng: sl.room.code, kỳ: plabel(per), điện_kWh: e };
         if (!rd || e == null) return { facts, html: `Phòng <b>${esc(sl.room.code)}</b> chưa có chỉ số kỳ ${plabel(per)}.` };
         return { facts, html: `Phòng <b>${esc(sl.room.code)}</b> kỳ ${plabel(per)}: điện <b>${U.number(Math.round(e))} kWh</b>`
-          + (w != null ? `, nước <b>${U.number(Math.round(w))} m³</b>` : '') + '.' };
+          + '.' };
       }
       const a = S.dashboardAnalytics({ period: per, buildingId: sl.buildingId });
       const facts = { kỳ: plabel(per), phạm_vi: sl.buildingId ? bOf(sl.buildingId).name : 'toàn công ty',
-        điện_kWh: Math.round(a.usage.elecKwh), nước_m3: Math.round(a.usage.waterM3),
+        điện_kWh: Math.round(a.usage.elecKwh),
         số_phòng_đã_ghi: a.usage.roomsRead, số_phòng_đang_thuê: a.kpi.occupiedRooms };
-      if (!a.usage.roomsRead) return { facts, html: `Kỳ <b>${plabel(per)}</b>${where(sl)} chưa có chỉ số điện nước nào.` };
+      if (!a.usage.roomsRead) return { facts, html: `Kỳ <b>${plabel(per)}</b>${where(sl)} chưa có chỉ số điện nào.` };
       return { facts,
         html: `Kỳ <b>${plabel(per)}</b>${where(sl)}: điện <b>${U.number(Math.round(a.usage.elecKwh))} kWh</b>,
-          nước <b>${U.number(Math.round(a.usage.waterM3))} m³</b> (đã ghi ${a.usage.roomsRead}/${a.kpi.occupiedRooms} phòng).`,
+          (đã ghi ${a.usage.roomsRead}/${a.kpi.occupiedRooms} phòng).`,
         actions: [{ label: 'Xem chỉ số', go: `#/b/${bidFor(sl)}/readings` }] };
     },
   };
@@ -662,7 +662,7 @@ HH.ai = (function () {
   /* Tên ngắn của từng ý định — để nói cho người dùng biết bot đã hiểu gì */
   const LABEL = { revenue: 'doanh thu', compare: 'so sánh kỳ', trend: 'xu hướng doanh thu', debt: 'công nợ',
     remind: 'soạn tin nhắc nợ', occupancy: 'phòng trống', overdue: 'hóa đơn quá hạn', expiring: 'hợp đồng',
-    readings: 'ghi chỉ số', usage: 'điện nước', incidents: 'sự cố', expense: 'chi phí', profit: 'lợi nhuận',
+    readings: 'ghi chỉ số', usage: 'điện', incidents: 'sự cố', expense: 'chi phí', profit: 'lợi nhuận',
     claims: 'chuyển khoản', buildings: 'các tòa nhà', room: 'thông tin phòng', tenant: 'thông tin khách',
     todo: 'việc cần làm', help: 'hướng dẫn' };
 
@@ -862,7 +862,7 @@ HH.ai = (function () {
   function notSupported() {
     return { source: 'fallback',
       html: `Câu này em chưa hiểu ạ. Em tra được doanh thu, công nợ, phòng trống, hóa đơn quá hạn, hợp đồng,
-        chỉ số điện nước, sự cố, chi phí, lợi nhuận, theo <b>tháng</b>, <b>tòa</b> hoặc <b>phòng</b>.`,
+        chỉ số điện, sự cố, chi phí, lợi nhuận, theo <b>tháng</b>, <b>tòa</b> hoặc <b>phòng</b>.`,
       suggest: ['Em làm được gì?', 'Hôm nay cần xử lý gì?'] };
   }
 

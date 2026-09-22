@@ -143,44 +143,183 @@
     expense: ['Sửa chữa', 'Điện nước chung', 'Lương nhân viên', 'Vệ sinh', 'Thuế/phí', 'Chi khác'],
   };
 
+  /* ================= THU CHI THEO THÁNG =================
+     Thu  = tiền thu thật từ phiếu thu trong tháng (tự cộng, không nhập tay)
+            + khoản thu khác ghi tay (bán đồ cũ, tiền phạt...).
+     Chi  = các khoản chi ghi tay (điện nước chung, sửa chữa, lương...).
+     Lợi nhuận = thu - chi, xem theo từng tháng và tổng cả năm. */
+  let expMonth = null;   // tháng đang xem 'YYYY-MM'
+
+  function monthStats(bid, period) {
+    const pays = S.paymentsOfBuilding(bid, period);
+    const auto = pays.reduce((s, p) => s + p.amount, 0);
+    const txs = S.transactionsOf(bid).filter(t => (t.date || '').slice(0, 7) === period);
+    const other = txs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
+    const out = txs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
+    return { pays, txs, auto, other, income: auto + other, expense: out, profit: auto + other - out };
+  }
+
   HH.pages.expenses = {
     render(ctx) {
-      const txs = S.transactionsOf(ctx.bid).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-      const income = txs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
-      const expense = txs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
-      const profit = income - expense;
-      const rows = txs.map(t => `<tr>
-        <td class="mono">${U.fmtDate(t.date)}</td>
-        <td>${t.kind === 'income' ? '<span class="badge s-success"><span class="dot"></span>Thu</span>' : '<span class="badge s-danger"><span class="dot"></span>Chi</span>'}</td>
-        <td>${U.esc(t.category || '')}</td>
-        <td class="muted">${U.esc(t.note || '')}</td>
-        <td class="num mono b" style="color:${t.kind === 'income' ? 'var(--success)' : 'var(--danger)'}">${t.kind === 'income' ? '+' : '−'}${U.currency(t.amount)}</td>
-        <td class="col-actions"><button class="kebab" data-txdel="${t.id}">⋯</button></td>
+      if (!expMonth) expMonth = S.period();
+      const year = Number(expMonth.slice(0, 4));
+      const m = monthStats(ctx.bid, expMonth);
+      const mLabel = S.periodLabel(expMonth);
+
+      /* ---- Bảng chi tiết trong tháng: phiếu thu (tự động) + khoản ghi tay ---- */
+      const autoRows = m.pays.map(p => ({
+        date: p.date, kind: 'auto', cat: 'Tiền phòng, dịch vụ',
+        note: `Phòng ${p.roomCode || ''}${p.tenantName ? ', ' + p.tenantName : ''} · phiếu ${p.receiptNo || ''}`,
+        amount: p.amount, id: null,
+      }));
+      const txRows = m.txs.map(t => ({
+        date: t.date, kind: t.kind, cat: t.category || '', note: t.note || '', amount: t.amount, id: t.id,
+      }));
+      const all = autoRows.concat(txRows).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const tag = { auto: '<span class="badge s-success">Thu tự động</span>',
+        income: '<span class="badge s-info">Thu khác</span>',
+        expense: '<span class="badge s-danger">Chi</span>' };
+      const rows = all.map(r => `<tr>
+        <td class="mono nowrap">${U.fmtDate(r.date)}</td>
+        <td>${tag[r.kind]}</td>
+        <td>${U.esc(r.cat)}</td>
+        <td class="muted">${U.esc(r.note)}</td>
+        <td class="num b" style="color:${r.kind === 'expense' ? 'var(--danger)' : 'var(--success)'}">${r.kind === 'expense' ? '-' : '+'}${U.currency(r.amount)}</td>
+        <td class="col-actions">${r.id ? `<button class="kebab" data-txdel="${r.id}">⋯</button>` : ''}</td>
       </tr>`).join('');
+
+      /* ---- Cả năm: 12 tháng + tổng ---- */
+      const months = [];
+      for (let i = 1; i <= 12; i++) {
+        const per = `${year}-${String(i).padStart(2, '0')}`;
+        const st = monthStats(ctx.bid, per);
+        months.push({ per, i, label: 'T' + i, ...st });
+      }
+      const yTotal = months.reduce((s, x) => ({
+        income: s.income + x.income, expense: s.expense + x.expense, profit: s.profit + x.profit,
+      }), { income: 0, expense: 0, profit: 0 });
+      const maxAbs = Math.max(1, ...months.map(x => Math.max(x.income, x.expense)));
+      const bars = `<div class="ex-bars" role="img" aria-label="Thu chi 12 tháng năm ${year}">
+        ${months.map(x => `<div class="ex-col ${x.per === expMonth ? 'now' : ''}" data-month="${x.per}" tabindex="0" title="${x.label}: thu ${U.currency(x.income)}, chi ${U.currency(x.expense)}">
+          <div class="ex-stack">
+            <i class="in" style="height:${Math.round(x.income / maxAbs * 100)}%"></i>
+            <i class="out" style="height:${Math.round(x.expense / maxAbs * 100)}%"></i>
+          </div><span>${x.label}</span></div>`).join('')}
+      </div>
+      <div class="ex-leg"><span><i class="in"></i>Thu</span><span><i class="out"></i>Chi</span></div>`;
+
+      const yRows = months.map(x => `<tr class="${x.per === expMonth ? 'ex-now' : ''}" data-month="${x.per}" tabindex="0">
+        <td><b>${x.label}/${year}</b></td>
+        <td class="num">${U.currency(x.auto)}</td>
+        <td class="num">${x.other ? U.currency(x.other) : '<span class="faint">-</span>'}</td>
+        <td class="num" style="color:${x.expense ? 'var(--danger)' : 'inherit'}">${x.expense ? U.currency(x.expense) : '<span class="faint">-</span>'}</td>
+        <td class="num b" style="color:${x.profit < 0 ? 'var(--danger)' : x.profit ? 'var(--success)' : 'inherit'}">${U.currency(x.profit)}</td>
+      </tr>`).join('');
+
       return h`<div class="page-head">
-        <div><div><div class="page-title-lg">Thu chi</div><div class="page-sub">${ctx.building.name} · ${txs.length} khoản</div></div></div>
+        <div><div class="page-title-lg">Thu chi</div>
+          <div class="page-sub">${ctx.building.name} · đang xem ${mLabel}</div></div>
         <div class="page-actions">
-          <button class="btn btn-success" id="addIncome">${HH.ic('plus', 16)} Khoản thu</button>
-          <button class="btn btn-danger" id="addExpense">${HH.ic('plus', 16)} Khoản chi</button>
+          <button class="btn btn-outline" id="addIncome">${HH.ic('plus', 16)} Khoản thu khác</button>
+          <button class="btn btn-primary" id="addExpense">${HH.ic('plus', 16)} Khoản chi</button>
+          <button class="btn btn-outline" id="exExport">${HH.ic('download', 16)} Xuất Excel</button>
         </div>
       </div>
-      <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:760px;margin-bottom:16px">
-        ${raw(UI.metricCard({ label: 'Tổng thu', value: income, format: 'currency', intent: 'success' }))}
-        ${raw(UI.metricCard({ label: 'Tổng chi', value: expense, format: 'currency', intent: 'danger' }))}
-        ${raw(UI.metricCard({ label: 'Chênh lệch (lợi nhuận)', value: profit, format: 'currency', intent: profit >= 0 ? 'success' : 'danger' }))}
+
+      <div id="exPeriod" style="margin-bottom:16px"></div>
+
+      <div class="dh-kpis" style="margin-top:0">
+        <div class="dh-kpi t-leaf"><span class="dh-kpi-pic">${raw(HH.pic('wallet', 36))}</span>
+          <span class="k">Tiền thu được ${mLabel}</span>
+          <span class="v">${U.currency(m.auto)}</span>
+          <span class="dl flat">${m.pays.length} phiếu thu, tự cộng</span></div>
+        <div class="dh-kpi t-sky"><span class="dh-kpi-pic">${raw(HH.pic('coins', 36))}</span>
+          <span class="k">Thu khác (ghi tay)</span>
+          <span class="v">${U.currency(m.other)}</span>
+          <span class="dl flat">${m.txs.filter(t => t.kind === 'income').length} khoản</span></div>
+        <div class="dh-kpi t-coral"><span class="dh-kpi-pic">${raw(HH.pic('receipt', 36))}</span>
+          <span class="k">Chi trong tháng</span>
+          <span class="v bad">${U.currency(m.expense)}</span>
+          <span class="dl flat">${m.txs.filter(t => t.kind === 'expense').length} khoản, tự nhập</span></div>
+        <div class="dh-kpi t-sun"><span class="dh-kpi-pic">${raw(HH.pic('chart', 36))}</span>
+          <span class="k">Lợi nhuận ${mLabel}</span>
+          <span class="v ${raw(m.profit < 0 ? 'bad' : '')}">${U.currency(m.profit)}</span>
+          <span class="dl flat">thu ${U.currency(m.income)} trừ chi ${U.currency(m.expense)}</span></div>
       </div>
-      <div class="dt-wrap"><div class="dt-scroll"><table class="dt">
-        <thead><tr><th>Ngày</th><th>Loại</th><th>Hạng mục</th><th>Ghi chú</th><th class="num">Số tiền</th><th></th></tr></thead>
-        <tbody>${raw(rows || `<tr><td colspan="6"><div class="empty"><div class="ic">${HH.ic('sheet', 30)}</div><h4>Chưa có khoản thu chi nào</h4><p class="muted">Bấm "Khoản thu" hoặc "Khoản chi" để ghi nhận.</p></div></td></tr>`)}</tbody>
-      </table></div></div>`;
+
+      <section class="card dh-panel" style="margin-top:20px">
+        <header class="dh-panel-h"><span class="dh-panel-pic">${raw(HH.pic('coins', 26))}</span>
+          <h3>Chi tiết ${mLabel}</h3><span class="faint text-xs">${all.length} dòng</span></header>
+        <div class="dh-panel-b" style="padding:0">
+          <div class="dt-scroll"><table class="dt">
+            <thead><tr><th>Ngày</th><th>Loại</th><th>Hạng mục</th><th>Nội dung</th><th class="num">Số tiền</th><th></th></tr></thead>
+            <tbody>${raw(rows || `<tr><td colspan="6"><div class="empty"><div class="ic">${HH.pic('coins', 64)}</div>
+              <h4>Tháng này chưa có khoản nào</h4><p class="muted">Tiền khách đóng sẽ tự hiện ở đây. Khoản chi thì bấm "Khoản chi" để thêm.</p></div></td></tr>`)}</tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section class="card dh-panel" style="margin-top:20px">
+        <header class="dh-panel-h"><span class="dh-panel-pic">${raw(HH.pic('chart', 26))}</span>
+          <h3>Cả năm ${year}</h3>
+          <span class="row-gap-2">
+            <button class="btn btn-sm btn-outline" data-yr="-1">${HH.ic('chevron', 14)} ${year - 1}</button>
+            <button class="btn btn-sm btn-outline" data-yr="1">${year + 1} ${HH.ic('chevron', 14)}</button>
+          </span></header>
+        <div class="dh-panel-b">
+          ${raw(bars)}
+          <div class="dt-scroll" style="margin-top:18px"><table class="dt ex-table">
+            <thead><tr><th>Tháng</th><th class="num">Thu từ phiếu thu</th><th class="num">Thu khác</th><th class="num">Chi</th><th class="num">Lợi nhuận</th></tr></thead>
+            <tbody>${raw(yRows)}</tbody>
+            <tfoot><tr class="ex-total">
+              <td><b>Cả năm ${year}</b></td>
+              <td class="num b">${U.currency(months.reduce((s, x) => s + x.auto, 0))}</td>
+              <td class="num b">${U.currency(months.reduce((s, x) => s + x.other, 0))}</td>
+              <td class="num b" style="color:var(--danger)">${U.currency(yTotal.expense)}</td>
+              <td class="num b" style="color:${yTotal.profit < 0 ? 'var(--danger)' : 'var(--success)'}">${U.currency(yTotal.profit)}</td>
+            </tr></tfoot>
+          </table></div>
+        </div>
+      </section>`;
     },
+
     mount(ctx) {
+      // Chọn tháng (dùng lại bộ chọn kỳ quen thuộc), không đổi kỳ của toàn hệ thống
+      const box = document.getElementById('exPeriod');
+      if (box) {
+        const opt = { value: expMonth, onChange: (p) => { expMonth = p; HH.router.render(); } };
+        box.innerHTML = UI.periodSelector(opt);
+        UI.attachPeriod(box.querySelector('[data-period-root]'), opt);
+      }
       const inc = document.getElementById('addIncome'); if (inc) inc.onclick = () => txForm(ctx, 'income');
       const exp = document.getElementById('addExpense'); if (exp) exp.onclick = () => txForm(ctx, 'expense');
       document.querySelectorAll('[data-txdel]').forEach(b => b.onclick = () => {
         UI.openMenu(b, [{ icon: HH.ic('trash', 16), label: 'Xóa khoản này', danger: true, onClick: () => {
           S.removeTransaction(b.dataset.txdel); UI.toast('Đã xóa', { type: 'ok' }); HH.router.render(); } }]);
       });
+      // Bấm vào cột hoặc dòng của tháng nào thì xem chi tiết tháng đó
+      document.querySelectorAll('[data-month]').forEach(el => {
+        const go = () => { expMonth = el.dataset.month; HH.router.render(); };
+        el.onclick = go;
+        el.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+      });
+      document.querySelectorAll('[data-yr]').forEach(b => b.onclick = () => {
+        const y = Number(expMonth.slice(0, 4)) + Number(b.dataset.yr);
+        expMonth = `${y}-${expMonth.slice(5, 7)}`; HH.router.render();
+      });
+      const ex = document.getElementById('exExport');
+      if (ex) ex.onclick = () => {
+        const year = Number(expMonth.slice(0, 4));
+        const rows = [];
+        for (let i = 1; i <= 12; i++) {
+          const per = `${year}-${String(i).padStart(2, '0')}`;
+          const st = monthStats(ctx.bid, per);
+          rows.push([`T${i}/${year}`, st.auto, st.other, st.expense, st.profit]);
+        }
+        U.downloadCSV(`thu-chi-${ctx.bid}-${year}.csv`,
+          ['Tháng', 'Thu từ phiếu thu', 'Thu khác', 'Chi', 'Lợi nhuận'], rows);
+        UI.toast(`Đã tải bảng thu chi năm ${year}`, { type: 'ok' });
+      };
     },
   };
 

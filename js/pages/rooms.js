@@ -38,7 +38,11 @@
       { key: 'area', label: 'DT (m²)', align: 'right', render: r => U.number(r.area) },
       { key: 'price', label: 'Giá thuê', align: 'right', sortable: true, render: r => U.currency(r.price) },
       { key: 'status', label: 'Tình trạng', render: r => UI.statusBadge(r.status, 'room') },
-      { key: 'tenantName', label: 'Khách thuê', render: r => r.tenantName || '<span class="faint">-</span>' },
+      { key: 'tenantName', label: 'Khách thuê', render: (r) => {
+          const n = S.tenantsOf(r.buildingId).filter(t => t.roomCode === r.code).length;
+          if (!r.tenantName && !n) return '<span class="faint">-</span>';
+          return `${U.esc(r.tenantName || '')}${n > 1 ? ` <span class="faint text-xs">+${n - 1} người</span>` : ''}`;
+        } },
       { key: 'contractEnd', label: 'Hạn hợp đồng', render: r => r.contractEnd ? U.fmtDate(r.contractEnd) : '<span class="faint">-</span>' },
       { key: 'holdingDeposit', label: 'Cọc giữ chỗ', align: 'right', render: r => r.holdingDeposit ? U.currency(r.holdingDeposit) : '<span class="faint">-</span>' },
       { key: 'debt', label: 'Tài chính', align: 'right', sortable: true, render: r => r.debt ? `<span style="color:var(--danger)">Nợ ${U.currency(r.debt)}</span>` : '<span style="color:var(--success)">Đủ</span>' },
@@ -63,7 +67,9 @@
 
     const who = occupied
       ? `<div class="rc-who"><span class="rc-av">${U.initials(r.tenantName || '')}</span>
-           <span class="rc-name">${U.esc(r.tenantName || '')}</span></div>`
+           <span class="rc-name">${U.esc(r.tenantName || '')}</span>
+           ${S.tenantsOf(r.buildingId).filter(t => t.roomCode === r.code).length > 1
+             ? `<span class="rc-more">+${S.tenantsOf(r.buildingId).filter(t => t.roomCode === r.code).length - 1}</span>` : ''}</div>`
       : `<div class="rc-who empty">${HH.icon('door', 15)}<span class="rc-name">${U.esc(st.label)}</span></div>`;
 
     return `<div class="room-cell tone-${t}" data-room="${r.code}" tabindex="0" role="button" aria-label="Phòng ${r.code}">
@@ -119,6 +125,15 @@
 
   function showRoom(ctx, r) {
     const assets = S.assetsOf(ctx.bid, r.code);
+    // Tất cả người đang ở phòng này, không chỉ người đại diện hợp đồng
+    const people = S.tenantsOf(ctx.bid).filter(t => t.roomCode === r.code)
+      .sort((a, b) => (b.isRep ? 1 : 0) - (a.isRep ? 1 : 0));
+    const peopleHtml = people.length
+      ? `<div class="room-people">${people.map(t => `<button class="rp" data-person="${t.id}">
+          <span class="rp-av">${U.esc(U.initials(t.fullName || '?'))}</span>
+          <span class="rp-txt"><b>${U.esc(t.fullName)}</b><small>${U.esc(t.phone || 'chưa có số điện thoại')}</small></span>
+          ${t.isRep ? '<span class="tn-tag rep">Đại diện</span>' : ''}</button>`).join('')}</div>`
+      : '<span class="faint text-sm">Chưa có ai ở phòng này</span>';
     const assetHtml = assets.length
       ? `<div class="room-assets">${assets.map(a => `<span class="room-asset-chip ${a.condition === 'good' ? '' : a.condition}">
           ${a.icon || '📦'} ${U.esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>`
@@ -135,10 +150,16 @@
       <div class="grid-2">
         <div class="field"><label>Giá thuê</label><div class="mono b">${U.currency(r.price)}</div></div>
         <div class="field"><label>Diện tích</label><div class="mono b">${r.area} m²</div></div>
-        <div class="field"><label>Khách thuê</label><div>${r.tenantName || 'chưa có'}</div></div>
         <div class="field"><label>Hết hạn HĐ</label><div class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '-'}</div></div>
         <div class="field"><label>Công nợ</label><div class="mono b" style="color:${raw(r.debt ? 'var(--danger)' : 'inherit')}">${U.currency(r.debt)}</div></div>
         <div class="field"><label>Số người tối đa</label><div>${r.maxOccupants}</div></div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>Người ở (${people.length}/${r.maxOccupants})</label>
+        ${raw(peopleHtml)}
+        ${raw(S.can('tenants') ? `<div style="margin-top:10px" class="row-gap-2">
+          <a class="btn btn-outline btn-sm" href="#/b/${ctx.bid}/tenants/new?room=${encodeURIComponent(r.code)}">${HH.ic('plus', 16)} Thêm người vào phòng</a>
+          <a class="text-sm" href="#/b/${ctx.bid}/tenants?room=${encodeURIComponent(r.code)}">Xem hồ sơ khách thuê →</a></div>` : '')}
       </div>
       <div class="field" style="margin-top:16px">
         <label>Tài sản trong phòng (${assets.length})</label>
@@ -155,6 +176,9 @@
         <textarea class="textarea" id="roomDesc" placeholder="VD: Phòng thoáng, có ban công, gần chợ...">${U.esc(r.description || '')}</textarea></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>${S.isOwner() ? '<button class="btn btn-primary" id="saveRoomInfo">Lưu</button>' : ''}`,
       onMount(el, close) {
+        el.querySelectorAll('[data-person]').forEach(b => b.onclick = () => {
+          close(); HH.router.go(`/b/${ctx.bid}/tenants?tn=${encodeURIComponent(b.dataset.person)}`);
+        });
         const inp = el.querySelector('#roomPhotoInput');
         if (inp) inp.onchange = async () => {
           const files = Array.from(inp.files || []).slice(0, 6 - (r.photos || []).length);
