@@ -25,13 +25,6 @@ Rồi mở `http://localhost:8777/index.html`.
   - **Nhân viên vận hành** — ẩn dữ liệu tài chính và các mục ngoài phạm vi.
 - Đổi vai trò bất cứ lúc nào ở ô **Tài khoản** (góc phải thanh nav xanh).
 
-## Bố cục kiểu LOZIDO
-- **Thanh nav xanh trên cùng**: Quản lý nhà · Tổng báo cáo · Khách chuyển khoản · Đăng tin · Môi giới · Công ty/nhóm · Cài đặt chung · Thông báo · Tài khoản · Đăng xuất.
-- **Hàng thẻ module** (theo tòa nhà): Quản lý phòng · Hóa đơn · Dịch vụ · Hợp đồng · Tài sản · Khách thuê · **Thêm** (Chỉ số điện nước, Thanh toán & công nợ, Thu chi, Khóa thông minh, Cấu hình).
-- **Thẻ chọn tòa nhà** (đổi nhanh giữa các tòa) + banner "Tòa nhà thử nghiệm".
-- **Trang phòng**: 4 thẻ tổng hợp (Tổng tiền khách nợ / Tổng tiền cọc / Cọc giữ chỗ / Sự cố phòng), chip lọc có badge số, **Ẩn/Hiện cột**, Xuất excel, chế độ Sơ đồ ⇄ Bảng.
-- **Khách thuê**: gộp theo phòng, cột Khóa thông minh (TTLock), CCCD (số/ngày cấp/nơi cấp/ảnh 2 mặt), Xe (biển số), lọc tạm trú & giấy tờ.
-- **Tài sản**: modal "Thêm mới tài sản" với lưới chọn icon, giá trị, số lượng, đơn vị.
 
 ## Tính năng đã dựng
 
