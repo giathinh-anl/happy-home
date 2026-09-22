@@ -554,12 +554,17 @@ table.dt tr.disabled-row td { color: var(--neutral-400); background: var(--neutr
 .lz-home-ic { width: 44px; height: 44px; border-radius: var(--r-input); background: var(--teal-50); color: var(--teal-600); display: grid; place-items: center; }
 
 /* ---------- LOZIDO: chip lọc ---------- */
-.lz-chips { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: var(--sp-4); }
-.lz-chips-ic { color: var(--brand-600); font-size: 18px; }
+/* Hàng lọc phòng: LUÔN nằm trên một đường thẳng, dài quá thì vuốt ngang */
+.lz-chips {
+  display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; margin-bottom: var(--sp-4);
+}
+.lz-chips::-webkit-scrollbar { display: none; }
+.lz-chips-ic { flex: 0 0 auto; display: grid; place-items: center; height: 36px; color: var(--teal-600); font-size: 18px; }
 .lz-chip {
-  position: relative; display: inline-flex; align-items: center; gap: 8px;
-  padding: 6px 10px; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-input); font-weight: 500; font-size: 13.5px; color: var(--ink-2);
+  position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 12px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-input); font-weight: 600; font-size: 13.5px; color: var(--ink-2); white-space: nowrap;
 }
 .lz-chip:hover { border-color: var(--brand-200); }
 .lz-chip.on { border-color: var(--brand-500); background: var(--brand-50); color: var(--brand-700); }
