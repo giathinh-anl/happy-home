@@ -756,3 +756,25 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
   .lz-chips::-webkit-scrollbar { display: none; }
   .lz-chip { flex: 0 0 auto; }
 }
+
+/* ---------- Xem trước bài đăng Facebook (đúng bố cục ảnh như trên Facebook) ---------- */
+.fbp { border: 1px solid var(--line); border-radius: 14px; background: #fff; overflow: hidden; box-shadow: var(--shadow-xs);
+  font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color: #1c1e21; }
+.fbp-h { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; }
+.fbp-av { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; background: #FBF7F0; border: 1px solid #EFE6D8; display: grid; place-items: center; }
+.fbp-av img { width: 28px; height: auto; }
+.fbp-h b { display: block; font-size: 15px; font-weight: 600; }
+.fbp-h small { font-size: 12.5px; color: #65676b; }
+.fbp-t { padding: 0 14px 12px; font-size: 14.5px; line-height: 1.45; word-break: break-word; max-height: 260px; overflow: auto; }
+.fbp-photos { display: grid; gap: 2px; }
+.fbp-photos.n1 { grid-template-columns: 1fr; }
+.fbp-photos.n2, .fbp-photos.n4 { grid-template-columns: 1fr 1fr; }
+.fbp-photos.n3 { grid-template-columns: 2fr 1fr; }
+.fbp-photos.n3 .fbp-ph:first-child { grid-row: span 2; aspect-ratio: auto; }
+.fbp-photos.n5 { grid-template-columns: repeat(6, 1fr); }
+.fbp-photos.n5 .fbp-ph { grid-column: span 2; }
+.fbp-photos.n5 .fbp-ph:nth-child(-n+2) { grid-column: span 3; }
+.fbp-ph { position: relative; aspect-ratio: 1; overflow: hidden; background: #f0f2f5; }
+.fbp-photos.n1 .fbp-ph { aspect-ratio: 4 / 3; }
+.fbp-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fbp-ph span { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.45); color: #fff; font-size: 28px; font-weight: 700; }

@@ -180,6 +180,24 @@ HH.backend = (function () {
     return client.rpc(name, args || {});
   }
 
+  /* Đăng tin lên Trang Facebook qua Edge Function fb-post.
+     Mã truy cập Trang nằm ở máy chủ; trình duyệt chỉ gửi nội dung + ảnh,
+     kèm phiên đăng nhập (supabase-js tự gắn) để máy chủ biết ai đang đăng. */
+  async function postFacebook(payload) {
+    if (!enabled) return { error: { message: 'Chưa kết nối máy chủ' } };
+    const { data, error } = await client.functions.invoke('fb-post', { body: payload });
+    if (!error) return { data };
+    let msg = error.message || 'Không gửi được';
+    const res = error.context;                     // Response khi hàm trả mã lỗi
+    if (res && typeof res.json === 'function') {
+      if (res.status === 404) msg = 'Máy chủ chưa bật chức năng đăng Facebook (chưa triển khai hàm fb-post, xem FACEBOOK_SETUP.md).';
+      else { try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (e) {} }
+    } else if (/fetch|network|relay/i.test(msg)) {
+      msg = 'Không gọi được máy chủ đăng Facebook. Kiểm tra mạng, hoặc hàm fb-post chưa được triển khai.';
+    }
+    return { error: { message: msg } };
+  }
+
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
-    loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, rpc, client: () => client, KINDS };
+    loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, client: () => client, KINDS };
 })();

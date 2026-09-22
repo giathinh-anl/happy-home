@@ -644,6 +644,59 @@
     else UI.toast('Trình duyệt không hỗ trợ sao chép', { type: 'error' });
   }
 
+  /* ---- Đăng thẳng lên Trang Facebook ----
+     Xem trước đúng như bài sẽ hiện trên Trang, bấm "Xác nhận đăng" là đăng
+     (qua Edge Function fb-post: mã truy cập Trang nằm ở máy chủ, không ở trình duyệt). */
+  function fbConfirm(b, r, message, onDone) {
+    const photos = (r.photos || []).slice(0, 10);
+    const live = S.usingBackend();
+    const pageName = (window.HH_CONFIG && HH_CONFIG.fbPageName) || 'Trang Facebook của bạn';
+    const shown = photos.slice(0, 5);
+    const grid = shown.length ? `<div class="fbp-photos n${shown.length}">${shown.map((p, i) => `<div class="fbp-ph"><img src="${p}" alt="">
+        ${i === 4 && photos.length > 5 ? `<span>+${photos.length - 5}</span>` : ''}</div>`).join('')}</div>` : '';
+    const long = message.length > 360;
+    const text = U.esc(long ? message.slice(0, 360) : message).split('\n').join('<br>') + (long ? '... <b>Xem thêm</b>' : '');
+    UI.modal({
+      title: 'Đăng lên Facebook',
+      bodyHtml: `
+        ${live ? '' : `<div class="alert alert-info" style="margin-bottom:12px"><span class="ic">${HH.ic('info', 16)}</span>
+          <div>Bản demo chỉ xem trước, không nối Facebook. Trên web thật (đã nối Supabase và bật hàm <span class="code">fb-post</span>),
+          bấm <b>Xác nhận đăng</b> là bài lên Trang ngay.</div></div>`}
+        <p class="muted text-sm" style="margin-bottom:10px">Bài sẽ hiện trên Trang như sau${photos.length ? `, kèm ${photos.length} ảnh` : ''}:</p>
+        <div class="fbp">
+          <div class="fbp-h"><span class="fbp-av"><img src="assets/logo-mark.svg" alt=""></span>
+            <div><b>${U.esc(pageName)}</b><small>Vừa xong, công khai</small></div></div>
+          <div class="fbp-t">${text}</div>
+          ${grid}
+        </div>
+        ${photos.length ? '' : `<div class="alert alert-warning" style="margin-top:12px"><span class="ic">${HH.ic('camera', 16)}</span>
+          <div>Phòng chưa có ảnh. Tin không ảnh ít người xem, nên thêm ảnh trước khi đăng.</div></div>`}
+        <div id="fbErr"></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span>
+        <button class="btn btn-primary" id="fbGo" ${live ? '' : 'disabled'}>${HH.ic('send', 16)} Xác nhận đăng</button>`,
+      onMount(el, close) {
+        const go = el.querySelector('#fbGo');
+        if (!live) return;
+        go.onclick = async () => {
+          const errBox = el.querySelector('#fbErr');
+          errBox.innerHTML = '';
+          go.classList.add('loading'); go.disabled = true;
+          const res = await HH.backend.postFacebook({ message, photos });
+          go.classList.remove('loading'); go.disabled = false;
+          if (res.error) {
+            errBox.innerHTML = `<div class="alert alert-danger" style="margin-top:12px"><span class="ic">${HH.ic('alert', 16)}</span>
+              <div>${U.esc(res.error.message)}</div></div>`;
+            return;
+          }
+          S.log('listing.facebook', `Đăng tin phòng ${r.code} (${b.name}) lên Trang Facebook`);
+          close(); if (onDone) onDone();
+          UI.toast(`Đã đăng tin phòng ${r.code} lên Facebook`, { type: 'ok', celebrate: true, sticky: true,
+            action: { label: 'Xem bài', onClick: () => window.open(res.data.url, '_blank', 'noopener') } });
+        };
+      },
+    });
+  }
+
   function listingDialog(b, r) {
     const photos = r.photos || [];
     const curAm = roomAmenities(b, r);
@@ -662,11 +715,13 @@
           <div class="lz-chips" style="margin-bottom:0">${raw(amChips)}</div></div>
         <div class="field" style="margin-top:14px"><label>Nội dung tin đăng (sửa được)</label>
           <textarea class="textarea" id="listingText" style="min-height:220px;font-size:14px">${U.esc(text)}</textarea></div>
-        <p class="muted text-xs" style="margin-top:8px">Mẹo: bấm <b>Chép nội dung</b> rồi dán vào Facebook/Zalo. Ảnh cần tải lên thủ công ở bài đăng.</p>`,
+        <p class="muted text-xs" style="margin-top:8px"><b>Đăng lên Facebook</b>: đăng thẳng lên Trang (Fanpage) kèm ${photos.length} ảnh.
+          Muốn đăng vào nhóm thì bấm <b>Chép và mở Facebook</b> rồi dán (Facebook không cho đăng tự động vào nhóm).</p>`,
       footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
         <button class="btn btn-outline" id="dlPhotos" ${photos.length ? '' : 'disabled'}>${HH.ic('download', 16)} Tải ảnh</button>
-        <button class="btn btn-outline" id="shareFb">${HH.ic('external', 16)} Mở Facebook</button>
-        <button class="btn btn-primary" id="copyListing">${HH.ic('copy', 16)} Chép nội dung</button>`,
+        <button class="btn btn-outline" id="copyListing">${HH.ic('copy', 16)} Chép nội dung</button>
+        <button class="btn btn-outline" id="shareFb">${HH.ic('external', 16)} Chép và mở Facebook</button>
+        <button class="btn btn-primary" id="postFb">${HH.pic('megaphone', 20)} Đăng lên Facebook</button>`,
       onMount(el, close) {
         const ta = el.querySelector('#listingText');
         let list = curAm.slice();
@@ -696,6 +751,7 @@
           ta.scrollTop = scroll;
         });
         el.querySelector('#copyListing').onclick = () => copyText(ta.value, 'nội dung tin');
+        el.querySelector('#postFb').onclick = () => fbConfirm(b, S.room(b.id, r.code) || r, ta.value, close);
         el.querySelector('#shareFb').onclick = () => {
           copyText(ta.value, 'nội dung tin');
           window.open('https://www.facebook.com/', '_blank', 'noopener');

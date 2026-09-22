@@ -321,6 +321,7 @@ table.dt .col-actions { width: 44px; text-align: right; }
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
 }
 .dialog-foot .spacer { flex: 1; }
+.dialog-foot { flex-wrap: wrap; }
 
 .danger-head { display: flex; align-items: center; gap: var(--sp-3); }
 .danger-head .warn-ic {

@@ -191,8 +191,8 @@
         <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
       </div>
       <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
-      ${enabled ? '' : '<div class="t-hint">' + HH.ic('alert', 16) + ' Chưa cấu hình máy chủ (js/config.js).</div>'}
-      <div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>
+      ${enabled ? '<div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>'
+        : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
       <div style="flex:1"></div>
       <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
     </div>`;
@@ -208,13 +208,21 @@
         state.pendingPhone = phone; state.data = data; state.otpTries = 0;
         go('#/otp');
       } catch (e) {
+        if (e.message === 'NO_CONFIG') {        // lời nhắc đã hiện sẵn bên dưới, chỉ làm nó nháy lên cho dễ thấy
+          const box = document.querySelector('#cfgWarn .t-err');
+          if (box && box.animate) box.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
+          return;
+        }
         el('loginErr').innerHTML = errBox(e.message === 'NOT_ACTIVATED'
           ? 'App khách thuê chưa được kích hoạt (cần chạy SQL migration-tenant-app.sql).'
-          : e.message === 'NO_CONFIG' ? 'Chưa cấu hình máy chủ.' : 'Không kết nối được máy chủ. Thử lại sau.');
+          : e.message === 'NO_CONFIG' ? NO_CONFIG_MSG : 'Không kết nối được máy chủ. Thử lại sau.');
       } finally { btn.classList.remove('loading'); btn.disabled = false; }
     };
   }
   const errBox = (m) => `<div class="t-err"><span>${HH.ic('alert', 16)}</span><div>${esc(m)}</div></div>`;
+  // Tệp js/config.js chứa địa chỉ máy chủ nên cố ý không đưa lên GitHub -> máy khác tải mã về sẽ thiếu
+  const NO_CONFIG_MSG = 'Chưa kết nối máy chủ: thiếu tệp js/config.js (tệp này không có trên GitHub). '
+    + 'Chép js/config.js từ máy chính vào thư mục js của dự án rồi tải lại trang.';
 
   /* ---------- màn hình: OTP ---------- */
   function screenOtp() {
