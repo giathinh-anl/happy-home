@@ -305,12 +305,22 @@
   }
 
   /* ---------- khung có header + nội dung ---------- */
+  // Hình chìm trang trí theo tên trang, cho các trang con đỡ trống trải
+  const HEAD_PIC = {
+    'Hóa đơn': 'receipt', 'Chi tiết hóa đơn': 'receipt', 'Thanh toán': 'wallet',
+    'Xác nhận chuyển khoản': 'card', 'Báo hỏng': 'wrench', 'Yêu cầu sửa chữa': 'clipboard',
+    'Gửi chỉ số điện': 'meter', 'Phòng của tôi': 'door', 'Hợp đồng': 'contract',
+    'Hợp đồng & điều khoản': 'contract', 'Lịch sử điện': 'chart', 'Bảng giá dịch vụ': 'concierge',
+    'Lịch sử thanh toán': 'coins', 'Tài khoản': 'user',
+  };
+
   function shell(title, body, opts) {
     opts = opts || {};
     const header = opts.home
       ? `<div class="t-header"><div class="brand"><span class="mark">${logoImg(24)}</span><span class="wordmark">happy home</span></div>
            <button class="iconbtn" id="reload" title="Tải lại">${HH.ic('refresh', 16)}</button></div>`
-      : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
+      : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div>
+           <span class="h-art" aria-hidden="true">${HH.pic(HEAD_PIC[title] || 'house', 76)}</span></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
     // Nút trợ lý ảo nổi — hiện ở các màn hình chính (điện thoại)
     const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">${HH.pic('chat', 30)}</button>` : '';
@@ -318,7 +328,10 @@
     const deskHead = opts.hero ? '' : `<div class="t-page-head"><h1>${esc(opts.deskTitle || title || 'Trang chủ')}</h1>
       ${opts.deskSub ? `<p>${esc(opts.deskSub)}</p>` : ''}</div>`;
     el('tapp').innerHTML = `<div class="t-app">${sidebar()}${header}
-      <div class="t-main">${deskHead}${body}</div>${fab}${tabs}</div>`;
+      <div class="t-main">${deskHead}${body}
+        <footer class="t-foot" aria-hidden="true"><div class="t-foot-art">${HH.scene({ align: 'xMidYMax' })}</div>
+          <span>happy home, nhà của bạn</span></footer>
+      </div>${fab}${tabs}</div>`;
     const fb = el('chatFab'); if (fb) fb.onclick = () => go('#/chat');
     wireTabs();   // thanh bên dùng chung data-tab
     const slo = el('sideLogout');
@@ -1401,7 +1414,7 @@
       <div class="chat-body" id="chatBody" aria-live="polite">${body}${chat.busy ? '<div class="chat-typing"><i></i><i></i><i></i></div>' : ''}</div>
       <div class="chat-sugg">${sugg.map(s => `<button data-sugg="${esc(s)}">${esc(s)}</button>`).join('')}</div>
       <div class="chat-input">
-        <textarea id="chatIn" rows="1" placeholder="Hỏi về tiền phòng, điện nước, hợp đồng…"></textarea>
+        <textarea id="chatIn" rows="1" placeholder="Hỏi về tiền phòng, điện, hợp đồng…"></textarea>
         <button class="chat-send" id="chatSend" aria-label="Gửi">${HH.ic('send', 16)}</button>
       </div></div></div>`;
 

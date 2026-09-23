@@ -187,8 +187,22 @@ HH.app = (function () {
     return `<div class="lz-app" id="lzApp">
       ${top}
       <main class="lz-content"><div class="content-inner" id="pageRoot">${contentHtml}</div></main>
+      <footer class="app-foot" aria-hidden="true">
+        <div class="app-foot-art">${HH.scene({ align: 'xMidYMax' })}</div>
+        <span class="app-foot-t">happy home, quản lý nhà cho thuê</span>
+      </footer>
       ${bottom}
     </div>`;
+  }
+
+  /* Đầu mỗi trang có hình mờ của mục đang mở, cho trang bớt trơ */
+  function decorateHead(path) {
+    const head = document.querySelector('#pageRoot .page-head');
+    if (!head || head.querySelector('.ph-art')) return;
+    const seg = path.startsWith('/b/') ? (path.split('/')[3] || 'units') : null;
+    const m = seg ? MODULES.concat(MORE).find(x => x.seg === seg) : TOP_TILES.find(t => t.path === path);
+    head.classList.add('has-art');
+    head.insertAdjacentHTML('beforeend', `<span class="ph-art">${pic(m ? (m.pic || m.ic) : 'house', 104)}</span>`);
   }
 
   function pageCtx(pageKey, params, route) {
@@ -258,6 +272,7 @@ HH.app = (function () {
     HH.fx.slide(document.getElementById('mbNav'), 'mb');
     HH.fx.slide(document.getElementById('mTabs'), 'mtab');
     if (!same && !inVT) HH.fx.enter(document.getElementById('pageRoot'));
+    decorateHead(path);
     watchStuck();
   }
 
