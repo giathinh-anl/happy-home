@@ -202,8 +202,17 @@
   }
 
   /* ---------- màn hình: ĐĂNG NHẬP ---------- */
+  const TICKER_T = [
+    '🏠 Happy Home — nhà của bạn, gọn trong một app',
+    '🧾 Hóa đơn rõ từng khoản, xem lại mọi tháng',
+    '💳 Quét mã là chuyển khoản, khỏi nhớ nội dung',
+    '📷 Chụp đồng hồ điện, gửi thẳng cho chủ nhà',
+    '🔧 Báo hỏng kèm ảnh, theo dõi tới khi xong',
+  ];
+
   function screenLogin() {
     el('tapp').innerHTML = `<div class="t-login">
+      ${HH.promo.ticker(TICKER_T)}
       <div class="t-login-art" aria-hidden="true">${HH.scene()}</div>
       <div class="logo"><div class="t-sign"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804"></div>
         <h1 class="sr-only">Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>

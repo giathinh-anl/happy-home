@@ -7,15 +7,18 @@
    biển logo gỗ + câu chào, bên phải là thẻ đăng nhập trắng nổi lên. */
 .login-page {
   position: relative; min-height: 100vh; min-height: 100dvh; overflow-x: hidden;
+  display: flex; flex-direction: column;
   background: linear-gradient(180deg, #D3EFE9 0%, #EAF6F1 58%, #F3F7F2 100%);
 }
 .login-art { position: fixed; left: 0; right: 0; bottom: 0; height: clamp(230px, 40vh, 400px); pointer-events: none; }
 .login-wrap {
-  position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; min-height: 100vh; min-height: 100dvh;
+  position: relative; z-index: 1; width: 100%; max-width: 1180px; margin: 0 auto; flex: 1 1 auto;
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
   grid-template-rows: auto auto; gap: 28px 56px; align-content: center;
-  padding: 40px 32px 72px;
+  padding: 36px 32px 92px;
 }
+/* Chừa chỗ dưới trái cho thẻ hoạt động */
+@media (min-width: 1100px) and (min-height: 820px) { .login-wrap { padding-bottom: 176px; } }
 .login-brand { grid-area: 1 / 1; align-self: end; }
 .login-ads { grid-area: 2 / 1; align-self: start; }
 .login-form-wrap { grid-area: 1 / 2 / span 2 / auto; align-self: center; }

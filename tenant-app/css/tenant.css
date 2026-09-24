@@ -639,7 +639,9 @@ button:hover > .pic, .quick-item:hover .pic, .t-nav:hover .pic, .t-action:hover 
 .t-login .logo .t-sign .logo3d { width: 100%; height: 100%; margin: 0; object-fit: cover; transform: scale(1.2); -webkit-mask-image: none; mask-image: none; }
 .t-login .logo .mark { width: 76px; height: 76px; border-radius: 22px; box-shadow: 0 12px 28px rgba(10,58,57,.18), 0 0 0 5px #fff; animation: signIn .8s var(--spring) backwards; }
 .t-login .lead { font-weight: 600; }
-.t-login > *:not(.t-login-art):not(.logo) { animation: fxUp .6s var(--ease-out) .2s backwards; }
+.t-login > *:not(.t-login-art):not(.logo):not(.hh-ticker) { animation: fxUp .6s var(--ease-out) .2s backwards; }
+.t-login .hh-ticker { margin: -28px -20px 0; }
+.t-login .hh-ticker + .t-login-art { margin-top: 0; }
 .t-ads { margin-top: 20px; }
 .t-hint { border-radius: 14px; font-weight: 600; }
 .otp-boxes input { border-radius: 14px; font-family: var(--font-display); font-weight: 800; }

@@ -24,7 +24,10 @@ HH.pages = HH.pages || {};
       let wi = 0;
       const words = (t, cls) => t.split(' ').map(w => `<span class="w ${cls || ''}" style="--i:${wi++}">${U.esc(w)}</span>`).join(' ');
       return h`<div class="login-page">
+        ${raw(HH.promo.ticker())}
         <div class="login-art" aria-hidden="true">${HH.scene()}</div>
+        ${raw(HH.promo.sky())}
+        <div class="hh-feed" data-promo-feed aria-hidden="true"></div>
         <div class="login-wrap">
           <section class="login-brand">
             <div class="login-sign"><img class="login-logo3d" src="assets/logo-3d.webp" alt="Logo Happy Home" width="2000" height="1804"></div>
@@ -64,7 +67,9 @@ HH.pages = HH.pages || {};
       </div>`;
     },
     mount() {
-      HH.promo.mount(document.querySelector('.login-page'));
+      const page = document.querySelector('.login-page');
+      HH.promo.mount(page);
+      HH.promo.feed(page);
       if (S.usingBackend()) return mountBackendAuth();
       mountDemoAuth();
     },

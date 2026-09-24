@@ -1,11 +1,48 @@
 /* ============================================================
-   Băng-rôn giới thiệu ở màn đăng nhập — dùng chung cho trang quản trị
-   và app khách thuê. Đi kèm js/promo.js.
+   Trang ngoài trước khi đăng nhập: thanh chữ chạy, hình khối bay,
+   băng-rôn màu và thẻ hoạt động. Đi kèm js/promo.js.
    ============================================================ */
-.promo { --promo-dur: 5200ms; position: relative; width: 100%; max-width: 560px; }
+
+/* ---------- thanh chữ chạy trên cùng ---------- */
+.hh-ticker {
+  position: relative; z-index: 3; overflow: hidden; white-space: nowrap;
+  background: linear-gradient(90deg, #F2A224, #F7C45A 45%, #F2A224);
+  border-bottom: 1px solid rgba(140, 80, 10, .18);
+  box-shadow: 0 2px 10px rgba(140, 80, 10, .14);
+}
+.hh-ticker-run { display: inline-flex; animation: hhTick 34s linear infinite; }
+.hh-ticker-run span {
+  flex: 0 0 auto; padding: 8px 34px; font-size: 13.5px; font-weight: 800; color: #5A3606;
+}
+.hh-ticker:hover .hh-ticker-run { animation-play-state: paused; }
+@keyframes hhTick { to { transform: translateX(-50%); } }
+
+/* ---------- hình khối màu bay lơ lửng ---------- */
+.hh-sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.hh-sky .sh {
+  position: absolute; width: var(--s); height: var(--s); opacity: .5;
+  animation: hhFloat var(--u) ease-in-out var(--d) infinite;
+}
+.hh-sky .sh[data-tone="sun"]   { --c: #F2A224; }
+.hh-sky .sh[data-tone="coral"] { --c: #E9573B; }
+.hh-sky .sh[data-tone="sky"]   { --c: #2D7FDC; }
+.hh-sky .sh[data-tone="grape"] { --c: #7858E0; }
+.hh-sky .sh[data-tone="leaf"]  { --c: #2DA05D; }
+.hh-sky .dot  { border-radius: 50%; background: var(--c); opacity: .45; }
+.hh-sky .ring { border-radius: 50%; border: 5px solid var(--c); opacity: .4; }
+.hh-sky .sq   { border-radius: 4px; background: var(--c); opacity: .38; transform: rotate(24deg); }
+.hh-sky .tri  { background: var(--c); opacity: .4; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+@keyframes hhFloat {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  33%      { transform: translate(12px, -18px) rotate(8deg); }
+  66%      { transform: translate(-10px, 12px) rotate(-6deg); }
+}
+
+/* ---------- băng-rôn ---------- */
+.promo { --promo-dur: 5200ms; position: relative; width: 100%; max-width: 580px; }
 .promo-view {
-  overflow: hidden; border-radius: 26px; touch-action: pan-y;
-  box-shadow: 0 18px 44px rgba(10, 58, 57, .13), 0 2px 8px rgba(10, 58, 57, .06);
+  overflow: hidden; border-radius: 28px; touch-action: pan-y;
+  box-shadow: 0 22px 50px rgba(10, 58, 57, .22), 0 3px 10px rgba(10, 58, 57, .1);
   animation: promoRise .7s var(--ease-out, cubic-bezier(.22,.9,.24,1)) .5s backwards;
 }
 .promo-track {
@@ -14,45 +51,61 @@
 }
 .promo-slide {
   flex: 0 0 100%; min-width: 0; position: relative; overflow: hidden;
-  display: flex; align-items: center; gap: 14px;
-  min-height: 178px; padding: 22px 20px;
-  background: var(--tone-bg); color: var(--ink, #12312F);
+  display: flex; align-items: center; gap: 16px;
+  min-height: 196px; padding: 24px 22px;
+  background: var(--tone-bg); color: #fff;
   -webkit-user-select: none; user-select: none;
 }
-/* Màu từng tấm */
-.promo-slide[data-tone="sun"]   { --tone: var(--sun);   --tone-bg: linear-gradient(135deg, #FFF6E2, #FFE9BF); }
-.promo-slide[data-tone="sky"]   { --tone: var(--sky);   --tone-bg: linear-gradient(135deg, #EAF4FF, #D6E9FF); }
-.promo-slide[data-tone="coral"] { --tone: var(--coral); --tone-bg: linear-gradient(135deg, #FFEFE9, #FFDDD2); }
-.promo-slide[data-tone="grape"] { --tone: var(--grape); --tone-bg: linear-gradient(135deg, #F3EEFF, #E5DCFF); }
-.promo-slide[data-tone="leaf"]  { --tone: var(--leaf);  --tone-bg: linear-gradient(135deg, #E9F8EE, #D6F0E0); }
+/* Màu từng tấm — nền đậm, chữ trắng */
+.promo-slide[data-tone="teal"]  { --tone: #0F5C5B; --tone-bg: linear-gradient(135deg, #0B4645, #17948F 88%); }
+.promo-slide[data-tone="sky"]   { --tone: #2D7FDC; --tone-bg: linear-gradient(135deg, #1B5FB8, #4FA3F7 90%); }
+.promo-slide[data-tone="coral"] { --tone: #E9573B; --tone-bg: linear-gradient(135deg, #D33F26, #FF8A5B 92%); }
+.promo-slide[data-tone="grape"] { --tone: #7858E0; --tone-bg: linear-gradient(135deg, #5B3FC4, #A188FF 92%); }
+.promo-slide[data-tone="sun"]   { --tone: #F2A224; --tone-bg: linear-gradient(135deg, #E07C0C, #FFC24D 92%); }
+.promo-slide[data-tone="leaf"]  { --tone: #2DA05D; --tone-bg: linear-gradient(135deg, #1B8047, #5FCB8B 92%); }
 
-/* Bong bóng màu trôi lững lờ phía sau */
-.promo-blob { position: absolute; border-radius: 50%; background: var(--tone); opacity: .13; pointer-events: none; }
-.promo-blob.b1 { width: 190px; height: 190px; right: -54px; top: -72px; }
-.promo-blob.b2 { width: 120px; height: 120px; left: -40px; bottom: -56px; opacity: .1; }
+/* Bong bóng sáng trôi phía sau */
+.promo-blob { position: absolute; border-radius: 50%; background: #fff; opacity: .1; pointer-events: none; }
+.promo-blob.b1 { width: 210px; height: 210px; right: -62px; top: -84px; }
+.promo-blob.b2 { width: 130px; height: 130px; left: -44px; bottom: -62px; opacity: .08; }
 .promo-slide.is-on .promo-blob.b1 { animation: promoDrift 9s ease-in-out infinite; }
 .promo-slide.is-on .promo-blob.b2 { animation: promoDrift 11s ease-in-out infinite reverse; }
 
+/* Hình khối nhỏ trong băng-rôn */
+.ps-sh { position: absolute; pointer-events: none; opacity: .5; }
+.ps-sh.a { width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; right: 28%; top: 16px; }
+.ps-sh.b { width: 10px; height: 10px; border-radius: 3px; background: #fff; right: 12%; bottom: 22px; transform: rotate(28deg); opacity: .4; }
+.ps-sh.c { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid #fff; left: 8%; bottom: 14px; opacity: .35; }
+.promo-slide.is-on .ps-sh.a { animation: hhFloat 9s ease-in-out infinite; }
+.promo-slide.is-on .ps-sh.b { animation: hhFloat 11s ease-in-out .4s infinite reverse; }
+.promo-slide.is-on .ps-sh.c { animation: hhFloat 13s ease-in-out .8s infinite; }
+
 .promo-txt { position: relative; z-index: 1; flex: 1 1 auto; min-width: 0; }
 .promo-tag {
-  display: inline-block; padding: 4px 11px; border-radius: 99px; margin-bottom: 9px;
-  background: rgba(255, 255, 255, .8); color: var(--tone);
-  font-size: 11.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+  display: inline-block; padding: 4px 12px; border-radius: 99px; margin-bottom: 10px;
+  background: rgba(255, 255, 255, .22); border: 1px solid rgba(255, 255, 255, .4); color: #fff;
+  font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
 }
 .promo-txt h3 {
-  font-family: var(--font-display); font-size: clamp(19px, 2.1vw, 23px); font-weight: 800;
-  line-height: 1.22; letter-spacing: -.01em; color: var(--teal-900, #0A3A39);
+  font-family: var(--font-display); font-size: clamp(20px, 2.2vw, 25px); font-weight: 800;
+  line-height: 1.2; letter-spacing: -.012em; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .16);
 }
-.promo-txt p { margin-top: 7px; font-size: 13.5px; font-weight: 600; line-height: 1.45; color: var(--ink-2, #4A6B69); }
+.promo-txt p { margin-top: 8px; font-size: 13.5px; font-weight: 600; line-height: 1.45; color: rgba(255, 255, 255, .92); }
 
-.promo-pic { position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center; }
-.promo-pic svg { display: block; filter: drop-shadow(0 8px 16px rgba(10, 58, 57, .16)); }
+/* Hình minh họa đặt trong ô trắng bo tròn cho nổi trên nền màu */
+.promo-pic {
+  position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center;
+  width: 96px; height: 96px; border-radius: 26px; background: #fff;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .18), 0 0 0 6px rgba(255, 255, 255, .22);
+}
+.promo-pic svg { display: block; }
 .promo-slide.is-on .promo-pic { animation: promoFloat 4.5s ease-in-out .5s infinite; }
 
 /* Vệt sáng quét ngang khi tấm mới vào */
 .promo-shine {
   position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, .55) 50%, transparent 62%);
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, .34) 50%, transparent 62%);
   transform: translateX(-100%);
 }
 .promo-slide.is-on .promo-shine { animation: promoShine 1.25s ease-out .25s; }
@@ -67,20 +120,53 @@
 .promo-dots { display: flex; justify-content: center; gap: 7px; margin-top: 14px; }
 .promo-dot {
   width: 9px; height: 9px; padding: 0; border: none; border-radius: 99px; cursor: pointer;
-  background: rgba(10, 58, 57, .16); overflow: hidden; transition: width .4s var(--spring, ease), background .3s;
+  background: rgba(10, 58, 57, .18); overflow: hidden; transition: width .4s var(--spring, ease), background .3s;
 }
 .promo-dot i { display: block; width: 0; height: 100%; border-radius: 99px; background: var(--teal-600, #167F7C); }
-.promo-dot.is-on { width: 30px; background: rgba(10, 58, 57, .13); }
+.promo-dot.is-on { width: 32px; background: rgba(10, 58, 57, .15); }
 .promo-dot.is-on i { animation: promoFill var(--promo-dur) linear forwards; }
 .promo.is-hold .promo-dot.is-on i { animation-play-state: paused; }
 
 /* Bản nhỏ (app khách thuê trên điện thoại) */
 .promo.compact { max-width: none; }
-.promo.compact .promo-view { border-radius: 22px; }
-.promo.compact .promo-slide { min-height: 146px; padding: 18px 16px; gap: 10px; }
-.promo.compact .promo-txt h3 { font-size: 18px; }
-.promo.compact .promo-txt p { font-size: 12.5px; margin-top: 5px; }
+.promo.compact .promo-view { border-radius: 24px; }
+.promo.compact .promo-slide { min-height: 158px; padding: 18px 16px; gap: 12px; }
+.promo.compact .promo-txt h3 { font-size: 19px; }
+.promo.compact .promo-txt p { font-size: 12.5px; margin-top: 6px; }
+.promo.compact .promo-pic { width: 76px; height: 76px; border-radius: 22px; }
 .promo.compact .promo-dots { margin-top: 10px; }
+
+/* ---------- thẻ hoạt động nhảy lên góc trái ---------- */
+.hh-feed {
+  position: fixed; left: 18px; bottom: 18px; z-index: 5; width: 320px;
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+}
+.hh-feed-card {
+  display: flex; align-items: center; gap: 11px; padding: 11px 12px;
+  background: rgba(255, 255, 255, .96); border-radius: 18px;
+  border: 1px solid rgba(10, 58, 57, .07); box-shadow: 0 14px 34px rgba(10, 58, 57, .16);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: feedIn .55s var(--spring, cubic-bezier(.34,1.56,.64,1)) backwards;
+}
+.hh-feed-card.out { animation: feedOut .45s ease forwards; }
+.hh-feed-card .fd-ic {
+  flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+  background: var(--fd-bg, #E9F6F4);
+}
+.hh-feed-card[data-tone="teal"]  { --fd-bg: #E3F2F0; }
+.hh-feed-card[data-tone="sky"]   { --fd-bg: #E6F2FF; }
+.hh-feed-card[data-tone="coral"] { --fd-bg: #FFEBE4; }
+.hh-feed-card[data-tone="grape"] { --fd-bg: #F0EBFF; }
+.hh-feed-card[data-tone="sun"]   { --fd-bg: #FFF4DC; }
+.hh-feed-card[data-tone="leaf"]  { --fd-bg: #E5F6EA; }
+.hh-feed-card .fd-tx { min-width: 0; flex: 1 1 auto; }
+.hh-feed-card .fd-tx b { display: block; font-size: 13.5px; font-weight: 800; color: var(--teal-900, #0A3A39); }
+.hh-feed-card .fd-tx span { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--ink-2, #4A6B69); }
+.hh-feed-card .fd-tag {
+  flex: 0 0 auto; align-self: flex-start; padding: 2px 8px; border-radius: 99px;
+  background: rgba(10, 58, 57, .07); color: var(--ink-3, #7B9694); font-size: 10.5px; font-weight: 700;
+}
+@media (max-width: 1099px), (max-height: 819px) { .hh-feed { display: none; } }
 
 @keyframes promoRise  { from { opacity: 0; transform: translateY(22px) scale(.97); } }
 @keyframes promoIn    { from { opacity: 0; transform: translateY(14px); } }
@@ -89,7 +175,10 @@
 @keyframes promoDrift { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-16px, 14px) scale(1.12); } }
 @keyframes promoShine { to { transform: translateX(100%); } }
 @keyframes promoFill  { from { width: 0; } to { width: 100%; } }
+@keyframes feedIn     { from { opacity: 0; transform: translateX(-26px) scale(.94); } }
+@keyframes feedOut    { to { opacity: 0; transform: translateX(-26px) scale(.94); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .promo-view, .promo-track, .promo-slide *, .promo-dot i { animation: none !important; transition: none !important; }
+  .hh-ticker-run, .hh-sky .sh, .promo-view, .promo-track,
+  .promo-slide *, .promo-dot i, .hh-feed-card { animation: none !important; transition: none !important; }
 }
