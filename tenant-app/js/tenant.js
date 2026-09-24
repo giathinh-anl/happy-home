@@ -214,9 +214,11 @@
       <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
       ${enabled ? '<div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>'
         : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
+      <div class="t-ads">${HH.promo.html(HH.promo.TENANT, { compact: true })}</div>
       <div style="flex:1"></div>
       <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
     </div>`;
+    HH.promo.mount(el('tapp'));
     el('phone').addEventListener('keydown', e => { if (e.key === 'Enter') el('sendOtp').click(); });
     el('sendOtp').onclick = async () => {
       const phone = (el('phone').value || '').replace(/\s/g, '').replace(/^\+?84/, '0');

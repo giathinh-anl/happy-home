@@ -30,11 +30,6 @@ HH.pages = HH.pages || {};
             <div class="login-sign"><img class="login-logo3d" src="assets/logo-3d.webp" alt="Logo Happy Home" width="2000" height="1804"></div>
             <h2 class="login-h">${raw(words('Quản lý nhà cho thuê'))}<br>${raw(words('nhẹ tênh mỗi ngày', 'hl'))}</h2>
             <p class="login-sub">Phòng, hợp đồng, hóa đơn và công nợ gọn trong một nơi.</p>
-            <ul class="login-feats">
-              <li>${HH.pic('receipt', 30)}<span>Hóa đơn tự tính điện nước</span></li>
-              <li>${HH.pic('card', 30)}<span>Tự khớp tiền chuyển khoản</span></li>
-              <li>${HH.pic('chat', 30)}<span>Trợ lý ảo trả lời số liệu</span></li>
-            </ul>
           </section>
           <div class="login-form-wrap">
           <form class="login-form" id="loginForm" novalidate>
@@ -64,10 +59,12 @@ HH.pages = HH.pages || {};
             <a href="tenant-app/index.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
           </form>
           </div>
+          <div class="login-ads">${raw(HH.promo.html(HH.promo.OWNER))}</div>
         </div>
       </div>`;
     },
     mount() {
+      HH.promo.mount(document.querySelector('.login-page'));
       if (S.usingBackend()) return mountBackendAuth();
       mountDemoAuth();
     },
