@@ -25,25 +25,18 @@ Rồi mở `http://localhost:8777/index.html`.
 Mở là dùng được ngay trên điện thoại lẫn máy tính, dùng chung dữ liệu thật,
 không phải tải mã nguồn hay chép tệp cấu hình.
 
-## Cho bạn cùng nhóm tải mã về mà không đăng nhập được
+## Tải mã về chạy ở máy mình
 
-Máy tải mã từ GitHub về sẽ **thiếu tệp `js/config.js`** — tệp này chứa địa chỉ
-Supabase và khóa `anon`, cố ý không đưa lên GitHub (xem `.gitignore`). Thiếu nó thì:
+`js/config.js` (địa chỉ Supabase + khóa `anon`) **đã nằm sẵn trong kho mã**, nên
+tải về là chạy được ngay, không phải xin ai tệp cấu hình nữa. Khóa `anon` an toàn
+khi nằm trong trình duyệt vì đã có Row Level Security chặn theo từng người dùng —
+nhưng **tuyệt đối không** đặt `service_role key` vào đây.
 
-| Mở cái gì | Máy có `js/config.js` | Máy tải từ GitHub về (chưa có tệp) |
-|---|---|---|
-| `index.html` (chủ trọ) | đăng nhập bằng tài khoản thật | tự chạy **bản demo**, dữ liệu mẫu trong máy |
-| `tenant-app/index.html` (khách thuê) | đăng nhập bằng SĐT thật | báo *“Chưa kết nối máy chủ: thiếu tệp js/config.js”* |
+Ai tải mã về từ trước ngày 26/09/2026 thì `git pull` (hoặc tải lại bản zip) để có tệp này.
 
-**Cách sửa:** người có tệp gửi `js/config.js` cho cả nhóm (Zalo, Drive, USB),
-mỗi người chép vào thư mục `js/` của dự án rồi tải lại trang. Chỉ cần tệp ở
-`js/config.js` là app khách thuê cũng dùng chung được, không phải chép hai lần.
+Vào không được thì đọc đúng dòng báo lỗi:
 
-Khóa `anon` an toàn khi nằm trong trình duyệt vì đã có Row Level Security chặn
-theo từng người dùng — nhưng **tuyệt đối không** dùng `service_role key` ở đây.
-
-Đã có `js/config.js` mà app khách thuê vẫn không vào được thì đọc đúng dòng báo lỗi:
-
+- *“Chưa kết nối máy chủ: thiếu tệp js/config.js”* — bản mã cũ, `git pull` lại.
 - *“Số điện thoại chưa được đăng ký với chủ nhà”* — SĐT đó chưa có trong danh sách
   khách thuê. Vào trang chủ trọ thêm khách kèm SĐT trước, hoặc nhập SĐT của một
   khách đã có sẵn.
