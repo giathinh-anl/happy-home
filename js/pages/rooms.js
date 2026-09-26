@@ -168,6 +168,7 @@
       </div>
       <div class="field" style="margin-top:16px">
         <label>Ảnh phòng (${photos.length}/6) <span class="hint" style="font-weight:400">· dùng cho đăng tin</span></label>
+        <div id="roomPhotoWarn"></div>
         ${raw(photoHtml)}
         ${raw(S.isOwner() && photos.length < 6 ? `<div style="margin-top:8px">
           <label class="btn btn-outline btn-sm" style="width:fit-content">${HH.ic('camera', 16)} Tải ảnh lên<input type="file" accept="image/*" multiple hidden id="roomPhotoInput"></label></div>` : '')}
@@ -179,18 +180,43 @@
         el.querySelectorAll('[data-person]').forEach(b => b.onclick = () => {
           close(); HH.router.go(`/b/${ctx.bid}/tenants?tn=${encodeURIComponent(b.dataset.person)}`);
         });
+        // Máy chủ chưa chạy migration-room-photos.sql thì ảnh không lưu lên được —
+        // báo ngay khi mở phòng, đừng để người dùng tải lên rồi mới mất.
+        const warnBox = el.querySelector('#roomPhotoWarn');
+        if (warnBox && HH.backend.hasColumn) {
+          HH.backend.hasColumn('rooms', 'photos').then((ok) => {
+            if (ok || !warnBox.isConnected) return;
+            warnBox.innerHTML = `<div class="alert alert-warning" style="margin:6px 0"><span class="ic">${HH.ic('alert', 16)}</span>
+              <div>Máy chủ chưa bật chỗ lưu ảnh phòng nên ảnh chỉ nằm tạm trong máy này, tải lại trang là mất.
+              Vào Supabase → SQL Editor chạy tệp <span class="mono">supabase/migration-room-photos.sql</span> một lần là xong.</div></div>`;
+          });
+        }
+
         const inp = el.querySelector('#roomPhotoInput');
         if (inp) inp.onchange = async () => {
           const files = Array.from(inp.files || []).slice(0, 6 - (r.photos || []).length);
           if (!files.length) return;
           UI.toast('Đang xử lý ảnh...', { type: 'ok' });
-          try {
-            const list = (r.photos || []).slice();
-            for (const f of files) list.push(await U.compressImage(f, 1000, 0.72));
-            S.updateRoom(ctx.bid, r.code, { photos: list });
-            UI.toast(`Đã thêm ${files.length} ảnh`, { type: 'ok' });
-            close(); showRoom(ctx, S.room(ctx.bid, r.code));
-          } catch (err) { UI.toast('Không xử lý được ảnh', { type: 'error' }); }
+
+          // Bước 1: nén ảnh — lỗi ở đây mới thật sự là "không xử lý được ảnh"
+          const list = (r.photos || []).slice();
+          for (const f of files) {
+            try { list.push(await U.compressImage(f, 1000, 0.72)); }
+            catch (err) {
+              UI.toast(`Không đọc được tệp "${f.name}" — cần ảnh JPG, PNG hoặc WEBP`, { type: 'error' });
+              return;
+            }
+          }
+
+          // Bước 2: lưu, rồi mới báo và vẽ lại. Máy chủ chưa có cột thì nói rõ.
+          S.updateRoom(ctx.bid, r.code, { photos: list });
+          const saved = HH.backend.hasColumn ? await HH.backend.hasColumn('rooms', 'photos') : true;
+          if (saved) UI.toast(`Đã thêm ${files.length} ảnh`, { type: 'ok' });
+          else UI.toast(`Đã thêm ${files.length} ảnh nhưng chỉ lưu tạm trong máy này — `
+            + `máy chủ chưa chạy migration-room-photos.sql`, { sticky: true });
+          close();
+          const fresh = S.room(ctx.bid, r.code);
+          if (fresh) showRoom(ctx, fresh);
         };
         el.querySelectorAll('[data-delphoto]').forEach(b => b.onclick = () => {
           const list = (r.photos || []).slice(); list.splice(+b.dataset.delphoto, 1);

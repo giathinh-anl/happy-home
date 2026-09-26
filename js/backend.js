@@ -149,6 +149,23 @@ HH.backend = (function () {
     return { error: null };
   }
   async function saveOne(kind, obj) { return saveMany(kind, [obj]); }
+
+  /** Máy chủ đã có cột này chưa? (chưa chạy migration thì chưa có)
+      Dùng để báo thẳng cho người dùng thay vì âm thầm bỏ cột rồi mất dữ liệu.
+      Chế độ demo (không nối máy chủ) coi như có, vì dữ liệu nằm trong máy. */
+  const colCache = {};
+  async function hasColumn(kind, col) {
+    if (!enabled || !client) return true;
+    const key = kind + '.' + col;
+    if (key in colCache) return colCache[key];
+    try {
+      const { error } = await client.from(KINDS[kind]).select(col).limit(1);
+      const gone = !!error && (String(error.code) === '42703' ||
+        /does not exist|schema cache/i.test((error.message || '') + (error.details || '')));
+      colCache[key] = !gone;
+    } catch (e) { colCache[key] = true; }        // lỗi mạng thì đừng dọa người dùng
+    return colCache[key];
+  }
   async function deleteOne(kind, id) {
     if (!enabled) return;
     const { error } = await client.from(KINDS[kind]).delete().eq('id', id);
@@ -199,5 +216,6 @@ HH.backend = (function () {
   }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
-    loadAll, saveMany, saveOne, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, client: () => client, KINDS };
+    loadAll, saveMany, saveOne, hasColumn, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
+    client: () => client, KINDS };
 })();
