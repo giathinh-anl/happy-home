@@ -445,6 +445,16 @@ HH.store = (function () {
       return 'loaded';
     },
 
+    /* Đẩy ngay những thay đổi đang chờ lên máy chủ rồi mới trả về.
+       Dùng khi màn hình cần biết "đã lưu xong chưa" để báo cho người dùng,
+       thay vì bấm Lưu xong không thấy gì rồi tưởng trang bị treo. */
+    async flush() {
+      if (!usingBackend()) return { ok: true, demo: true };
+      clearTimeout(syncTimer); syncTimer = null;
+      try { await syncAll(); return { ok: true }; }
+      catch (e) { return { ok: false, message: e && e.message }; }
+    },
+
     /* Tải lại dữ liệu từ máy chủ.
        Khách gửi chỉ số, báo hỏng hay báo chuyển khoản trong lúc web đang mở thì
        phải tải lại mới thấy (dữ liệu chỉ nạp một lần lúc đăng nhập). */

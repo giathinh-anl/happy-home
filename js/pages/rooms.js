@@ -201,15 +201,20 @@
           // Bước 1: nén ảnh — lỗi ở đây mới thật sự là "không xử lý được ảnh"
           const list = (r.photos || []).slice();
           for (const f of files) {
-            try { list.push(await U.compressImage(f, 1000, 0.72)); }
+            // 900px chất lượng .65: nhẹ hơn ~40% mà vẫn đủ nét để đăng tin
+            try { list.push(await U.compressImage(f, 900, 0.65)); }
             catch (err) {
               UI.toast(`Không đọc được tệp "${f.name}" — cần ảnh JPG, PNG hoặc WEBP`, { type: 'error' });
               return;
             }
           }
 
-          // Bước 2: lưu, rồi mới báo và vẽ lại. Máy chủ chưa có cột thì nói rõ.
+          // Bước 2: lưu và ĐỢI đẩy xong lên máy chủ, có báo đang chạy cho đỡ tưởng treo
           S.updateRoom(ctx.bid, r.code, { photos: list });
+          const lbl = inp.closest('label');
+          if (lbl) { lbl.style.pointerEvents = 'none'; lbl.style.opacity = '.6'; }
+          if (S.flush) await S.flush();
+          if (lbl) { lbl.style.pointerEvents = ''; lbl.style.opacity = ''; }
           const saved = HH.backend.hasColumn ? await HH.backend.hasColumn('rooms', 'photos') : true;
           if (saved) UI.toast(`Đã thêm ${files.length} ảnh`, { type: 'ok' });
           else UI.toast(`Đã thêm ${files.length} ảnh nhưng chỉ lưu tạm trong máy này — `
@@ -225,9 +230,17 @@
           close(); showRoom(ctx, S.room(ctx.bid, r.code));
         });
         const save = el.querySelector('#saveRoomInfo');
-        if (save) save.onclick = () => {
+        if (save) save.onclick = async () => {
+          if (save.disabled) return;
           S.updateRoom(ctx.bid, r.code, { description: el.querySelector('#roomDesc').value.trim() });
-          close(); UI.toast('Đã lưu thông tin phòng', { type: 'ok' }); HH.router.render();
+          save.disabled = true; save.classList.add('loading');
+          const was = save.textContent; save.textContent = 'Đang lưu...';
+          const res = S.flush ? await S.flush() : { ok: true };
+          save.disabled = false; save.classList.remove('loading'); save.textContent = was;
+          close();
+          UI.toast(res.ok ? 'Đã lưu thông tin phòng' : 'Chưa lưu được lên máy chủ, thử lại sau',
+            { type: res.ok ? 'ok' : 'error' });
+          HH.router.render();
         };
       } });
   }

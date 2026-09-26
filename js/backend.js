@@ -123,19 +123,45 @@ HH.backend = (function () {
         }
         out[kind] = (data || []).map((r) => rowToJs(kind, r));
       }
-      if (!failedMsg) return { data: out };
+      if (!failedMsg) { primeSig(out); return { data: out }; }
       console.warn('Tải dữ liệu lỗi (thử lại ' + (attempt + 1) + '/3):', failedMsg);
       await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
     }
     return { error: true };
   }
+  /* ---------- Chỉ gửi những dòng THẬT SỰ đổi ----------
+     Trước đây mỗi lần lưu là đẩy lại toàn bộ mọi bảng. Từ khi phòng có ảnh
+     (mỗi tấm vài trăm KB nằm ngay trong dòng) thì mỗi lần bấm Lưu phải tải
+     lên vài MB, trang như bị treo. Nhớ lại dấu vân của từng dòng đã gửi
+     thành công, dòng nào y hệt thì bỏ qua. */
+  const sentSig = new Map();
+  const sigKey = (kind, o) => kind + '|' + o.id;
+  /** Sau khi tải từ máy chủ về: đánh dấu mọi dòng là "đã khớp", để lần lưu
+      đầu tiên không đẩy lại cả kho. */
+  function primeSig(all) {
+    sentSig.clear();
+    Object.keys(all || {}).forEach((kind) => {
+      (all[kind] || []).forEach((o) => { if (o && o.id) sentSig.set(sigKey(kind, o), JSON.stringify(o)); });
+    });
+  }
+
   async function saveMany(kind, arr) {
     if (!enabled || !arr || !arr.length) return { error: null };
-    let rows = arr.map((o) => jsToRow(kind, o));
+
+    const todo = [], sigs = [];
+    for (const o of arr) {
+      if (!o || !o.id) continue;
+      const sig = JSON.stringify(o);
+      if (sentSig.get(sigKey(kind, o)) === sig) continue;     // không đổi -> khỏi gửi
+      todo.push(o); sigs.push([sigKey(kind, o), sig]);
+    }
+    if (!todo.length) return { error: null };
+
+    let rows = todo.map((o) => jsToRow(kind, o));
     // Thử lưu; nếu DB thiếu cột mới (chưa chạy migration) thì bỏ cột đó rồi thử lại
     for (let attempt = 0; attempt < 4; attempt++) {
       const { error } = await client.from(KINDS[kind]).upsert(rows, { onConflict: 'owner_id,id' });
-      if (!error) return { error: null };
+      if (!error) { sigs.forEach(([k, s]) => sentSig.set(k, s)); return { error: null }; }
       if (isMissingTable(error)) { console.info('Bảng ' + kind + ' chưa tạo — bỏ qua đồng bộ (chạy migration để bật).'); return { error: null }; }
       const miss = missingColumn(error);
       if (miss) {
@@ -216,6 +242,6 @@ HH.backend = (function () {
   }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
-    loadAll, saveMany, saveOne, hasColumn, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
+    loadAll, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
     client: () => client, KINDS };
 })();

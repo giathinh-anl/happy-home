@@ -196,20 +196,35 @@ HH.fx = (function () {
 
   /* ---- Rời đi mềm: gỡ phần tử ngay (để mã khác không còn thấy nó) nhưng để lại
      một bản sao trơ mờ dần trong 0,2 giây ---- */
+  /* Đóng một khối bằng cách để lại bản sao rồi cho nó mờ dần.
+     QUAN TRỌNG: hiệu ứng hỏng thì vẫn phải đóng cho bằng được. Trước đây
+     gặp ô chọn tệp là ném lỗi ngay giữa chừng, hộp thoại không được gỡ đi
+     nên cả trang bị lớp phủ chặn lại, nhìn như treo máy. */
   function leave(el, cls) {
     if (!el || !el.parentNode) return;
     if (reduce()) { el.remove(); return; }
-    const ghost = el.cloneNode(true);
-    ghost.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
-    ghost.removeAttribute('id');
-    const src = el.querySelectorAll('input, textarea, select'), dst = ghost.querySelectorAll('input, textarea, select');
-    src.forEach((n, i) => { if (dst[i]) dst[i].value = n.value; });
-    ghost.style.pointerEvents = 'none';
-    ghost.setAttribute('aria-hidden', 'true');
-    ghost.classList.add(cls || 'fx-leave');
-    el.parentNode.insertBefore(ghost, el);
+    let ghost = null;
+    try {
+      ghost = el.cloneNode(true);
+      ghost.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+      ghost.removeAttribute('id');
+      // Chép chữ người dùng đang gõ sang bản sao cho giống thật.
+      // Bỏ qua ô chọn tệp: trình duyệt cấm gán value cho nó.
+      const src = el.querySelectorAll('input, textarea, select'), dst = ghost.querySelectorAll('input, textarea, select');
+      src.forEach((n, i) => {
+        if (!dst[i] || n.type === 'file') return;
+        try { dst[i].value = n.value; } catch (e) {}
+      });
+      ghost.style.pointerEvents = 'none';
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.classList.add(cls || 'fx-leave');
+      el.parentNode.insertBefore(ghost, el);
+    } catch (e) {
+      if (ghost && ghost.parentNode) ghost.remove();
+      ghost = null;
+    }
     el.remove();
-    setTimeout(() => ghost.remove(), 220);
+    if (ghost) setTimeout(() => ghost.remove(), 220);
   }
 
   return { enter, countUp, slide: track, resync, reduce, transition, confetti, leave };
