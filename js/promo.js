@@ -47,19 +47,34 @@
   };
   const hotline = () => HOME.hotline || 'đang cập nhật';
 
+  // <b> = cụm chữ được tô sáng, <br> = xuống dòng
   const OWNER = [
-    { tone: 'teal', tag: 'Về chúng tôi', title: 'Happy Home —<br>chỗ ở tử tế, tiền bạc rõ ràng',
+    { tone: 'teal', tag: 'Về chúng tôi', panel: 'profile', title: 'Happy Home —<br>chỗ ở tử tế, <b>tiền bạc rõ ràng</b>',
       sub: 'Chuỗi nhà trọ cho thuê tại TP.HCM, nhận khách là sinh viên và người đi làm. Mọi khoản thu chi đều chạy trên phần mềm riêng nên khách xem lại được bất cứ lúc nào.' },
-    { tone: 'sky', tag: 'Quy mô', title: HOME.blocks + ' tòa nhà,<br>' + HOME.rooms + ' phòng cho thuê',
+    { tone: 'sky', tag: 'Quy mô', panel: 'scale', title: HOME.blocks + ' tòa nhà,<br><b>' + HOME.rooms + ' phòng</b> cho thuê',
       sub: 'Quận 7, Gò Vấp và Bình Thạnh. Ba loại phòng: phòng đơn 18 m², phòng đôi 22 m², phòng cao cấp 26 m² — ở được từ 2 đến 3 người.' },
-    { tone: 'leaf', tag: 'Tiện ích', title: 'Dọn vào là ở được,<br>không phải sắm gì thêm',
+    { tone: 'leaf', tag: 'Tiện ích', panel: 'amenity', title: 'Dọn vào là ở được,<br><b>không phải sắm gì thêm</b>',
       sub: 'Phòng có sẵn máy lạnh, tủ lạnh, giường và tủ quần áo. Tòa nhà có internet, nước sạch, thu gom rác mỗi ngày, khóa riêng từng phòng.' },
-    { tone: 'sun', tag: 'Điểm lợi khi thuê', title: 'Hợp đồng rõ ràng,<br>không phí ẩn',
+    { tone: 'sun', tag: 'Điểm lợi khi thuê', panel: 'compare', title: 'Hợp đồng rõ ràng,<br><b>không phí ẩn</b>',
       sub: 'Điện tính theo chỉ số thực tế chứ không khoán, hóa đơn tách riêng từng khoản. Khách có app riêng để xem hóa đơn, gửi chỉ số và báo hỏng.' },
-    { tone: 'grape', tag: 'Quy trình thuê', title: 'Bốn bước<br>là có phòng',
+    { tone: 'grape', tag: 'Quy trình thuê', panel: 'steps', title: '<b>Bốn bước</b><br>là có phòng',
       sub: 'Xem phòng → ký hợp đồng và đặt cọc → nhận phòng, bàn giao tài sản có biên bản → mỗi tháng nhận hóa đơn trên app rồi thanh toán.' },
-    { tone: 'coral', tag: 'Liên hệ', title: 'Ghé xem phòng<br>bất cứ lúc nào',
+    { tone: 'coral', tag: 'Liên hệ', panel: 'contact', title: 'Ghé xem phòng<br><b>bất cứ lúc nào</b>',
       sub: HOME.sites.map(s => s.addr.replace(', TP.HCM', '')).join(' · ') + '. Hotline ' + hotline() + ', ' + HOME.hours + '.' },
+  ];
+
+  const STEPS = [
+    { t: 'Xem phòng', s: 'Hẹn qua hotline hoặc ghé thẳng tòa nhà' },
+    { t: 'Ký hợp đồng', s: 'Đặt cọc, nhận một bản giấy có chữ ký' },
+    { t: 'Nhận phòng', s: 'Bàn giao tài sản, có biên bản từng món' },
+    { t: 'Hàng tháng', s: 'Hóa đơn lên app, thanh toán là xong' },
+  ];
+
+  const COMPARE = [
+    ['Điện tính theo chỉ số thực tế', 'Khoán theo đầu người'],
+    ['Hóa đơn tách riêng từng khoản', 'Gộp một cục, khó đối chiếu'],
+    ['Hợp đồng có bản giấy lưu', 'Chỉ thỏa thuận miệng'],
+    ['Báo hỏng trên app, theo dõi được', 'Gọi điện rồi ngồi chờ'],
   ];
 
   const TENANT = [
@@ -253,8 +268,9 @@
   function profileCard() {
     const sites = HOME.sites.map(s =>
       `<li><b>${esc(s.name.replace(HOME.name + ' ', ''))}</b><span>${esc(s.addr.replace(', TP.HCM', ''))}</span><em>${s.rooms} phòng</em></li>`).join('');
-    const amen = HOME.amenities.map(a =>
-      `<span class="pf-am">${root.HH.pic(a.pic, 22)}${esc(a.t)}</span>`).join('');
+    const kinds = [['Phòng đơn', '18 m²', '2 người'], ['Phòng đôi', '22 m²', '2 người'],
+      ['Phòng cao cấp', '26 m²', '3 người']]
+      .map(([n, a, m]) => `<span class="pf-kind"><b>${n}</b>${a} · ${m}</span>`).join('');
     return `<div class="pf-card">
       <div class="pf-photo">${root.HH.scene({ align: 'xMidYMax' })}
         <span class="pf-tag">Hồ sơ nhà trọ</span>
@@ -266,8 +282,83 @@
           <div><b>${HOME.kinds}</b><span>loại phòng</span></div>
         </div>
         <ul class="pf-sites">${sites}</ul>
-        <div class="pf-amens">${amen}</div>
+        <div class="pf-kinds">${kinds}</div>
       </div>
+    </div>`;
+  }
+
+  /* ---------- 6 khung hình, mỗi tin một khung ---------- */
+
+  // 2. Quy mô: ba con số tự đếm lên + sơ đồ 57 phòng
+  function panelScale() {
+    const blocks = HOME.sites.map((s, bi) => {
+      const dots = Array.from({ length: s.rooms }, (_, i) =>
+        `<i class="${(i + bi) % 7 === 3 ? 'free' : ''}" style="--i:${i}"></i>`).join('');
+      return `<div class="pn-blk"><div class="pn-blk-h"><b>${esc(s.name.replace(HOME.name + ' ', ''))}</b>
+        <span>${s.rooms} phòng</span></div><div class="pn-dots">${dots}</div></div>`;
+    }).join('');
+    return `<div class="pn-card">
+      <div class="pn-nums">
+        <div><b data-count="${HOME.blocks}">0</b><span>tòa nhà</span></div>
+        <div><b data-count="${HOME.rooms}">0</b><span>phòng</span></div>
+        <div><b data-count="${HOME.kinds}">0</b><span>loại phòng</span></div>
+      </div>
+      <div class="pn-head"><b>Sơ đồ phòng</b><span>ô nhạt là phòng đang trống</span></div>
+      ${blocks}
+    </div>`;
+  }
+
+  // 3. Tiện ích: sáu ô lớn có hình + dịch vụ chung của tòa nhà
+  function panelAmenity() {
+    const tiles = HOME.amenities.map((a, i) =>
+      `<div class="pn-am" style="--i:${i}">${root.HH.pic(a.pic, 34)}<span>${esc(a.t)}</span></div>`).join('');
+    const svc = ['Internet', 'Nước sạch', 'Thu gom rác mỗi ngày']
+      .map(t => `<span>${esc(t)}</span>`).join('');
+    return `<div class="pn-card">
+      <div class="pn-head"><b>Trong phòng có sẵn</b><span>khỏi sắm thêm</span></div>
+      <div class="pn-ams">${tiles}</div>
+      <div class="pn-head"><b>Cả tòa nhà dùng chung</b></div>
+      <div class="pn-chips">${svc}</div>
+    </div>`;
+  }
+
+  // 4. Điểm lợi: so sánh hai cột
+  function panelCompare() {
+    const rows = COMPARE.map(([a, b], i) =>
+      `<div class="pn-cmp-row" style="--i:${i}"><span class="ok">${esc(a)}</span><span class="no">${esc(b)}</span></div>`).join('');
+    return `<div class="pn-card">
+      <div class="pn-cmp-h"><span class="ok">Ở Happy Home</span><span class="no">Thường gặp ở nơi khác</span></div>
+      ${rows}
+    </div>`;
+  }
+
+  // 5. Quy trình: bốn bước nối bằng một đường dọc
+  function panelSteps() {
+    const li = STEPS.map((s, i) =>
+      `<li style="--i:${i}"><em>${i + 1}</em><div><b>${esc(s.t)}</b><span>${esc(s.s)}</span></div></li>`).join('');
+    return `<div class="pn-card"><ol class="pn-steps">${li}</ol></div>`;
+  }
+
+  // 6. Liên hệ: ba chi nhánh + giờ làm việc
+  function panelContact() {
+    const li = HOME.sites.map((s, i) =>
+      `<li style="--i:${i}"><em>${root.HH.pic('building', 26)}</em>
+        <div><b>${esc(s.name)}</b><span>${esc(s.addr)}</span></div><i>${s.rooms} phòng</i></li>`).join('');
+    return `<div class="pn-card">
+      <ul class="pn-sites">${li}</ul>
+      <div class="pn-contact">
+        <div><span>Giờ xem phòng</span><b>${esc(HOME.hours)}</b></div>
+        <div><span>Hotline</span><b>${esc(hotline())}</b></div>
+      </div>
+    </div>`;
+  }
+
+  function panels(list) {
+    const make = { profile: () => profileCard() + roomPhone(), scale: panelScale, amenity: panelAmenity,
+      compare: panelCompare, steps: panelSteps, contact: panelContact };
+    return `<div class="ad-panels">${list.map((s, i) =>
+      `<div class="ad-panel${i === 0 ? ' is-on' : ''}">${(make[s.panel] || make.profile)()}</div>`).join('')}
+      <div class="ad-feed" data-promo-feed></div>
     </div>`;
   }
 
@@ -307,9 +398,7 @@
         <div class="ad-dots">${dots}</div>
       </div>
       <div class="ad-right" aria-hidden="true">
-        <div class="ad-stage">${profileCard()}${roomPhone()}
-          <div class="ad-feed" data-promo-feed></div>
-        </div>
+        <div class="ad-stage">${panels(list)}</div>
       </div>
     </section>`;
   }
@@ -320,6 +409,7 @@
     ad.dataset.adOn = '1';
     const items = [].slice.call(ad.querySelectorAll('.ad-item'));
     const dots = [].slice.call(ad.querySelectorAll('.ad-dot'));
+    const pans = [].slice.call(ad.querySelectorAll('.ad-panel'));
     const stage = ad.querySelector('.ad-stage');
     const soft = !reduced();
     let at = 0, timer = null, hold = false;
@@ -328,7 +418,11 @@
       at = (next % items.length + items.length) % items.length;
       items.forEach((s, k) => s.classList.toggle('is-on', k === at));
       dots.forEach((d, k) => d.classList.toggle('is-on', k === at));
+      pans.forEach((p, k) => p.classList.toggle('is-on', k === at));
       ad.dataset.tone = items[at].dataset.tone || 'teal';
+      // Con số trong khung đếm lại từ 0 mỗi lần khung được đưa ra
+      const on = pans[at];
+      if (on && on.querySelector('[data-count]') && root.HH.fx) root.HH.fx.countUp(on);
       plan();
     }
     function plan() {
