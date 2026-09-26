@@ -183,7 +183,7 @@
     const host = (scope || document).querySelector('[data-promo-feed]');
     if (!host || host.dataset.feedOn) return;
     host.dataset.feedOn = '1';
-    if (reduced() || !matchMedia('(min-width: 1100px) and (min-height: 820px)').matches) return;
+    if (reduced()) return;
 
     const list = items || FEED;
     let i = 0, timer = null;
@@ -195,15 +195,133 @@
       const card = document.createElement('div');
       card.className = 'hh-feed-card';
       card.dataset.tone = it.tone || 'teal';
-      card.innerHTML = `<span class="fd-ic">${root.HH.pic(it.pic || 'house', 30)}</span>
+      card.innerHTML = `<span class="fd-ic">${root.HH.pic(it.pic || 'house', 26)}</span>
         <div class="fd-tx"><b>${esc(it.t)}</b><span>${esc(it.s)}</span></div>
         <span class="fd-tag">ví dụ</span>`;
       host.appendChild(card);
-      while (host.children.length > 2) host.removeChild(host.firstElementChild);
+      while (host.children.length > 1) host.removeChild(host.firstElementChild);
       setTimeout(() => { card.classList.add('out'); setTimeout(() => card.remove(), 500); }, FEED_STAY);
       timer = setTimeout(pop, FEED_EVERY);
     }
     timer = setTimeout(pop, 1400);
+  }
+
+  /* ============================================================
+     BĂNG-RÔN LỚN (trang quản trị): chữ đổi luân phiên bên trái,
+     ảnh dựng màn hình phần mềm trong khung trình duyệt + khung điện
+     thoại bên phải, nghiêng nhẹ và nhúc nhích theo con trỏ.
+     ============================================================ */
+
+  const TICKS = ['Hóa đơn tự tính', 'Tự gạch nợ chuyển khoản', 'App riêng cho khách thuê'];
+
+  // Màn hình phần mềm dựng bằng HTML/CSS (không phải ảnh chụp), nét ở mọi cỡ
+  function mockWindow() {
+    const bars = [40, 66, 48, 82, 58, 94, 72].map((h, i) => `<i style="--h:${h}%;--i:${i}"></i>`).join('');
+    const rooms = [['P101', 'on'], ['P102', 'on'], ['P103', 'due'], ['P104', 'on'], ['P105', 'free'], ['P106', 'on']]
+      .map(([c, s]) => `<span class="mk-room ${s}">${c}</span>`).join('');
+    return `<div class="mk-win">
+      <div class="mk-bar"><i></i><i></i><i></i><span class="mk-url">happy home · quản lý nhà cho thuê</span></div>
+      <div class="mk-body">
+        <div class="mk-kpis">
+          <div class="mk-kpi"><span>Đã phát hành</span><b>59.689.000</b></div>
+          <div class="mk-kpi ok"><span>Đã thu</span><b>49.534.300</b></div>
+          <div class="mk-kpi warn"><span>Còn phải thu</span><b>10.154.700</b></div>
+        </div>
+        <div class="mk-panel">
+          <div class="mk-ph"><span>Dòng tiền 7 kỳ</span><em>Tháng 8</em></div>
+          <div class="mk-chart">${bars}</div>
+        </div>
+        <div class="mk-rooms">${rooms}</div>
+      </div>
+    </div>`;
+  }
+
+  function mockPhone() {
+    return `<div class="mk-phone">
+      <span class="mk-notch"></span>
+      <div class="mk-ph-head"><span class="mk-dot"></span>happy home</div>
+      <div class="mk-ph-due"><span>Cần thanh toán</span><b>2.416.700 đ</b><i>Hạn 20/08 · còn 7 ngày</i></div>
+      <div class="mk-ph-tiles"><span></span><span></span><span></span></div>
+      <div class="mk-ph-line"></div>
+      <div class="mk-ph-line short"></div>
+    </div>`;
+  }
+
+  function hero(items) {
+    const list = items || OWNER;
+    const rot = list.map((s, i) => `
+      <article class="ad-item${i === 0 ? ' is-on' : ''}" data-tone="${esc(s.tone || 'teal')}">
+        <span class="ad-chip">${esc(s.tag || '')}</span>
+        <h2>${s.title}</h2>
+        <p>${esc(s.sub)}</p>
+      </article>`).join('');
+    const dots = list.map((s, i) =>
+      `<button type="button" class="ad-dot${i === 0 ? ' is-on' : ''}" data-i="${i}" aria-label="Xem tin ${i + 1}"><i></i></button>`).join('');
+    const ticks = TICKS.map(t => `<li>${esc(t)}</li>`).join('');
+    return `<section class="hero-ad" data-promo-ad style="--ad-dur:${DUR}ms"
+              role="region" aria-label="Giới thiệu phần mềm Happy Home">
+      <span class="ad-grid" aria-hidden="true"></span>
+      <span class="ad-glow" aria-hidden="true"></span>
+      <div class="ad-left">
+        <span class="ad-eyebrow">Phần mềm quản lý nhà cho thuê</span>
+        <div class="ad-rot">${rot}</div>
+        <ul class="ad-ticks">${ticks}</ul>
+        <div class="ad-dots">${dots}</div>
+      </div>
+      <div class="ad-right" aria-hidden="true">
+        <div class="ad-stage">${mockWindow()}${mockPhone()}
+          <div class="ad-feed" data-promo-feed></div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function mountHero(scope) {
+    const ad = (scope || document).querySelector('[data-promo-ad]');
+    if (!ad || ad.dataset.adOn) return;
+    ad.dataset.adOn = '1';
+    const items = [].slice.call(ad.querySelectorAll('.ad-item'));
+    const dots = [].slice.call(ad.querySelectorAll('.ad-dot'));
+    const stage = ad.querySelector('.ad-stage');
+    const soft = !reduced();
+    let at = 0, timer = null, hold = false;
+
+    function go(next) {
+      at = (next % items.length + items.length) % items.length;
+      items.forEach((s, k) => s.classList.toggle('is-on', k === at));
+      dots.forEach((d, k) => d.classList.toggle('is-on', k === at));
+      ad.dataset.tone = items[at].dataset.tone || 'teal';
+      plan();
+    }
+    function plan() {
+      clearTimeout(timer);
+      if (!soft || hold || items.length < 2) return;
+      timer = setTimeout(() => {
+        if (!ad.isConnected) return stop();
+        if (document.visibilityState !== 'visible') return plan();
+        go(at + 1);
+      }, DUR);
+    }
+    function stop() { clearTimeout(timer); document.removeEventListener('visibilitychange', onVis); }
+    function onVis() { if (!ad.isConnected) return stop(); if (document.visibilityState === 'visible') plan(); }
+    document.addEventListener('visibilitychange', onVis);
+
+    dots.forEach((d, k) => d.onclick = () => go(k));
+    ad.addEventListener('pointerenter', () => { hold = true; ad.classList.add('is-hold'); clearTimeout(timer); });
+    ad.addEventListener('pointerleave', () => {
+      hold = false; ad.classList.remove('is-hold'); plan();
+      if (stage) stage.style.removeProperty('--mx'), stage.style.removeProperty('--my');
+    });
+
+    // Ảnh dựng nhúc nhích nhẹ theo con trỏ cho có chiều sâu
+    if (stage && soft) {
+      ad.addEventListener('pointermove', (e) => {
+        const r = ad.getBoundingClientRect();
+        stage.style.setProperty('--mx', ((e.clientX - r.left) / r.width - .5).toFixed(3));
+        stage.style.setProperty('--my', ((e.clientY - r.top) / r.height - .5).toFixed(3));
+      });
+    }
+    go(0);
   }
 
   function reduced() {
@@ -212,5 +330,5 @@
   }
 
   root.HH = root.HH || {};
-  root.HH.promo = { html, mount, ticker, sky, feed, OWNER, TENANT, FEED, TICKER };
+  root.HH.promo = { html, mount, hero, mountHero, ticker, sky, feed, OWNER, TENANT, FEED, TICKER };
 })(typeof window !== 'undefined' ? window : globalThis);

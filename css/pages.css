@@ -14,14 +14,12 @@
 .login-wrap {
   position: relative; z-index: 1; width: 100%; max-width: 1180px; margin: 0 auto; flex: 1 1 auto;
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
-  grid-template-rows: auto auto; gap: 28px 56px; align-content: center;
+  grid-template-rows: auto auto; gap: 44px 56px; align-content: center;
   padding: 36px 32px 92px;
 }
-/* Chừa chỗ dưới trái cho thẻ hoạt động */
-@media (min-width: 1100px) and (min-height: 820px) { .login-wrap { padding-bottom: 176px; } }
 .login-brand { grid-area: 1 / 1; align-self: end; }
-.login-ads { grid-area: 2 / 1; align-self: start; }
-.login-form-wrap { grid-area: 1 / 2 / span 2 / auto; align-self: center; }
+.login-ads { grid-area: 2 / 1 / auto / span 2; align-self: start; }
+.login-form-wrap { grid-area: 1 / 2; align-self: center; }
 .login-sign {
   width: 196px; aspect-ratio: 1.1; border-radius: 30px; overflow: hidden; background: #EFEEEA;
   box-shadow: 0 18px 40px rgba(10,58,57,.18), 0 0 0 6px rgba(255,255,255,.7);

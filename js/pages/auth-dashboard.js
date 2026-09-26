@@ -27,7 +27,6 @@ HH.pages = HH.pages || {};
         ${raw(HH.promo.ticker())}
         <div class="login-art" aria-hidden="true">${HH.scene()}</div>
         ${raw(HH.promo.sky())}
-        <div class="hh-feed" data-promo-feed aria-hidden="true"></div>
         <div class="login-wrap">
           <section class="login-brand">
             <div class="login-sign"><img class="login-logo3d" src="assets/logo-3d.webp" alt="Logo Happy Home" width="2000" height="1804"></div>
@@ -62,13 +61,13 @@ HH.pages = HH.pages || {};
             <a href="tenant-app/index.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
           </form>
           </div>
-          <div class="login-ads">${raw(HH.promo.html(HH.promo.OWNER))}</div>
+          <div class="login-ads">${raw(HH.promo.hero(HH.promo.OWNER))}</div>
         </div>
       </div>`;
     },
     mount() {
       const page = document.querySelector('.login-page');
-      HH.promo.mount(page);
+      HH.promo.mountHero(page);
       HH.promo.feed(page);
       if (S.usingBackend()) return mountBackendAuth();
       mountDemoAuth();
