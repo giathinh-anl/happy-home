@@ -17,6 +17,32 @@ python -m http.server 8777
 
 Rồi mở `http://localhost:8777/index.html`.
 
+## Cho bạn cùng nhóm tải mã về mà không đăng nhập được
+
+Máy tải mã từ GitHub về sẽ **thiếu tệp `js/config.js`** — tệp này chứa địa chỉ
+Supabase và khóa `anon`, cố ý không đưa lên GitHub (xem `.gitignore`). Thiếu nó thì:
+
+| Mở cái gì | Máy có `js/config.js` | Máy tải từ GitHub về (chưa có tệp) |
+|---|---|---|
+| `index.html` (chủ trọ) | đăng nhập bằng tài khoản thật | tự chạy **bản demo**, dữ liệu mẫu trong máy |
+| `tenant-app/index.html` (khách thuê) | đăng nhập bằng SĐT thật | báo *“Chưa kết nối máy chủ: thiếu tệp js/config.js”* |
+
+**Cách sửa:** người có tệp gửi `js/config.js` cho cả nhóm (Zalo, Drive, USB),
+mỗi người chép vào thư mục `js/` của dự án rồi tải lại trang. Chỉ cần tệp ở
+`js/config.js` là app khách thuê cũng dùng chung được, không phải chép hai lần.
+
+Khóa `anon` an toàn khi nằm trong trình duyệt vì đã có Row Level Security chặn
+theo từng người dùng — nhưng **tuyệt đối không** dùng `service_role key` ở đây.
+
+Đã có `js/config.js` mà app khách thuê vẫn không vào được thì đọc đúng dòng báo lỗi:
+
+- *“Số điện thoại chưa được đăng ký với chủ nhà”* — SĐT đó chưa có trong danh sách
+  khách thuê. Vào trang chủ trọ thêm khách kèm SĐT trước, hoặc nhập SĐT của một
+  khách đã có sẵn.
+- *“App khách thuê chưa được kích hoạt”* — chủ dự án cần chạy
+  `supabase/migration-tenant-app.sql` trong Supabase → SQL Editor.
+- *“Không kết nối được máy chủ”* — sai URL/khóa trong `config.js`, hoặc mất mạng.
+
 ## Đăng nhập (bản demo)
 
 - Nhập **email hợp lệ bất kỳ** và **mật khẩu bất kỳ** (hoặc bấm *Điền nhanh*).
