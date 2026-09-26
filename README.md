@@ -17,6 +17,14 @@ python -m http.server 8777
 
 Rồi mở `http://localhost:8777/index.html`.
 
+## Mở web (không cần tải mã về)
+
+**https://giathinh-anl.github.io/happy-home/** — trang chủ trọ
+**https://giathinh-anl.github.io/happy-home/tenant-app/** — app khách thuê
+
+Mở là dùng được ngay trên điện thoại lẫn máy tính, dùng chung dữ liệu thật,
+không phải tải mã nguồn hay chép tệp cấu hình.
+
 ## Cho bạn cùng nhóm tải mã về mà không đăng nhập được
 
 Máy tải mã từ GitHub về sẽ **thiếu tệp `js/config.js`** — tệp này chứa địa chỉ

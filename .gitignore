@@ -12,8 +12,10 @@ desktop.ini
 *.log
 tmp/
 
-# Khóa kết nối Supabase của người dùng (không commit)
-js/config.js
+# Khóa kết nối Supabase
+# js/config.js ĐƯỢC commit có chủ đích để bản web trên GitHub Pages chạy được:
+# khóa "anon" vốn dành cho trình duyệt, dữ liệu đã có Row Level Security chặn.
+# TUYỆT ĐỐI không đưa "service_role key" vào đây.
 tenant-app/js/config.js
 
 # Bản gộp 1 tệp để chia sẻ (sinh lại bằng: python build-demo.py)
