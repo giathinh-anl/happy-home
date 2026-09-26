@@ -18,13 +18,48 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-  /* ---------- nội dung: sửa chữ ở đây là đổi được cả hai app ---------- */
+  /* ============================================================
+     HỒ SƠ NHÀ TRỌ — sửa ở đây là đổi được cả banner lẫn thanh chạy.
+     Số liệu lấy đúng theo dữ liệu đang có trong hệ thống.
+     KHÔNG đưa doanh thu, công nợ hay bất kỳ số tiền nào vào banner:
+     đó là thông tin riêng của chủ trọ, không phải thứ để quảng cáo.
+     ============================================================ */
+  const HOME = {
+    name: 'Happy Home',
+    blocks: 3,                      // số tòa nhà
+    rooms: 57,                      // 24 + 18 + 15 phòng
+    kinds: 3,                       // phòng đơn, phòng đôi, phòng cao cấp
+    hotline: '',                    // ĐIỀN SỐ THẬT CỦA NHÀ TRỌ, để trống thì hiện "đang cập nhật"
+    hours: '8:00 – 20:00 mỗi ngày',
+    sites: [
+      { name: 'Happy Home Quận 7', addr: '123 Nguyễn Thị Thập, Quận 7, TP.HCM', rooms: 24 },
+      { name: 'Happy Home Gò Vấp', addr: '45 Quang Trung, Gò Vấp, TP.HCM', rooms: 18 },
+      { name: 'Happy Home Bình Thạnh', addr: '78 Điện Biên Phủ, Bình Thạnh, TP.HCM', rooms: 15 },
+    ],
+    amenities: [
+      { pic: 'sofa',    t: 'Nội thất có sẵn' },
+      { pic: 'bolt',    t: 'Điện theo chỉ số' },
+      { pic: 'drop',    t: 'Nước sạch' },
+      { pic: 'lock',    t: 'An ninh, khóa riêng' },
+      { pic: 'wrench',  t: 'Báo hỏng có thợ' },
+      { pic: 'receipt', t: 'Hóa đơn rõ khoản' },
+    ],
+  };
+  const hotline = () => HOME.hotline || 'đang cập nhật';
+
   const OWNER = [
-    { tone: 'teal',  pic: 'receipt',   tag: 'Hóa đơn',    title: 'Chốt điện một lần,<br>hóa đơn cả dãy tự ra', sub: 'Nhập chỉ số xong là tiền phòng, điện, dịch vụ tự cộng đúng từng phòng.' },
-    { tone: 'sky',   pic: 'card',      tag: 'Thu tiền',   title: 'Tiền về là<br>tự gạch nợ', sub: 'Ngân hàng báo có, hệ thống khớp đúng hóa đơn rồi báo cho khách.' },
-    { tone: 'coral', pic: 'megaphone', tag: 'Cho thuê',   title: 'Đăng tin lên Facebook<br>chỉ một chạm', sub: 'Phòng trống, giá, tiện nghi và ảnh được gom sẵn thành bài đăng.' },
-    { tone: 'grape', pic: 'contract',  tag: 'Hợp đồng',   title: 'Quét hợp đồng giấy,<br>máy điền hộ', sub: 'Chụp tờ hợp đồng đã ký, thông tin và chữ ký được đọc rồi điền sẵn.' },
-    { tone: 'sun',   pic: 'chat',      tag: 'Trợ lý ảo',  title: 'Hỏi tiếng Việt,<br>trả lời bằng số thật', sub: '“Tháng này thu bao nhiêu?” — trợ lý đọc thẳng dữ liệu của bạn.' },
+    { tone: 'teal', tag: 'Về chúng tôi', title: 'Happy Home —<br>chỗ ở tử tế, tiền bạc rõ ràng',
+      sub: 'Chuỗi nhà trọ cho thuê tại TP.HCM, nhận khách là sinh viên và người đi làm. Mọi khoản thu chi đều chạy trên phần mềm riêng nên khách xem lại được bất cứ lúc nào.' },
+    { tone: 'sky', tag: 'Quy mô', title: HOME.blocks + ' tòa nhà,<br>' + HOME.rooms + ' phòng cho thuê',
+      sub: 'Quận 7, Gò Vấp và Bình Thạnh. Ba loại phòng: phòng đơn 18 m², phòng đôi 22 m², phòng cao cấp 26 m² — ở được từ 2 đến 3 người.' },
+    { tone: 'leaf', tag: 'Tiện ích', title: 'Dọn vào là ở được,<br>không phải sắm gì thêm',
+      sub: 'Phòng có sẵn máy lạnh, tủ lạnh, giường và tủ quần áo. Tòa nhà có internet, nước sạch, thu gom rác mỗi ngày, khóa riêng từng phòng.' },
+    { tone: 'sun', tag: 'Điểm lợi khi thuê', title: 'Hợp đồng rõ ràng,<br>không phí ẩn',
+      sub: 'Điện tính theo chỉ số thực tế chứ không khoán, hóa đơn tách riêng từng khoản. Khách có app riêng để xem hóa đơn, gửi chỉ số và báo hỏng.' },
+    { tone: 'grape', tag: 'Quy trình thuê', title: 'Bốn bước<br>là có phòng',
+      sub: 'Xem phòng → ký hợp đồng và đặt cọc → nhận phòng, bàn giao tài sản có biên bản → mỗi tháng nhận hóa đơn trên app rồi thanh toán.' },
+    { tone: 'coral', tag: 'Liên hệ', title: 'Ghé xem phòng<br>bất cứ lúc nào',
+      sub: HOME.sites.map(s => s.addr.replace(', TP.HCM', '')).join(' · ') + '. Hotline ' + hotline() + ', ' + HOME.hours + '.' },
   ];
 
   const TENANT = [
@@ -34,23 +69,23 @@
     { tone: 'coral', pic: 'wrench',  tag: 'Báo hỏng',    title: 'Hỏng gì báo nấy,<br>theo tới khi xong', sub: 'Gửi kèm ảnh, biết yêu cầu đang ở bước nào.' },
   ];
 
-  // Thẻ hoạt động — là VÍ DỤ minh họa phần mềm làm được gì, không phải
-  // người dùng thật, nên mỗi thẻ đều có nhãn "ví dụ".
+  // Thẻ tin nhanh — là VÍ DỤ minh họa cách nhà trọ vận hành, không phải
+  // sự việc có thật, nên mỗi thẻ đều có nhãn "ví dụ". Không có số tiền.
   const FEED = [
-    { tone: 'teal',  pic: 'receipt',  t: 'Đã lập hóa đơn tháng 8', s: '24 phòng · Happy Home Quận 7' },
-    { tone: 'sky',   pic: 'card',     t: 'Tiền về, tự gạch nợ', s: '3.500.000 đ · phòng P305' },
-    { tone: 'coral', pic: 'wrench',   t: 'Khách báo hỏng vòi nước', s: 'P204 · đã tạo yêu cầu sửa' },
-    { tone: 'leaf',  pic: 'camera',   t: 'Khách gửi ảnh chỉ số điện', s: 'P101 · 120 kWh tháng này' },
-    { tone: 'grape', pic: 'contract', t: 'Quét xong hợp đồng giấy', s: 'Điền sẵn 12 ô, có cả chữ ký' },
-    { tone: 'sun',   pic: 'megaphone', t: 'Đã đăng tin phòng trống', s: 'P405 · 3.200.000 đ/tháng' },
+    { tone: 'teal',  pic: 'door',     t: 'Phòng P405 còn trống', s: 'Phòng đơn 18 m² · tầng 4' },
+    { tone: 'coral', pic: 'wrench',   t: 'Báo hỏng xử lý trong ngày', s: 'P204 · thợ tới lúc 15:30' },
+    { tone: 'sky',   pic: 'users',    t: 'Khách mới nhận phòng', s: 'P112 · bàn giao đủ tài sản' },
+    { tone: 'grape', pic: 'contract', t: 'Ký hợp đồng tại chỗ', s: 'Có bản giấy lưu cho hai bên' },
+    { tone: 'leaf',  pic: 'drop',     t: 'Nước sạch, thu gom rác mỗi ngày', s: 'Áp dụng cho cả 3 tòa nhà' },
+    { tone: 'sun',   pic: 'phone',    t: 'Hẹn xem phòng qua hotline', s: HOME.hours },
   ];
 
   const TICKER = [
-    '🏠 Happy Home — quản lý nhà cho thuê nhẹ tênh mỗi ngày',
-    '🧾 Hóa đơn tự tính tiền phòng, điện và dịch vụ',
-    '💸 Ngân hàng báo có là tự gạch nợ, khỏi dò tay',
+    '🏠 Nhà trọ Happy Home — ' + HOME.blocks + ' tòa nhà tại Quận 7, Gò Vấp, Bình Thạnh',
+    '🛏️ Phòng có sẵn máy lạnh, tủ lạnh, giường và tủ quần áo',
+    '🧾 Điện tính theo chỉ số thực tế, hóa đơn tách riêng từng khoản',
+    '🔧 Báo hỏng có thợ tới tận phòng, theo dõi tới khi xong',
     '📱 Khách thuê có app riêng: xem hóa đơn, gửi chỉ số, báo hỏng',
-    '🤖 Trợ lý ảo trả lời bằng số liệu thật của nhà bạn',
   ];
 
   /* ---------- thanh chữ chạy trên cùng ---------- */
@@ -212,35 +247,38 @@
      thoại bên phải, nghiêng nhẹ và nhúc nhích theo con trỏ.
      ============================================================ */
 
-  const TICKS = ['Hóa đơn tự tính', 'Tự gạch nợ chuyển khoản', 'App riêng cho khách thuê'];
+  const TICKS = ['Sinh viên & người đi làm', 'Ở ngay, khỏi sắm đồ', 'Điện tính đúng chỉ số'];
 
-  // Màn hình phần mềm dựng bằng HTML/CSS (không phải ảnh chụp), nét ở mọi cỡ
-  function mockWindow() {
-    const bars = [40, 66, 48, 82, 58, 94, 72].map((h, i) => `<i style="--h:${h}%;--i:${i}"></i>`).join('');
-    const rooms = [['P101', 'on'], ['P102', 'on'], ['P103', 'due'], ['P104', 'on'], ['P105', 'free'], ['P106', 'on']]
-      .map(([c, s]) => `<span class="mk-room ${s}">${c}</span>`).join('');
-    return `<div class="mk-win">
-      <div class="mk-bar"><i></i><i></i><i></i><span class="mk-url">happy home · quản lý nhà cho thuê</span></div>
-      <div class="mk-body">
-        <div class="mk-kpis">
-          <div class="mk-kpi"><span>Đã phát hành</span><b>59.689.000</b></div>
-          <div class="mk-kpi ok"><span>Đã thu</span><b>49.534.300</b></div>
-          <div class="mk-kpi warn"><span>Còn phải thu</span><b>10.154.700</b></div>
+  // Hồ sơ nhà trọ dựng bằng HTML/CSS (không phải ảnh chụp), nét ở mọi cỡ
+  function profileCard() {
+    const sites = HOME.sites.map(s =>
+      `<li><b>${esc(s.name.replace(HOME.name + ' ', ''))}</b><span>${esc(s.addr.replace(', TP.HCM', ''))}</span><em>${s.rooms} phòng</em></li>`).join('');
+    const amen = HOME.amenities.map(a =>
+      `<span class="pf-am">${root.HH.pic(a.pic, 22)}${esc(a.t)}</span>`).join('');
+    return `<div class="pf-card">
+      <div class="pf-photo">${root.HH.scene({ align: 'xMidYMax' })}
+        <span class="pf-tag">Hồ sơ nhà trọ</span>
+      </div>
+      <div class="pf-body">
+        <div class="pf-facts">
+          <div><b>${HOME.blocks}</b><span>tòa nhà</span></div>
+          <div><b>${HOME.rooms}</b><span>phòng</span></div>
+          <div><b>${HOME.kinds}</b><span>loại phòng</span></div>
         </div>
-        <div class="mk-panel">
-          <div class="mk-ph"><span>Dòng tiền 7 kỳ</span><em>Tháng 8</em></div>
-          <div class="mk-chart">${bars}</div>
-        </div>
-        <div class="mk-rooms">${rooms}</div>
+        <ul class="pf-sites">${sites}</ul>
+        <div class="pf-amens">${amen}</div>
       </div>
     </div>`;
   }
 
-  function mockPhone() {
+  // Khung điện thoại: thẻ phòng trống, không có số tiền nào
+  function roomPhone() {
     return `<div class="mk-phone">
       <span class="mk-notch"></span>
       <div class="mk-ph-head"><span class="mk-dot"></span>happy home</div>
-      <div class="mk-ph-due"><span>Cần thanh toán</span><b>2.416.700 đ</b><i>Hạn 20/08 · còn 7 ngày</i></div>
+      <div class="mk-ph-room">
+        <span>Còn trống</span><b>Phòng P405</b><i>Phòng đơn · 18 m² · 2 người</i>
+      </div>
       <div class="mk-ph-tiles"><span></span><span></span><span></span></div>
       <div class="mk-ph-line"></div>
       <div class="mk-ph-line short"></div>
@@ -263,13 +301,13 @@
       <span class="ad-grid" aria-hidden="true"></span>
       <span class="ad-glow" aria-hidden="true"></span>
       <div class="ad-left">
-        <span class="ad-eyebrow">Phần mềm quản lý nhà cho thuê</span>
+        <span class="ad-eyebrow">Nhà trọ ${esc(HOME.name)} · TP.HCM</span>
         <div class="ad-rot">${rot}</div>
         <ul class="ad-ticks">${ticks}</ul>
         <div class="ad-dots">${dots}</div>
       </div>
       <div class="ad-right" aria-hidden="true">
-        <div class="ad-stage">${mockWindow()}${mockPhone()}
+        <div class="ad-stage">${profileCard()}${roomPhone()}
           <div class="ad-feed" data-promo-feed></div>
         </div>
       </div>
