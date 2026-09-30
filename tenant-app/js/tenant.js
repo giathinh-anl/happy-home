@@ -97,6 +97,14 @@
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
     return data;
   }
+  /* Các hàm ghi dữ liệu trả về null khi máy chủ KHÔNG tìm thấy số điện thoại
+     -> không có gì được tạo. Trước đây app vẫn báo "đã gửi" nên khách tưởng
+     xong mà chủ nhà chẳng thấy gì. Giờ coi null là lỗi. */
+  async function rpcNeed(fn, args) {
+    const data = await rpc(fn, args);
+    if (data === null || data === undefined) throw new Error('PHONE_NOT_FOUND');
+    return data;
+  }
 
   /* ---------- điều hướng ---------- */
   function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
@@ -593,7 +601,7 @@
       e.currentTarget.classList.add('loading');
       const note = el('pfNote').value.trim();
       try {
-        await rpc('tenant_submit_payment_claim', { p_phone: state.phone, p_invoice_id: c.invoiceId,
+        await rpcNeed('tenant_submit_payment_claim', { p_phone: state.phone, p_invoice_id: c.invoiceId,
           p_amount: amount, p_note: note, p_photo: c.photo });
         state.claim = null;
         toast('Đã gửi xác nhận cho chủ nhà');
@@ -602,10 +610,13 @@
       } catch (err) {
         // Máy chủ chưa có hàm mới -> vẫn báo cho chủ nhà theo cách cũ
         try {
-          await rpc('tenant_notify_paid', { p_phone: state.phone, p_invoice_id: c.invoiceId });
-          state.claim = null; toast('Đã báo chủ nhà (chưa gửi được ảnh)'); go('#/home');
+          await rpcNeed('tenant_notify_paid', { p_phone: state.phone, p_invoice_id: c.invoiceId });
+          state.claim = null; toast('Đã báo chủ nhà, nhưng chưa gửi được ảnh chứng từ'); go('#/home');
         } catch (e2) {
-          toast(e2.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại');
+          toast(e2.message === 'PHONE_NOT_FOUND'
+            ? 'Chưa gửi được: máy chủ không nhận ra số điện thoại này.'
+            : e2.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm báo chuyển khoản (chủ nhà cần chạy SQL).'
+            : 'Không gửi được, thử lại');
           e.currentTarget.classList.remove('loading');
         }
       }
@@ -645,19 +656,25 @@
       if (!(r.desc || '').trim()) { toast('Vui lòng mô tả sự cố'); return; }
       e.currentTarget.classList.add('loading');
       const title = r.desc.trim();
+      let matAnh = false;
       try {
-        // Gửi kèm ảnh; nếu máy chủ chưa cập nhật hàm (chưa chạy migration) thì gửi không ảnh
+        // Gửi kèm ảnh; máy chủ chưa cập nhật hàm (chưa chạy migration) thì gửi không ảnh
         try {
-          await rpc('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title, p_photos: r.photos });
+          await rpcNeed('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title, p_photos: r.photos });
         } catch (e1) {
-          await rpc('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title });
+          if (e1.message !== 'NOT_ACTIVATED') throw e1;      // lỗi khác thì báo thật, đừng gửi lại
+          await rpcNeed('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title });
+          matAnh = r.photos.length > 0;
         }
         state.data = await loadData(state.phone); // tải lại để có yêu cầu mới
         state.repair = { cat: null, time: 'Bất kỳ', photos: [] };
-        toast('Đã gửi yêu cầu sửa chữa');
+        toast(matAnh ? 'Đã gửi yêu cầu, nhưng máy chủ chưa nhận được ảnh' : 'Đã gửi yêu cầu sửa chữa');
         go('#/track');
       } catch (err) {
-        toast(err.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại');
+        toast(err.message === 'PHONE_NOT_FOUND'
+          ? 'Chưa gửi được: máy chủ không nhận ra số điện thoại này. Báo chủ nhà kiểm tra lại hồ sơ khách thuê.'
+          : err.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm tenant_create_incident (chủ nhà cần chạy SQL).'
+          : 'Không gửi được, thử lại');
         e.currentTarget.classList.remove('loading');
       }
     };
@@ -709,16 +726,26 @@
       const elec = parseInt((el('elec').value || '').replace(/\D/g, ''), 10);
       if (!elec) { toast('Nhập chỉ số điện'); return; }
       e.currentTarget.classList.add('loading');
+      let matAnhRd = false;
       try {
         // Gửi kèm ảnh; máy chủ chưa cập nhật hàm thì gửi số không ảnh
         try {
-          await rpc('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null, p_photos: rd.photos });
+          await rpcNeed('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null, p_photos: rd.photos });
         } catch (e1) {
-          await rpc('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null });
+          if (e1.message !== 'NOT_ACTIVATED') throw e1;      // lỗi khác thì báo thật, đừng gửi lại
+          await rpcNeed('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null });
+          matAnhRd = rd.photos.length > 0;
         }
         state.data = await loadData(state.phone);
-        toast('Đã gửi chỉ số, chờ chủ trọ duyệt'); go('#/home');
-      } catch (err) { toast(err.message === 'NOT_ACTIVATED' ? 'Chưa kích hoạt (cần chạy SQL)' : 'Không gửi được, thử lại'); e.currentTarget.classList.remove('loading'); }
+        toast(matAnhRd ? 'Đã gửi chỉ số, nhưng máy chủ chưa nhận được ảnh' : 'Đã gửi chỉ số, chờ chủ trọ duyệt');
+        go('#/home');
+      } catch (err) {
+        toast(err.message === 'PHONE_NOT_FOUND'
+          ? 'Chưa gửi được: máy chủ không nhận ra số điện thoại này. Báo chủ nhà kiểm tra lại hồ sơ khách thuê.'
+          : err.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm gửi chỉ số (chủ nhà cần chạy SQL).'
+          : 'Không gửi được, thử lại');
+        e.currentTarget.classList.remove('loading');
+      }
     };
 
     function drawRdPhotos() {
