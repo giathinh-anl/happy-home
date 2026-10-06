@@ -86,3 +86,87 @@ fbPageName: 'Happy Home - Phòng trọ Quận 7',
 **An toàn:** `FB_PAGE_TOKEN` có quyền đăng bài thay Trang. Không gửi cho ai, không dán vào mã nguồn.
 Nếu lỡ lộ: Facebook → Cài đặt → Bảo mật và đăng nhập → **Tiện ích tích hợp cho doanh nghiệp** → gỡ ứng
 dụng, rồi làm lại bước 2.
+
+---
+
+# Chatbot trả lời tin nhắn trên Trang
+
+Khách nhắn vào Trang hỏi *"còn phòng trống không"*, *"giá bao nhiêu"*, *"ở đâu"*, *"P305 còn không"*…
+bot trả lời ngay bằng **dữ liệu phòng thật** trong Supabase: danh sách phòng trống, giá, diện tích,
+số người tối đa, địa chỉ từng cơ sở. Không hiểu thì nó đưa hotline chứ không trả lời bừa.
+
+Hàm nằm ở `supabase/functions/fb-bot/index.ts`, chạy trên Supabase. Mã truy cập Trang vẫn chỉ nằm
+trên máy chủ.
+
+> **Giới hạn của Facebook:** khi ứng dụng còn ở chế độ **Phát triển**, bot **chỉ trả lời được người
+> có vai trò trong ứng dụng** (quản trị viên, nhà phát triển, người thử nghiệm). Muốn trả lời mọi
+> khách lạ thì phải gửi Facebook duyệt quyền `pages_messaging` (App Review). Để demo đồ án thì chế
+> độ Phát triển là đủ — bạn tự nhắn vào Trang bằng tài khoản quản trị là bot trả lời.
+
+## Bước 1. Thêm sản phẩm Messenger và lấy lại mã Trang
+
+1. <https://developers.facebook.com/apps> → mở ứng dụng đã tạo → **Thêm sản phẩm** → **Messenger**.
+2. Mã Trang cũ (dùng cho đăng tin) **thiếu quyền nhắn tin**, phải tạo lại:
+   mở **Graph API Explorer**, tick thêm quyền **`pages_messaging`** cùng với 3 quyền cũ
+   (`pages_show_list`, `pages_read_engagement`, `pages_manage_posts`) → tạo mã mới → đổi sang mã
+   dài hạn như Bước 2 phần trên → cập nhật lại `FB_PAGE_TOKEN`.
+
+## Bước 2. Đặt bí mật và triển khai hàm
+
+| Tên | Bắt buộc | Giá trị |
+|---|---|---|
+| `FB_PAGE_TOKEN` | ✔ | mã Trang (đã có quyền `pages_messaging`) |
+| `FB_VERIFY_TOKEN` | ✔ | **chuỗi bất kỳ bạn tự đặt**, chỉ dùng để bắt tay với Facebook. VD: `happyhome-2026` |
+| `FB_OWNER_EMAIL` | ✔ | email tài khoản chủ trọ mà bot lấy dữ liệu phòng. VD: `chutro@happyhome.vn` |
+| `FB_HOTLINE` | | số hotline bot đưa cho khách. Bỏ trống thì bot xin số của khách |
+| `FB_APP_SECRET` | | App Secret của ứng dụng; có thì bot kiểm chữ ký, chắc chắn tin đến từ Facebook |
+
+```bash
+supabase secrets set FB_VERIFY_TOKEN=happyhome-2026 FB_OWNER_EMAIL=chutro@happyhome.vn
+```
+
+```bash
+supabase functions deploy fb-bot --no-verify-jwt
+```
+
+**Bắt buộc có `--no-verify-jwt`**: Facebook gọi tới chứ không phải người dùng đã đăng nhập, có xác
+thực JWT thì Facebook bị chặn ngay. Triển khai bằng trang web Supabase cũng được: **Edge Functions →
+Deploy a new function → Via Editor**, tên `fb-bot`, dán nội dung tệp, rồi vào phần cài đặt của hàm
+tắt **Enforce JWT verification**.
+
+`FB_OWNER_EMAIL` là bắt buộc vì một cơ sở dữ liệu có thể chứa nhiều tài khoản chủ trọ. Không đặt thì
+bot từ chối đọc số liệu, chỉ đưa hotline — cố ý như vậy để không lỡ đem phòng của người khác đi
+quảng cáo.
+
+## Bước 3. Nối webhook
+
+1. Trong ứng dụng → **Messenger → Cài đặt → Webhooks** → **Thêm URL gọi lại**:
+
+   | Ô | Điền |
+   |---|---|
+   | URL gọi lại | `https://<project-ref>.supabase.co/functions/v1/fb-bot` |
+   | Mã xác minh | đúng chuỗi `FB_VERIFY_TOKEN` ở trên |
+
+2. Bấm **Xác minh và lưu**. Facebook gọi thử một lần; báo lỗi thì xem lại đã tắt JWT chưa và
+   `FB_VERIFY_TOKEN` đã khớp chưa.
+3. **Thêm đăng ký** (Add subscriptions) cho Trang, tick: **`messages`** và **`messaging_postbacks`**.
+4. Vẫn ở mục Webhooks, phần **Trang đã đăng ký**, chọn đúng Trang của bạn → **Đăng ký**.
+
+## Bước 4. Thử
+
+Nhắn vào Trang bằng tài khoản quản trị ứng dụng: *"còn phòng trống không"* — bot trả lời trong vài giây.
+
+Bot hiểu được: chào hỏi · phòng trống · giá thuê · địa chỉ · tiện ích · hẹn xem phòng · thủ tục đặt
+cọc · hỏi thẳng một mã phòng (VD *"P305 còn không"*).
+
+Sửa lời thoại thì mở `supabase/functions/fb-bot/index.ts`, các câu nằm trong hàm `traLoi` và hằng
+`TIEN_ICH`, sửa xong triển khai lại.
+
+## Lỗi thường gặp với chatbot
+
+| Hiện tượng | Cách xử lý |
+|---|---|
+| Bấm "Xác minh và lưu" báo lỗi | Chưa tắt xác thực JWT, hoặc `FB_VERIFY_TOKEN` không khớp |
+| Nhắn mà bot im | Chưa **Đăng ký** Trang ở bước 3.4, hoặc người nhắn không có vai trò trong ứng dụng (app còn ở chế độ Phát triển) |
+| Bot trả lời "để lại số điện thoại" cho mọi câu | Chưa đặt `FB_OWNER_EMAIL`, hoặc email không khớp tài khoản nào — xem Logs của hàm |
+| Logs báo lỗi gửi tin | `FB_PAGE_TOKEN` thiếu quyền `pages_messaging`, làm lại Bước 1.2 |
