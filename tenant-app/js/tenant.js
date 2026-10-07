@@ -221,21 +221,28 @@
   ];
 
   function screenLogin() {
+    /* Hai khối .tl-form và .tl-side chỉ để xếp 2 cột trên máy tính.
+       Trên điện thoại CSS cho chúng display:contents nên coi như không có,
+       thứ tự hiển thị y hệt lúc chưa bọc. */
     el('tapp').innerHTML = `<div class="t-login">
       ${HH.promo.ticker(TICKER_T)}
       <div class="t-login-art" aria-hidden="true">${HH.scene()}</div>
-      <div class="logo"><div class="t-sign"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804"></div>
-        <h1 class="sr-only">Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>
-      <div id="loginErr"></div>
-      <div class="t-field"><label>Số điện thoại</label>
-        <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
+      <div class="tl-form">
+        <div class="logo"><div class="t-sign"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804"></div>
+          <h1 class="sr-only">Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>
+        <div id="loginErr"></div>
+        <div class="t-field"><label>Số điện thoại</label>
+          <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
+        </div>
+        <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
+        ${enabled ? '<div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>'
+          : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
       </div>
-      <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
-      ${enabled ? '<div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>'
-        : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
-      <div class="t-ads">${HH.promo.html(HH.promo.TENANT, { compact: true })}</div>
-      <div style="flex:1"></div>
-      <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
+      <div class="tl-side">
+        <div class="t-ads">${HH.promo.html(HH.promo.TENANT, { compact: true })}</div>
+        <div style="flex:1"></div>
+        <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
+      </div>
     </div>`;
     HH.promo.mount(el('tapp'));
     el('phone').addEventListener('keydown', e => { if (e.key === 'Enter') el('sendOtp').click(); });
@@ -269,7 +276,8 @@
   /* ---------- màn hình: OTP ---------- */
   function screenOtp() {
     const masked = state.pendingPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1 *** $2');
-    el('tapp').innerHTML = `<div class="t-login">
+    // hep: màn này không xếp 2 cột, giữ kiểu thẻ hẹp nằm giữa trên máy tính
+    el('tapp').innerHTML = `<div class="t-login hep">
       <div class="t-login-art short" aria-hidden="true">${HH.scene()}</div>
       <div class="logo"><div class="mark">${logoImg(46)}</div></div>
       <h1 style="font-size:22px">Nhập mã xác thực</h1>

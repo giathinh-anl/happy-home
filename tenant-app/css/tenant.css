@@ -656,11 +656,52 @@ button:hover > .pic, .quick-item:hover .pic, .t-nav:hover .pic, .t-action:hover 
 .t-hint { border-radius: 14px; font-weight: 600; }
 .otp-boxes input { border-radius: 14px; font-family: var(--font-display); font-weight: 800; }
 
+/* Trên điện thoại hai khối gom chỉ để xếp cột ở máy tính — cho chúng "tàng
+   hình" để mọi thứ nằm thẳng một cột đúng thứ tự như trước khi gom. */
+.tl-form, .tl-side { display: contents; }
+
 /* --- Máy tính --- */
 @media (min-width: 900px) {
   body { background: linear-gradient(180deg, #E4F2EE 0, var(--bg) 320px); }
-  .t-login { max-width: 440px; min-height: 0; margin: 40px auto; border-radius: 28px; overflow: hidden;
-    background: var(--surface); box-shadow: 0 30px 80px rgba(10,58,57,.16), 0 6px 18px rgba(10,58,57,.08); }
+
+  /* Màn đăng nhập xếp 2 cột cho hợp màn hình rộng: tranh và giới thiệu bên
+     trái, thẻ nhập số điện thoại bên phải. Trước đây là một thẻ 440px nằm
+     giữa, trên màn rộng trông như ảnh chụp điện thoại dán vào trang web. */
+  .t-login {
+    max-width: 1080px; min-height: 0; margin: 36px auto 48px; padding: 0;
+    display: grid; grid-template-columns: minmax(0, 1fr) 420px;
+    grid-template-rows: auto auto auto; column-gap: 32px;
+    background: transparent; box-shadow: none; border-radius: 0; overflow: visible;
+  }
+  .t-login > .hh-ticker { grid-column: 1 / -1; grid-row: 1; margin: 0 0 22px; border-radius: 12px; overflow: hidden; }
+  .t-login > .t-login-art {
+    grid-column: 1; grid-row: 2; margin: 0; height: 340px; border-radius: 24px;
+    box-shadow: 0 18px 44px rgba(10,58,57,.14);
+  }
+  .tl-side { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; margin-top: 20px; }
+  .tl-side .t-ads { margin-top: 0; }
+  .tl-side .t-btn.ghost { margin-top: 16px; }
+
+  /* Thẻ nhập liệu bên phải, cao bằng cả hai hàng bên trái */
+  .tl-form {
+    grid-column: 2; grid-row: 2 / span 2; display: flex; flex-direction: column;
+    background: var(--surface); border-radius: 28px; padding: 30px 26px 28px;
+    box-shadow: 0 30px 80px rgba(10,58,57,.16), 0 6px 18px rgba(10,58,57,.08);
+    align-self: start;
+  }
+  /* Logo hết chồng lên tranh vì tranh đã sang cột khác */
+  .tl-form .logo { margin: 0 0 10px; }
+  .tl-form .t-sign { width: 118px; }
+
+  /* Màn OTP (.hep) không xếp cột, giữ nguyên kiểu thẻ hẹp nằm giữa.
+     Dùng class chứ không dùng :has() — trình duyệt cũ không hiểu :has() thì
+     màn OTP vỡ, mà vỡ màn đó là khách không đăng nhập được. */
+  .t-login.hep {
+    max-width: 440px; margin: 40px auto; padding: 28px 20px;
+    display: flex; flex-direction: column; border-radius: 28px; overflow: hidden;
+    background: var(--surface); box-shadow: 0 30px 80px rgba(10,58,57,.16), 0 6px 18px rgba(10,58,57,.08);
+  }
+  .t-login.hep > .t-login-art { margin: -28px -20px 0; height: 140px; border-radius: 0; box-shadow: none; }
   .t-nav .nic { width: 28px; flex-basis: 28px; display: grid; place-items: center; }
   .t-side .s-me .nm, .t-side .s-me .rm { display: block; }
   .t-login .t-btn { max-width: none; }
