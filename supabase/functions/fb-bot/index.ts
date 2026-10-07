@@ -112,6 +112,15 @@ function henXem() {
     : 'Dạ anh/chị để lại số điện thoại ở đây, em gọi lại hẹn giờ xem phòng ngay ạ.';
 }
 
+// Khách hỏi giá hay không. Không dùng 'gia' kiểu chuỗi con được: bỏ dấu xong
+// thì "giặt" thành "giat", "gia đình" thành "gia dinh" — đều chứa 'gia' nên câu
+// hỏi máy giặt lại bị trả về bảng giá. Phải chặn 'gia' theo đúng tiếng, và trừ
+// mấy tiếng ghép không nói về giá.
+const laHoiGia = (t: string) =>
+  (/\bgia\b/.test(t) && !has(t, 'gia dinh', 'gia han', 'gia chu'))
+  || has(t, 'bao nhieu tien', 'bao nhieu 1 thang', 'bao nhieu mot thang', 'tien phong',
+            'cho thue bao nhieu', 'thue bao nhieu', 'nhieu tien');
+
 async function traLoi(text: string): Promise<string> {
   const t = norm(text);
   if (!t) return `Dạ em nghe ạ. ${MENU}`;
@@ -137,9 +146,9 @@ async function traLoi(text: string): Promise<string> {
 
   if (has(t, 'xin chao', 'chao shop', 'chao ad', 'hello', 'alo', 'hi ')) return `Dạ em chào anh/chị ạ. ${MENU}`;
   if (has(t, 'phong trong', 'con phong', 'con trong', 'thue phong', 'muon thue', 'can thue')) return noiTrong(rooms, buildings);
-  if (has(t, 'gia', 'bao nhieu tien', 'bao nhieu 1 thang', 'bao nhieu mot thang', 'tien phong', 'cho thue bao nhieu')) return noiGia(rooms);
+  if (laHoiGia(t)) return noiGia(rooms);
   if (has(t, 'dia chi', 'o dau', 'cho nao', 'duong nao', 'quan may', 'ban do')) return noiDiaChi(buildings);
-  if (has(t, 'tien ich', 'tien nghi', 'co gi', 'noi that', 'may lanh', 'wifi', 'internet', 'giu xe', 'de xe')) return TIEN_ICH;
+  if (has(t, 'tien ich', 'tien nghi', 'co gi', 'noi that', 'may lanh', 'wifi', 'internet', 'giu xe', 'de xe', 'giat', 'phoi')) return TIEN_ICH;
   if (has(t, 'xem phong', 'hen', 'ghe', 'den xem', 'so dien thoai', 'sdt', 'hotline', 'lien he')) return henXem();
   if (has(t, 'hop dong', 'coc', 'dat coc', 'thu tuc')) {
     return 'Thủ tục gọn ạ: xem phòng → ký hợp đồng và đặt cọc → nhận phòng có biên bản bàn giao tài sản.\n'
