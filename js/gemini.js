@@ -24,10 +24,34 @@
   const MODEL = () => CFG().geminiModel || 'gemini-3.8-flash';
   const ENDPOINT = (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 
-  const QUOTA_KEY = 'hh_ai_quota';       // đếm số lượt gọi trong ngày (gói miễn phí ~1.500/ngày)
+  const QUOTA_KEY = 'hh_ai_quota';       // đếm số lượt gọi trong ngày (chỉ để xem, không phải hạn mức thật)
   const CACHE_KEY = 'hh_ai_cache';       // nhớ câu trả lời của những câu hỏi giống hệt nhau
-  const DAILY_LIMIT = 1200;              // chừa biên an toàn dưới hạn mức miễn phí
   const CACHE_MAX = 60;
+
+  /* Hạn mức thật nằm ở phía Google và RẤT NHỎ với gói miễn phí: đo được
+     "limit: 20" cho gemini-3.8-flash. Không đoán được từ trình duyệt, nên
+     không chặn theo số đếm ở máy nữa — cứ gọi, Google trả 429 thì xử lý.
+     Số dưới đây chỉ là chốt chặn phòng khi có vòng lặp gọi loạn. */
+  const CHAN_LOAN = 400;
+
+  /* Hạn mức đếm RIÊNG từng model. Model chính hết lượt thì còn model dự phòng,
+     nên khi gặp 429 thì tự đổi sang model sau trong danh sách rồi gọi lại. */
+  const DU_PHONG = ['gemini-3.8-flash', 'gemini-3.5-flash'];
+  const danhSachMoHinh = () => {
+    const m = MODEL();
+    return [m].concat(DU_PHONG.filter(x => x !== m));
+  };
+
+  /* Google nói rõ phải chờ bao lâu ("Please retry in 54m13.7s") — đọc lấy để
+     báo đúng, thay vì bảo khách "mai quay lại" trong khi chỉ cần chờ chưa tới tiếng. */
+  let choToi = '';
+  function docThoiGianCho(txt) {
+    const m = /retry in\s+(?:(\d+)m)?([\d.]+)s/i.exec(String(txt || ''));
+    if (!m) return '';
+    const phut = (+m[1] || 0) + Math.round(+m[2] / 60);
+    if (phut >= 60) { const g = Math.floor(phut / 60), p = phut % 60; return g + ' giờ' + (p ? ' ' + p + ' phút' : ''); }
+    return Math.max(1, phut) + ' phút';
+  }
 
   /* ---------- Bộ đếm hạn mức theo ngày ---------- */
   function quota() {
@@ -70,7 +94,7 @@
   async function call(systemText, userText, opt) {
     opt = opt || {};
     if (!configured()) throw new Error('AI_NOT_CONFIGURED');
-    if (quota().n >= DAILY_LIMIT) throw new Error('AI_QUOTA');
+    if (quota().n >= CHAN_LOAN) throw new Error('AI_QUOTA');
 
     const body = {
       contents: [{ role: 'user', parts: [{ text: userText }] }],
@@ -94,22 +118,28 @@
   const CHO_LAI = [1200, 3000];          // nghỉ bao lâu trước lần thử thứ 2 và 3
 
   async function send(body, timeout) {
+    const ds = danhSachMoHinh();
     let cuoi;
-    for (let lan = 0; lan <= CHO_LAI.length; lan++) {
-      try { return await sendMot(body, timeout); }
-      catch (e) {
-        cuoi = e;
-        const m = /^AI_HTTP_(\d+)$/.exec(e.message || '');
-        const thuLaiDuoc = (m && TAM_THOI.includes(+m[1])) || e.message === 'AI_NETWORK';
-        if (!thuLaiDuoc || lan === CHO_LAI.length) throw e;
-        await new Promise(r => setTimeout(r, CHO_LAI[lan]));
+    for (const moHinh of ds) {
+      for (let lan = 0; lan <= CHO_LAI.length; lan++) {
+        try { return await sendMot(body, timeout, moHinh); }
+        catch (e) {
+          cuoi = e;
+          // Hết lượt model này: bỏ qua, sang model tiếp theo (hạn mức đếm riêng từng model)
+          if (e.message === 'AI_QUOTA') break;
+          const m = /^AI_HTTP_(\d+)$/.exec(e.message || '');
+          const thuLaiDuoc = (m && TAM_THOI.includes(+m[1])) || e.message === 'AI_NETWORK';
+          if (!thuLaiDuoc || lan === CHO_LAI.length) throw e;   // lỗi khác thì báo ngay
+          await new Promise(r => setTimeout(r, CHO_LAI[lan]));
+        }
       }
     }
-    throw cuoi;
+    throw cuoi;                           // mọi model đều hết lượt
   }
 
   /* Gửi yêu cầu tới Gemini (qua proxy nếu có) và lấy phần chữ trả về */
-  async function sendMot(body, timeout) {
+  async function sendMot(body, timeout, moHinh) {
+    moHinh = moHinh || MODEL();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout || 12000);
     let res;
@@ -124,10 +154,10 @@
           method: 'POST', signal: ctrl.signal,
           headers: Object.assign({ 'Content-Type': 'application/json' },
             key ? { apikey: key, Authorization: 'Bearer ' + key } : {}),
-          body: JSON.stringify({ model: MODEL(), body }),
+          body: JSON.stringify({ model: moHinh, body }),
         });
       } else {
-        res = await fetch(ENDPOINT(MODEL()) + '?key=' + encodeURIComponent(CFG().geminiApiKey), {
+        res = await fetch(ENDPOINT(moHinh) + '?key=' + encodeURIComponent(CFG().geminiApiKey), {
           method: 'POST', signal: ctrl.signal,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -142,10 +172,11 @@
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
-      if (res.status === 429) throw new Error('AI_QUOTA');
+      if (res.status === 429) { choToi = docThoiGianCho(txt) || choToi; throw new Error('AI_QUOTA'); }
       if (res.status === 400 && /API key/i.test(txt)) throw new Error('AI_BAD_KEY');
       throw new Error('AI_HTTP_' + res.status);
     }
+    choToi = '';                           // gọi được rồi thì bỏ lời nhắc chờ cũ
     const data = await res.json();
     const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
     const text = parts.map(p => p.text || '').join('').trim();
@@ -159,7 +190,7 @@
   async function readDoc(files, systemText, userText, opt) {
     opt = opt || {};
     if (!configured()) throw new Error('AI_NOT_CONFIGURED');
-    if (quota().n >= DAILY_LIMIT) throw new Error('AI_QUOTA');
+    if (quota().n >= CHAN_LOAN) throw new Error('AI_QUOTA');
     if (!files || !files.length) throw new Error('AI_EMPTY');
     const parts = files.map(f => ({ inline_data: { mime_type: f.mime, data: f.data } }));
     parts.push({ text: userText });
@@ -222,7 +253,9 @@ QUY TẮC BẮT BUỘC:
   function errText(code) {
     switch (code) {
       case 'AI_NOT_CONFIGURED': return 'Trợ lý AI chưa được cấu hình khóa Gemini.';
-      case 'AI_QUOTA': return 'Hôm nay đã dùng hết lượt hỏi AI miễn phí. Mai thử lại giúp em ạ.';
+      case 'AI_QUOTA': return choToi
+        ? `Đã hết lượt hỏi AI miễn phí. Google báo chờ khoảng ${choToi} nữa là dùng lại được ạ.`
+        : 'Đã hết lượt hỏi AI miễn phí, chờ một lát rồi thử lại giúp em ạ.';
       case 'AI_TIMEOUT': return 'Máy chủ AI phản hồi chậm quá. Anh/chị thử lại giúp em nhé.';
       case 'AI_NETWORK': return 'Không kết nối được máy chủ AI. Kiểm tra mạng giúp em ạ.';
       case 'AI_BAD_KEY': return 'Khóa Gemini không hợp lệ.';
@@ -234,7 +267,7 @@ QUY TẮC BẮT BUỘC:
   root.HHGemini = {
     configured, viaProxy, classify, compose, call, readDoc, errText,
     cacheGet, cacheSet,
-    quotaUsed: () => quota().n, quotaLimit: DAILY_LIMIT,
+    quotaUsed: () => quota().n, quotaLimit: CHAN_LOAN, choPhaiDoi: () => choToi,
     model: MODEL,
   };
 })(window);

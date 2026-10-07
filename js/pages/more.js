@@ -1087,7 +1087,8 @@
     const G = window.HHGemini;
     const on = !!(G && G.configured());
     const mode = on ? (G.viaProxy() ? 'Qua máy chủ trung gian (an toàn)' : 'Gọi thẳng từ trình duyệt') : '-';
-    const left = on ? (G.quotaLimit - G.quotaUsed()) : 0;
+    const daDung = on ? G.quotaUsed() : 0;
+    const phaiCho = on && G.choPhaiDoi ? G.choPhaiDoi() : '';
     const nIntent = (HH.ai && HH.ai.INTENT_LIST.length) || 0;
     return `<div class="grid-2" style="align-items:start;gap:20px">
       <div>
@@ -1106,9 +1107,12 @@
       <div>
         ${on ? `<div class="field"><label>Cách kết nối</label><div class="mono">${U.esc(mode)}</div></div>
           <div class="field" style="margin-top:12px"><label>Mô hình</label><div class="mono">${U.esc(G.model())}</div></div>
-          <div class="field" style="margin-top:12px"><label>Lượt còn lại hôm nay</label>
-            <div class="mono b">${left} / ${G.quotaLimit}</div>
-            <span class="hint" style="display:block;margin-top:4px">Bộ đếm nội bộ để không vượt hạn mức miễn phí của Google.</span></div>`
+          <div class="field" style="margin-top:12px"><label>Đã hỏi hôm nay</label>
+            <div class="mono b">${daDung} lượt</div>
+            <span class="hint" style="display:block;margin-top:4px">Đây là bộ đếm ở máy này. <b>Hạn mức thật nằm ở Google và rất nhỏ
+            với gói miễn phí</b> (đo được 20 lượt mỗi model), tính riêng từng mô hình. Hết lượt mô hình chính thì
+            hệ thống tự chuyển sang mô hình dự phòng.</span>
+            ${phaiCho ? `<span class="err" style="display:block;margin-top:6px">Đang hết lượt, Google báo chờ khoảng ${U.esc(phaiCho)}.</span>` : ''}</div>`
         : `<div class="alert alert-info"><span class="ic">i</span><div>
             Trợ lý vẫn hoạt động bình thường với các câu hỏi thường gặp.<br>
             Muốn bật Gemini cho câu hỏi phức tạp: lấy khóa miễn phí tại

@@ -198,7 +198,7 @@ HH.assistant = (function () {
         <div class="as-head">
           <span class="as-avt">${HH.pic('chat', 24)}</span>
           <div class="as-ttl"><b>Trợ lý Happy Home</b>
-            <span>${G && G.configured() ? 'Gemini Flash, còn ' + (G.quotaLimit - G.quotaUsed()) + ' lượt hôm nay' : 'Tra cứu dữ liệu thật, không tốn phí'}</span></div>
+            <span>${G && G.configured() ? 'Gemini Flash · đã hỏi ' + G.quotaUsed() + ' lượt hôm nay' : 'Tra cứu dữ liệu thật, không tốn phí'}</span></div>
           <button class="as-x" id="asReset" title="Bắt đầu hội thoại mới" aria-label="Bắt đầu hội thoại mới">${ic('refresh', 15)}</button>
           <button class="as-x" id="asClose" aria-label="Đóng">${ic('x', 16)}</button>
         </div>
