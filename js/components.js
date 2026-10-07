@@ -165,13 +165,27 @@ HH.ui = (function () {
     menu.innerHTML = items.map(it => it.sep ? '<div class="sep"></div>' :
       `<button class="${it.danger ? 'danger' : ''} ${it.cls || ''}">${it.icon ? `<span class="ic">${it.icon}</span>` : ''}<span>${esc(it.label)}</span></button>`).join('');
     document.body.appendChild(menu);
+
+    /* Đặt menu theo tọa độ MÀN HÌNH (getBoundingClientRect), nên .menu phải là
+       position:fixed. Trước đây nó là position:absolute — tọa độ tính theo cả
+       trang — nên hễ cuộn xuống là menu bị đẩy lên trên khỏi màn hình đúng
+       bằng số px đã cuộn, bấm vào tưởng như không có gì xảy ra. */
     const r = anchor.getBoundingClientRect();
-    const mw = 210;
-    let left = r.right - mw; if (left < 8) left = r.left;
-    menu.style.left = Math.max(8, left) + 'px';
-    let top = r.bottom + 4;
-    if (top + menu.offsetHeight > window.innerHeight - 8) top = r.top - menu.offsetHeight - 4;
+    const mw = menu.offsetWidth || 230;          // đo thật, đừng đoán
+    const mh = menu.offsetHeight;
+    const LE = 8;
+
+    let left = r.right - mw;                      // mặc định canh phải theo nút
+    if (left < LE) left = r.left;                 // sát mép trái thì canh trái
+    left = Math.min(Math.max(LE, left), Math.max(LE, window.innerWidth - mw - LE));
+
+    let top = r.bottom + 4;                       // thả xuống dưới nút
+    if (top + mh > window.innerHeight - LE) top = r.top - mh - 4;   // không đủ chỗ thì bật lên trên
+    top = Math.min(Math.max(LE, top), Math.max(LE, window.innerHeight - mh - LE));
+
+    menu.style.left = left + 'px';
     menu.style.top = top + 'px';
+
     let bi = 0;
     items.forEach((it) => {
       if (it.sep) return;
@@ -179,6 +193,9 @@ HH.ui = (function () {
       btn.addEventListener('click', () => { closeMenus(); it.onClick && it.onClick(); });
     });
     setTimeout(() => document.addEventListener('click', closeMenus, { once: true }), 0);
+    // Cuộn hoặc đổi cỡ cửa sổ thì đóng, không để menu đứng lơ lửng lệch khỏi nút
+    window.addEventListener('scroll', closeMenus, { once: true, passive: true });
+    window.addEventListener('resize', closeMenus, { once: true });
   }
   function closeMenus() { document.querySelectorAll('.menu[data-floating]').forEach(m => m.remove()); }
 

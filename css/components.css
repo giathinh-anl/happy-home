@@ -279,8 +279,10 @@ table.dt .col-actions { width: 44px; text-align: right; }
 .alert-purple  { background: var(--wood-50);    border-color: var(--wood-100);     color: #6B3F18; }
 
 /* ---------- Menu thả xuống ---------- */
+/* fixed, không phải absolute: openMenu đặt menu theo tọa độ màn hình. Để
+   absolute thì cuộn trang xuống là menu bay lên khỏi màn hình. */
 .menu {
-  position: absolute; z-index: 60; min-width: 210px;
+  position: fixed; z-index: 60; min-width: 210px;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-input); box-shadow: var(--shadow-pop); padding: 5px;
 }
