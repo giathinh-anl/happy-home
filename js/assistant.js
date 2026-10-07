@@ -30,6 +30,96 @@ HH.assistant = (function () {
     } catch (e) { /* hỏng -> bắt đầu mới */ }
   }
 
+  /* ============================================================
+     KÉO NÚT TRỢ LÝ ĐI CHỖ KHÁC
+     Nút nằm đè lên nội dung thì kéo sang chỗ trống. Vị trí nhớ lâu dài trên
+     máy (localStorage) chứ không theo phiên, vì mỗi người quen để một góc.
+     Chưa kéo bao giờ thì để nguyên góc phải dưới như CSS đang đặt.
+     ============================================================ */
+  const POS_KEY = 'hh_assist_pos';
+  const LE = 8;                 // chừa mép màn hình
+  const NGUONG = 4;             // di chuyển quá ngần này px thì coi là kéo, không phải bấm
+  let pos = null;               // { x, y } góc trái trên của nút, theo px
+  let keo = null;               // phiên kéo đang diễn ra
+
+  try { pos = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); } catch (e) { pos = null; }
+  const luuPos = () => { try { localStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch (e) {} };
+
+  /** Chiều cao thanh tab dưới đáy (màn hình hẹp mới có). Phải chừa chỗ cho nó,
+      không thì nút đè lên che mất một mục điều hướng. */
+  function chanDuoi() {
+    const nav = document.getElementById('mTabs');
+    if (!nav) return 0;
+    const r = nav.getBoundingClientRect();
+    if (r.height <= 0 || r.bottom < window.innerHeight - 2) return 0;   // thanh đang ẩn
+    return r.height;
+  }
+
+  /** Ép vị trí nằm trong màn hình — cửa sổ co lại thì nút không bị văng ra ngoài */
+  function ep(p, w, h) {
+    const dayToiDa = Math.max(LE, window.innerHeight - h - LE - chanDuoi());
+    return {
+      x: Math.min(Math.max(LE, p.x), Math.max(LE, window.innerWidth - w - LE)),
+      y: Math.min(Math.max(LE, p.y), dayToiDa),
+    };
+  }
+
+  /** Đặt nút vào chỗ đã nhớ, và cho khung chat mở ra cùng phía với nút */
+  function datViTri() {
+    const fab = document.getElementById('asFab');
+    if (!fab) return;
+    const panel = document.querySelector('.as-panel');
+    if (!pos) {                                  // chưa kéo bao giờ: để CSS lo
+      if (panel) panel.style.cssText = '';
+      return;
+    }
+    const r = fab.getBoundingClientRect();
+    pos = ep(pos, r.width, r.height);
+    Object.assign(fab.style, { left: pos.x + 'px', top: pos.y + 'px', right: 'auto', bottom: 'auto' });
+
+    // Khung chat bám theo nút: nút ở nửa trái thì khung mở sang trái, v.v.
+    if (panel) {
+      const giuaX = pos.x + r.width / 2, giuaY = pos.y + r.height / 2;
+      panel.style.right = panel.style.left = panel.style.top = panel.style.bottom = 'auto';
+      if (giuaX < window.innerWidth / 2) panel.style.left = LE + 'px';
+      else panel.style.right = LE + 'px';
+      if (giuaY < window.innerHeight / 2) panel.style.top = LE + 'px';
+      else panel.style.bottom = LE + 'px';
+    }
+  }
+
+  function ganKeo(fab) {
+    fab.style.touchAction = 'none';              // ngón tay kéo nút thì đừng cuộn trang
+    fab.addEventListener('pointerdown', (e) => {
+      if (e.button != null && e.button !== 0) return;
+      const r = fab.getBoundingClientRect();
+      keo = { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, h: r.height, daDi: false };
+      fab.setPointerCapture(e.pointerId);
+    });
+    fab.addEventListener('pointermove', (e) => {
+      if (!keo) return;
+      const x = e.clientX - keo.dx, y = e.clientY - keo.dy;
+      if (!keo.daDi) {
+        const r = fab.getBoundingClientRect();
+        if (Math.abs(x - r.left) < NGUONG && Math.abs(y - r.top) < NGUONG) return;
+        keo.daDi = true;
+        fab.classList.add('dragging');
+      }
+      pos = ep({ x, y }, keo.w, keo.h);
+      Object.assign(fab.style, { left: pos.x + 'px', top: pos.y + 'px', right: 'auto', bottom: 'auto' });
+    });
+    const xong = () => {
+      if (!keo) return;
+      const daDi = keo.daDi; keo = null;
+      fab.classList.remove('dragging');
+      if (daDi) { fab.dataset.vuaKeo = '1'; luuPos(); datViTri(); }
+    };
+    fab.addEventListener('pointerup', xong);
+    fab.addEventListener('pointercancel', xong);
+  }
+
+  window.addEventListener('resize', () => { if (pos) datViTri(); });
+
   function mount() {
     if (state.mounted) return;
     load();
@@ -143,10 +233,17 @@ HH.assistant = (function () {
   function wire() {
     const q = (id) => document.getElementById(id);
     const fab = q('asFab');
-    if (fab) fab.onclick = () => {
-      state.open = true; if (!state.msgs.length) greet(); save(); paint();
-      setTimeout(() => { const i = q('asIn'); if (i) i.focus(); }, 60);
-    };
+    if (fab) {
+      fab.onclick = (e) => {
+        // Vừa kéo xong thì đừng mở khung chat: trình duyệt vẫn bắn click sau
+        // khi thả, không chặn thì kéo đi chỗ khác là khung bật lên theo.
+        if (fab.dataset.vuaKeo === '1') { fab.dataset.vuaKeo = ''; e.preventDefault(); return; }
+        state.open = true; if (!state.msgs.length) greet(); save(); paint();
+        setTimeout(() => { const i = q('asIn'); if (i) i.focus(); }, 60);
+      };
+      ganKeo(fab);
+      datViTri();
+    }
     const cl = q('asClose'); if (cl) cl.onclick = () => { state.open = false; save(); paint(); };
     const rs = q('asReset');
     if (rs) rs.onclick = () => {

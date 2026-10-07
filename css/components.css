@@ -385,6 +385,13 @@ kbd {
 }
 .as-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(7,43,42,.34); }
 .as-fab.hide { opacity: 0; pointer-events: none; transform: scale(.9); }
+/* Kéo được sang chỗ khác khi nút che mất nội dung */
+.as-fab { cursor: grab; }
+.as-fab.dragging {
+  cursor: grabbing; transition: none; transform: scale(1.06);
+  box-shadow: 0 16px 36px rgba(7,43,42,.4);
+}
+.as-fab.dragging:hover { transform: scale(1.06); }
 
 .as-panel {
   position: fixed; right: 22px; bottom: 22px; z-index: 902;
