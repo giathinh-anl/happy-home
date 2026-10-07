@@ -44,7 +44,13 @@ HH.util = (function () {
   }
   function addMonths(d, m) { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; }
   function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
-  function today() { return new Date('2026-08-12'); } // ngày hệ thống theo ngữ cảnh
+  function today() { return new Date(); }
+  /** 'YYYY-MM' của một ngày (mặc định hôm nay) — kỳ tính tiền của tháng đó */
+  function monthKey(d) { const x = d ? new Date(d) : today(); return x.getFullYear() + '-' + pad(x.getMonth() + 1); }
+  /** 'YYYY-MM-DD' của một ngày (mặc định hôm nay) — điền sẵn cho ô <input type="date"> */
+  function dateKey(d) { const x = d ? new Date(d) : today(); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
+  /** Dịch kỳ 'YYYY-MM' đi n tháng */
+  function shiftMonthKey(p, n) { const [y, m] = String(p).split('-').map(Number); return monthKey(new Date(y, m - 1 + n, 1)); }
 
   /* ---- HTML ---- */
   function esc(s) {
@@ -135,5 +141,6 @@ HH.util = (function () {
   }
 
   return { currency, currencyShort, number, percent, parseNum, fmtDate, addMonths,
-           daysBetween, today, esc, html, raw, initials, uid, debounce, downloadCSV, compressImage, fileToDataUrl, asset };
+           daysBetween, today, monthKey, dateKey, shiftMonthKey,
+           esc, html, raw, initials, uid, debounce, downloadCSV, compressImage, fileToDataUrl, asset };
 })();

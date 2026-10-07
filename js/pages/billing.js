@@ -15,8 +15,7 @@
         <div><div class="page-title">Chỉ số điện</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
         <div class="page-actions">
           <span class="badge s-info" style="align-self:center"><span class="dot"></span>Đã ghi ${done}/${rooms.length} phòng</span>
-          <button class="btn btn-outline" id="importXls">Nhập từ Excel</button>
-          <button class="btn btn-primary" id="toBill">Xong, lập hóa đơn →</button>
+          <button class="btn btn-primary" id="toBill">Lập hóa đơn →</button>
         </div></div>
         <div id="periodSel" style="margin-bottom:16px"></div>
         <p class="muted text-sm" style="margin-bottom:12px">Tiền nước tính theo số người ở (xem Dịch vụ), không cần ghi chỉ số nước.</p>
@@ -32,7 +31,6 @@
     mount(ctx) {
       mountPeriodSelector();
       document.getElementById('toBill').onclick = () => HH.router.go(`/b/${ctx.bid}/invoices`);
-      document.getElementById('importXls').onclick = () => importExcel(ctx);
       wireReadingInputs(ctx);
     },
   };
@@ -234,14 +232,6 @@
       },
       onClose() { if (!handled && done) done(); },   // bấm Hủy: giữ nguyên, không xóa số đã gõ
     });
-  }
-
-  function importExcel(ctx) {
-    UI.modal({ title: 'Nhập chỉ số từ Excel', bodyHtml: h`
-      <p class="muted" style="margin-bottom:12px">Tải file mẫu, điền chỉ số rồi dán vào ô dưới. Hệ thống đối chiếu theo mã phòng.</p>
-      <a href="#" class="btn btn-outline btn-sm" style="margin-bottom:12px">${HH.ic('download', 16)} Tải file mẫu</a>
-      <textarea class="textarea mono" placeholder="P101\t12680\nP102\t8512\n..." style="min-height:120px"></textarea>`,
-      footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" data-close>Xem trước & ghi nhận</button>` });
   }
 
   /* ================= HÓA ĐƠN (§3.7) ================= */
@@ -540,9 +530,9 @@
         <input class="input money" id="payAmt" placeholder="0" value="${U.number(totalDebt)}"></div>
       <div class="grid-2" style="margin-top:12px">
         <div class="field"><label>Hình thức</label><select class="select" id="payMethod"><option>Chuyển khoản</option><option>Tiền mặt</option><option>Ví điện tử</option></select></div>
-        <div class="field"><label>Ngày nhận</label><input class="input" type="date" id="payDate" value="2026-08-12"></div>
+        <div class="field"><label>Ngày nhận</label><input class="input" type="date" id="payDate" value="${U.dateKey()}"></div>
       </div>
-      <div class="field" style="margin-top:12px"><label>Nội dung chuyển khoản</label><input class="input" id="payNote" placeholder="VD: ${invoice.roomCode} T8"></div>
+      <div class="field" style="margin-top:12px"><label>Nội dung chuyển khoản</label><input class="input" id="payNote" placeholder="VD: ${invoice.roomCode} T${Number(S.period().slice(5, 7))}"></div>
       <div class="field" style="margin-top:12px"><label>Chứng từ</label><label class="btn btn-outline btn-sm" style="width:fit-content">${HH.ic('upload', 16)} Tải ảnh<input type="file" hidden></label></div>
       <h4 style="margin:20px 0 8px">Phân bổ tự động <span class="muted text-xs" style="font-weight:400">· trả trước cho hóa đơn kỳ cũ nhất</span></h4>
       <div class="alloc-box" id="allocBox"></div>`,

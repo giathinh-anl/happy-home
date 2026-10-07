@@ -51,9 +51,11 @@ HH.store = (function () {
   const claims = [];
   const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
+  const supportMsgs = [];     // khách nhắn cho nhân viên trực và lời nhân viên trả lời
 
-  const CUR_PERIOD = '2026-08';
-  const PREV_PERIOD = '2026-07';
+  // Kỳ tính tiền lấy theo đồng hồ máy, không ghim cứng: sang tháng là tự nhảy kỳ.
+  const CUR_PERIOD = U.monthKey();
+  const PREV_PERIOD = U.shiftMonthKey(CUR_PERIOD, -1);
 
   // trạng thái phòng theo tỉ lệ để trông thật
   const STATUS_CYCLE = ['occupied', 'occupied', 'occupied', 'occupied', 'occupied',
@@ -235,7 +237,7 @@ HH.store = (function () {
       edited: false, editedAt: null, editedBy: null,
     };
     if (period === CUR_PERIOD && room.floor === 2 && room.code.endsWith('01')) {
-      inv.edited = true; inv.editedAt = '2026-08-08'; inv.editedBy = 'Nguyễn Văn A';
+      inv.edited = true; inv.editedAt = CUR_PERIOD + '-08'; inv.editedBy = 'Nguyễn Văn A';
     }
     if (status === 'paid' || status === 'partial') {
       payments.push({
@@ -251,7 +253,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, bankTx, auditLog };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, bankTx, auditLog, supportMsgs };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -283,6 +285,9 @@ HH.store = (function () {
     period: CUR_PERIOD, roomView: 'map' };
   let prefs = Object.assign({}, defaultPrefs);
   try { const p = JSON.parse(localStorage.getItem(PREFS_KEY)); if (p) prefs = Object.assign(prefs, p); } catch (e) {}
+  // Kỳ đã lưu từ lần dùng trước có thể là tháng cũ. Không bỏ qua chuyện này thì
+  // mở web tháng 10 vẫn thấy kỳ tháng 8 vì localStorage còn giữ giá trị cũ.
+  if (!prefs.period || prefs.period < CUR_PERIOD) prefs.period = CUR_PERIOD;
   function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} }
 
   /* ---------- Điều khoản hợp đồng mẫu (chuẩn thuê nhà VN) ---------- */
@@ -517,16 +522,14 @@ HH.store = (function () {
     },
     notificationCount() { return api.notifications().length; },
 
-    // Tổng hợp cho 4 thẻ trang phòng (kiểu LOZIDO)
+    // Tổng hợp cho 3 thẻ trang phòng (kiểu LOZIDO)
     roomSummary(bid) {
-      const rs = rooms.filter(r => r.buildingId === bid);
       const debt = invoices.filter(i => i.buildingId === bid && i.status !== 'cancelled')
         .reduce((s, i) => s + (i.total - i.paid), 0);
       const deposit = contracts.filter(c => c.buildingId === bid && (c.status === 'active' || c.status === 'terminating'))
         .reduce((s, c) => s + (c.deposit || 0), 0);
-      const holding = rs.filter(r => r.status === 'reserved').reduce((s, r) => s + (r.holdingDeposit || 0), 0);
       const incident = incidents.filter(x => x.buildingId === bid && x.status !== 'done').length;
-      return { debt, deposit, holding, incident };
+      return { debt, deposit, incident };
     },
     roomsOf: (bid) => rooms.filter(r => r.buildingId === bid),
     room: (bid, code) => rooms.find(r => r.buildingId === bid && r.code === code),
@@ -780,6 +783,75 @@ HH.store = (function () {
     },
     addContract(c) { contracts.push(c); persist(); return c; },
     updateContract(id, patch) { const c = contracts.find(x => x.id === id); if (c) { Object.assign(c, patch); persist(); } return c; },
+
+    /* ---------- Hỏi đáp với khách thuê ----------
+       Trợ lý ảo trong app khách không trả lời được thì khách nhắn thẳng vào đây,
+       nhân viên trực trả lời, khách đọc ngay trong app. Mỗi SĐT là một cuộc. */
+    supportMsgs,
+    /** Gom tin thành từng cuộc theo số điện thoại, mới nhất lên đầu */
+    supportThreads(bid) {
+      const by = new Map();
+      supportMsgs.forEach(m => {
+        if (bid && m.buildingId && m.buildingId !== bid) return;
+        const k = m.tenantPhone || '';
+        if (!k) return;
+        if (!by.has(k)) by.set(k, { phone: k, tenantName: m.tenantName || '', roomCode: m.roomCode || '',
+          buildingId: m.buildingId || null, msgs: [], unread: 0, lastAt: null, waiting: false });
+        const th = by.get(k);
+        th.msgs.push(m);
+        if (m.tenantName) th.tenantName = m.tenantName;
+        if (m.roomCode) th.roomCode = m.roomCode;
+        if (m.sender === 'tenant' && !m.readByStaff) th.unread++;
+        if (!th.lastAt || m.createdAt > th.lastAt) th.lastAt = m.createdAt;
+      });
+      const list = [...by.values()];
+      list.forEach(th => {
+        th.msgs.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+        const last = th.msgs[th.msgs.length - 1];
+        th.waiting = !!last && last.sender === 'tenant';     // khách đang chờ trả lời
+      });
+      return list.sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
+    },
+    /** Số câu khách hỏi mà chưa ai trả lời — dùng cho chấm đỏ trên thanh bên */
+    supportUnread(bid) {
+      return supportMsgs.filter(m => m.sender === 'tenant' && !m.readByStaff
+        && (!bid || !m.buildingId || m.buildingId === bid)).length;
+    },
+    /** Nhân viên trả lời một cuộc */
+    replySupport(phone, body, thread) {
+      const text = String(body || '').trim();
+      if (!phone || !text) return null;
+      const m = {
+        id: U.uid('ms'), buildingId: (thread && thread.buildingId) || null,
+        roomCode: (thread && thread.roomCode) || null,
+        tenantPhone: phone, tenantName: (thread && thread.tenantName) || '',
+        sender: 'staff', staffName: prefs.userName || 'Nhân viên trực',
+        body: text, createdAt: new Date().toISOString(),
+        readByStaff: true, readByTenant: false,
+      };
+      supportMsgs.push(m);
+      api.markSupportRead(phone, true);          // trả lời xong coi như đã xử lý xong các câu trước
+      api.log('support.reply', `Trả lời khách ${phone}${m.roomCode ? ' (phòng ' + m.roomCode + ')' : ''}`);
+      persist();
+      return m;
+    },
+    /** Đánh dấu các câu của khách là đã xem (quiet = đừng ghi nhật ký) */
+    markSupportRead(phone, quiet) {
+      let n = 0;
+      supportMsgs.forEach(m => {
+        if (m.tenantPhone === phone && m.sender === 'tenant' && !m.readByStaff) { m.readByStaff = true; n++; }
+      });
+      if (n && !quiet) persist();
+      return n;
+    },
+    /** Nhận tin mới từ máy chủ, giữ nguyên những dòng đã có (so theo id) */
+    mergeSupport(rows) {
+      if (!Array.isArray(rows)) return 0;
+      const seen = new Set(supportMsgs.map(m => m.id));
+      let added = 0;
+      rows.forEach(r => { if (r && r.id && !seen.has(r.id)) { supportMsgs.push(r); seen.add(r.id); added++; } });
+      return added;
+    },
 
     /* ---------- Hợp đồng: hạn & nhắc nhở ---------- */
     // Số ngày còn lại (âm = đã quá hạn). null nếu không có ngày kết thúc.

@@ -19,6 +19,7 @@ HH.backend = (function () {
     services: 'services', readings: 'readings', invoices: 'invoices', payments: 'payments',
     assets: 'assets', incidents: 'incidents', transactions: 'transactions', staff: 'staff',
     claims: 'payment_claims', bankTx: 'bank_transactions', auditLog: 'audit_log',
+    supportMsgs: 'support_messages',
   };
   // field JS lệch quy tắc -> cột DB
   const ALIAS = {
@@ -129,6 +130,18 @@ HH.backend = (function () {
     }
     return { error: true };
   }
+  /** Nạp lại MỘT bảng (dùng để hỏi tin nhắn mới mà không phải tải lại cả kho).
+      Bảng chưa tạo thì trả mảng rỗng chứ không làm hỏng trang đang mở. */
+  async function loadKind(kind) {
+    if (!enabled || !KINDS[kind]) return { data: [] };
+    const { data, error } = await client.from(KINDS[kind]).select('*');
+    if (error) {
+      if (isMissingTable(error)) return { data: [], missing: true };
+      return { error };
+    }
+    return { data: (data || []).map((r) => rowToJs(kind, r)) };
+  }
+
   /* ---------- Chỉ gửi những dòng THẬT SỰ đổi ----------
      Trước đây mỗi lần lưu là đẩy lại toàn bộ mọi bảng. Từ khi phòng có ảnh
      (mỗi tấm vài trăm KB nằm ngay trong dòng) thì mỗi lần bấm Lưu phải tải
@@ -242,6 +255,6 @@ HH.backend = (function () {
   }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
-    loadAll, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
+    loadAll, loadKind, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
     client: () => client, KINDS };
 })();

@@ -330,7 +330,7 @@
       bodyHtml: h`
         <div class="grid-2">
           <div class="field"><label>Hạng mục</label><select class="select" id="txCat">${raw(cats.map(c => `<option>${c}</option>`).join(''))}</select></div>
-          <div class="field"><label>Ngày</label><input class="input" type="date" id="txDate" value="2026-08-13"></div>
+          <div class="field"><label>Ngày</label><input class="input" type="date" id="txDate" value="${U.dateKey()}"></div>
         </div>
         <div class="field" style="margin-top:12px"><label>Số tiền (₫)</label><input class="input money" id="txAmount" placeholder="0"></div>
         <div class="field" style="margin-top:12px"><label>Ghi chú</label><input class="input" id="txNote" placeholder="Mô tả ngắn"></div>`,
@@ -539,13 +539,20 @@
 
   /* Dán sao kê ngân hàng -> tách giao dịch -> xem trước -> nạp vào hàng chờ */
   function pasteStatementDialog() {
+    // Ví dụ trong ô dán phải theo kỳ đang xem, để lúc sang tháng không còn hiện tháng cũ
+    function stmtPlaceholder() {
+      const per = S.period(), d = U.dateKey();
+      const dd = d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+      const yy = per.slice(2, 4), mm = per.slice(5, 7);
+      return `${dd}  HD${yy}${mm}013 CHUYEN TIEN  3.943.000&#10;${dd}  P205 T${Number(mm)} ${per.slice(0, 4)}  4.321.000`;
+    }
     UI.modal({
       size: 'wide', title: 'Dán sao kê ngân hàng',
       bodyHtml: h`<p class="muted text-sm" style="margin-bottom:10px">
           Mở app/web ngân hàng, sao chép các dòng giao dịch <b>tiền vào</b> rồi dán xuống dưới.
           Mỗi dòng một giao dịch, app tự tách ngày, số tiền và nội dung.</p>
         <textarea class="textarea" id="stText" style="min-height:180px;font-family:var(--font-mono);font-size:13px"
-          placeholder="03/09/2026  HD2608013 CHUYEN TIEN  3.943.000&#10;03/09/2026  P205 T8 2026  4.321.000"></textarea>
+          placeholder="${raw(stmtPlaceholder())}"></textarea>
         <div id="stPreview" style="margin-top:12px"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span>
         <button class="btn btn-primary" id="stAdd" disabled>Nạp vào hàng chờ</button>`,

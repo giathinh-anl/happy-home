@@ -20,3 +20,6 @@ tenant-app/js/config.js
 
 # Bản gộp 1 tệp để chia sẻ (sinh lại bằng: python build-demo.py)
 demo/
+
+# Rác của Supabase CLI
+supabase/.temp/

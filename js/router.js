@@ -32,6 +32,7 @@ HH.router = (function () {
     { pat: '/b/:bid/payments', page: 'payments', meta: { perm: 'payments' } },
     { pat: '/b/:bid/expenses', page: 'expenses', meta: { title: 'Thu chi', perm: 'expenses' } },
     { pat: '/b/:bid/assets', page: 'assets', meta: { perm: 'assets' } },
+    { pat: '/b/:bid/support', page: 'support', meta: { title: 'Hỏi đáp khách thuê', perm: 'tenants' } },
     { pat: '/b/:bid/incidents', page: 'incidents', meta: { perm: 'incidents' } },
     { pat: '/b/:bid/locks', page: 'locks', meta: { perm: 'rooms' } },
     { pat: '/b/:bid/config', page: 'buildingConfig', meta: { title: 'Cấu hình tòa nhà', perm: 'settings' } },

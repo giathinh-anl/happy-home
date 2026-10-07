@@ -417,10 +417,13 @@ HH.pages = HH.pages || {};
   /* ---------------- NHẬT KÝ HỆ THỐNG ---------------- */
   HH.pages.logs = {
     render() {
+      // Nhật ký mẫu neo vào kỳ đang xem, không ghim cứng tháng 8
+      const per = S.period(), prev = S.prevPeriodOf(per);
+      const yy = per.slice(2, 4), mm = per.slice(5, 7), pmm = prev.slice(5, 7);
       const seed = [
-        { at: '2026-08-08T09:12:00', actor: 'Nguyễn Văn A', action: 'invoice.edit', message: 'Chỉnh sửa hóa đơn HD-2608-013', reason: 'Điều chỉnh chỉ số điện ghi nhầm' },
-        { at: '2026-08-05T16:40:00', actor: 'Nguyễn Văn A', action: 'invoice.issue', message: 'Phát hành 24 hóa đơn kỳ T8/2026', reason: null },
-        { at: '2026-08-03T10:05:00', actor: 'Trần Thị Vận Hành', action: 'payment.record', message: 'Ghi nhận thanh toán 2.180.000 ₫ cho HD-2607-001', reason: null },
+        { at: per + '-08T09:12:00', actor: 'Nguyễn Văn A', action: 'invoice.edit', message: `Chỉnh sửa hóa đơn HD-${yy}${mm}-013`, reason: 'Điều chỉnh chỉ số điện ghi nhầm' },
+        { at: per + '-05T16:40:00', actor: 'Nguyễn Văn A', action: 'invoice.issue', message: `Phát hành 24 hóa đơn kỳ ${S.periodLabel(per)}`, reason: null },
+        { at: per + '-03T10:05:00', actor: 'Trần Thị Vận Hành', action: 'payment.record', message: `Ghi nhận thanh toán 2.180.000 ₫ cho HD-${prev.slice(2, 4)}${pmm}-001`, reason: null },
       ];
       const all = S.auditLog.concat(seed);
       const rows = all.map(l => h`<tr>

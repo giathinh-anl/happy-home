@@ -406,7 +406,7 @@
   HH.pages.contractNew = {
     render(ctx) {
       ctx._w = { step: 0, roomCode: null, tenants: [], term: {
-        start: '2026-08-15', months: 12, rent: null, deposit: null, depositEq: true,
+        start: U.dateKey(), months: 12, rent: null, deposit: null, depositEq: true,
         cycle: 'monthly', billingDay: 1, dueDays: 5 }, services: {}, handover: {} };
       return h`<div class="page-head">
         <div><a class="back-link" href="#/b/${ctx.bid}/contracts">← Hợp đồng</a>
@@ -1058,7 +1058,9 @@ QUY TẮC:
       const c = S.contract(ctx.params.cid);
       if (!c) return `<div class="alert alert-danger"><span class="ic">${HH.ic('alert', 16)}</span><div>Không tìm thấy hợp đồng.</div></div>`;
       ctx._c = c;
-      ctx._t = { step: 0, returnDate: '2026-08-31', reason: '', assets: {}, checks: { shown: false, paid: false } };
+      // mặc định trả phòng vào ngày cuối tháng này
+      const eom = new Date(U.today().getFullYear(), U.today().getMonth() + 1, 0);
+      ctx._t = { step: 0, returnDate: U.dateKey(eom), reason: '', assets: {}, checks: { shown: false, paid: false } };
       const assets = S.assetsOf(ctx.bid, c.roomCode);
       assets.forEach(a => ctx._t.assets[a.id] = { condition: 'good', compensation: 0 });
       return h`<div class="page-head">

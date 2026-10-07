@@ -44,7 +44,6 @@
           return `${U.esc(r.tenantName || '')}${n > 1 ? ` <span class="faint text-xs">+${n - 1} người</span>` : ''}`;
         } },
       { key: 'contractEnd', label: 'Hạn hợp đồng', render: r => r.contractEnd ? U.fmtDate(r.contractEnd) : '<span class="faint">-</span>' },
-      { key: 'holdingDeposit', label: 'Cọc giữ chỗ', align: 'right', render: r => r.holdingDeposit ? U.currency(r.holdingDeposit) : '<span class="faint">-</span>' },
       { key: 'debt', label: 'Tài chính', align: 'right', sortable: true, render: r => r.debt ? `<span style="color:var(--danger)">Nợ ${U.currency(r.debt)}</span>` : '<span style="color:var(--success)">Đủ</span>' },
     ];
   }
@@ -62,7 +61,6 @@
     else if (occupied && days != null && days <= 30) foot = `<div class="rc-foot warn">${HH.icon('clock', 14)} Còn ${days} ngày HĐ</div>`;
     else if (occupied && days != null) foot = `<div class="rc-foot">${HH.icon('calendar', 14)} Đến ${U.fmtDate(r.contractEnd)}</div>`;
     else if (r.status === 'vacant') foot = `<div class="rc-foot ok">${HH.icon('check', 14)} Sẵn sàng cho thuê</div>`;
-    else if (r.status === 'reserved') foot = `<div class="rc-foot warn">${HH.icon('wallet', 14)} Cọc ${U.currency(r.holdingDeposit || 0)}</div>`;
     else foot = `<div class="rc-foot">${HH.icon('clock', 14)} ${U.esc(st.label)}</div>`;
 
     const who = occupied
@@ -393,7 +391,7 @@
     };
   }
 
-  /* ---- 4 thẻ tổng hợp (kiểu LOZIDO) ---- */
+  /* ---- 3 thẻ tổng hợp (kiểu LOZIDO) ---- */
   function summaryCards(ctx) {
     const s = S.roomSummary(ctx.bid);
     const card = (iconName, tone, label, value, filter) =>
@@ -405,7 +403,6 @@
     return `<div class="lz-sum-grid">
       ${card('receipt', 'tone-danger', 'Tổng tiền khách nợ', s.debt, 'debt')}
       ${card('coins', 'tone-success', 'Tổng tiền cọc', s.deposit, null)}
-      ${card('calendar', 'tone-warning', 'Cọc giữ chỗ phòng', s.holding, 'reserved')}
       <div class="lz-sum" data-sumfilter="incident"><span class="lz-sum-ic tone-info">${HH.pic('wrench', 32)}</span>
         <div class="lz-sum-body"><div class="lz-sum-label">Sự cố phòng</div>
           <div class="lz-sum-val">${s.incident} <span class="lz-sum-cur">vấn đề</span></div></div>

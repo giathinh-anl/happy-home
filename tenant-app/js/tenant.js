@@ -8,8 +8,10 @@
   const enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && cfg.supabaseUrl.indexOf('YOUR-') === -1 && typeof supabase !== 'undefined');
   const client = enabled ? supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
 
-  const CUR_PERIOD = '2026-08', CUR_PERIOD_LABEL = 'T8/2026';
-  const TODAY = new Date('2026-08-13');
+  // Kỳ và "hôm nay" lấy theo đồng hồ máy, không ghim cứng: sang tháng là tự nhảy.
+  const TODAY = new Date();
+  const CUR_PERIOD = TODAY.getFullYear() + '-' + String(TODAY.getMonth() + 1).padStart(2, '0');
+  const CUR_PERIOD_LABEL = 'T' + (TODAY.getMonth() + 1) + '/' + TODAY.getFullYear();
   const DEMO_OTP = '123456';
   // Tài khoản nhận tiền. bin = mã ngân hàng theo chuẩn NAPAS (MB Bank = 970422,
   // Vietcombank 970436, Techcombank 970407, ACB 970416, BIDV 970418, VietinBank 970415).
@@ -944,7 +946,10 @@
      - Không đoán khi không có dữ liệu — trả lời trung thực và chuyển tiếp.
      ============================================================ */
   const NLU = window.HHNLU;
-  const chat = { msgs: [], busy: false, ctx: NLU ? NLU.createContext() : null, loadedFor: null };
+  const chat = { msgs: [], busy: false, ctx: NLU ? NLU.createContext() : null, loadedFor: null,
+    handed: false,          // đã chuyển cho nhân viên trực chưa
+    seen: {},               // id tin nhân viên đã hiện, tránh hiện lại hai lần
+    lastPull: null };       // mốc thời gian lần hỏi máy chủ gần nhất
   const chatKey = () => 'hh_tchat_' + (state.phone || '');
 
   const SUGGESTIONS = [
@@ -968,18 +973,21 @@
   function saveChat() {
     try {
       sessionStorage.setItem(chatKey(), JSON.stringify({
-        msgs: chat.msgs.slice(-40), ctx: chat.ctx ? chat.ctx.dump() : null }));
+        msgs: chat.msgs.slice(-40), ctx: chat.ctx ? chat.ctx.dump() : null,
+        handed: chat.handed, seen: chat.seen, lastPull: chat.lastPull }));
     } catch (e) { /* bỏ qua */ }
   }
   function loadChat() {
     if (chat.loadedFor === state.phone) return;
     chat.loadedFor = state.phone;
     chat.msgs = [];
+    chat.handed = false; chat.seen = {}; chat.lastPull = null;
     if (chat.ctx) chat.ctx.clear();
     try {
       const o = JSON.parse(sessionStorage.getItem(chatKey()) || 'null');
       if (o && Array.isArray(o.msgs)) chat.msgs = o.msgs;
       if (o && chat.ctx) chat.ctx.load(o.ctx);
+      if (o) { chat.handed = !!o.handed; chat.seen = o.seen || {}; chat.lastPull = o.lastPull || null; }
     } catch (e) { /* bắt đầu mới */ }
   }
 
@@ -1439,7 +1447,7 @@
     const sugg = (lastBot && lastBot.suggest && lastBot.suggest.length) ? lastBot.suggest : SUGGESTIONS;
     const body = chat.msgs.map((m, i) => `
       <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
-        <div class="bubble">${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}
+        <div class="bubble ${m.staff ? 'from-staff' : ''}">${m.staff ? `<div class="b-staff">${HH.pic('users', 18)} ${esc(m.staff)} trả lời</div>` : ''}${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}
           ${m.ai ? '<span class="b-ai">' + HH.ic('sparkles', 16) + ' lời văn do Gemini soạn · số liệu lấy từ hệ thống</span>' : ''}
           ${(m.actions || []).length ? `<div class="b-actions">${m.actions.map((a, j) =>
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
@@ -1457,11 +1465,18 @@
       </div></div></div>`;
 
     wireTabs();
+    // Đã từng chuyển cho nhân viên thì mỗi lần mở lại màn này là hỏi luôn xem
+    // có lời đáp mới chưa, rồi mới chờ theo nhịp.
+    if (chat.handed) { startStaffPoll(); pullStaffReplies(); }
     const slo2 = el('sideLogout');
-    if (slo2) slo2.onclick = () => { try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatKey()); } catch (e) {}
+    if (slo2) slo2.onclick = () => { stopStaffPoll(); try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatKey()); } catch (e) {}
       state.phone = null; state.data = null; go('#/login'); };
-    el('back').onclick = () => go('#/home');
-    el('chatNew').onclick = () => { chat.msgs = []; chat.ctx.clear(); saveChat(); screenChat(); };
+    el('back').onclick = () => { stopStaffPoll(); go('#/home'); };
+    el('chatNew').onclick = () => {
+      chat.msgs = []; chat.ctx.clear();
+      chat.handed = false; chat.seen = {}; chat.lastPull = null; stopStaffPoll();
+      saveChat(); screenChat();
+    };
     const bodyEl = el('chatBody'); bodyEl.scrollTop = bodyEl.scrollHeight;
     const inp = el('chatIn');
     const send = () => { const v = inp.value.trim(); if (!v || chat.busy) return; inp.value = ''; inp.style.height = 'auto'; ask(v); };
@@ -1495,28 +1510,67 @@
     if (res) {
       pushMsg('bot', res.html, res.actions, res.ai, { suggest: res.suggest, note: res.note });
     } else {
-      // Tầng 3 — nói thật là chưa hiểu, HỎI trước khi chuyển cho chủ nhà (tránh gửi nhầm câu linh tinh)
-      pushMsg('bot', `Câu này em chưa trả lời được ạ. Anh/chị muốn em <b>chuyển câu hỏi cho chủ nhà</b> không?`,
-        [{ label: 'Gửi cho chủ nhà', act: 'forward', data: text, solid: true }, { label: 'Em làm được gì?', send: 'Bạn giúp được gì?' }]);
+      // Tầng 3 — nói thật là chưa hiểu, HỎI trước khi chuyển cho người trực
+      // (tránh gửi nhầm câu linh tinh làm phiền nhân viên).
+      pushMsg('bot', `Câu này em chưa trả lời được ạ. Anh/chị muốn em <b>chuyển cho nhân viên trực</b> trả lời trực tiếp không?`,
+        [{ label: 'Nhắn cho nhân viên', act: 'forward', data: text, solid: true }, { label: 'Em làm được gì?', send: 'Bạn giúp được gì?' }]);
     }
     screenChat();
   }
 
-  // Khách đồng ý -> gửi câu hỏi cho chủ nhà (đúng đặc tả §5.1)
+  /* ============================================================
+     CHUYỂN CHO NHÂN VIÊN TRỰC
+     Câu hỏi đi vào bảng support_messages; nhân viên trả lời ở web quản trị
+     (mục "Hỏi đáp khách thuê"), lời đáp quay về đúng khung chat này.
+     ============================================================ */
   async function forwardToLandlord(text) {
     if (!text) return;
-    pushMsg('bot', 'Em đang chuyển câu hỏi...'); screenChat();
+    pushMsg('bot', 'Em đang chuyển cho nhân viên trực...'); screenChat();
     try {
-      await rpc('tenant_create_incident', { p_phone: state.phone, p_category: 'Khác', p_title: '[Câu hỏi] ' + text });
-      state.data = await loadData(state.phone);
+      await rpcNeed('tenant_send_message', { p_phone: state.phone, p_body: text });
       chat.msgs.pop();
-      pushMsg('bot', `Em đã <b>chuyển câu hỏi cho chủ nhà</b> ✓ Anh/chị sẽ được trả lời trong giờ làm việc.`,
-        [{ label: 'Gọi ngay', act: 'contact' }]);
+      chat.handed = true;
+      pushMsg('bot', `Em đã <b>chuyển cho nhân viên trực</b> ✓<br>`
+        + `Nhân viên trả lời thì câu trả lời hiện ngay ở đây, anh/chị cứ mở app là thấy.`,
+        [{ label: 'Gọi luôn cho nhanh', act: 'contact' }]);
+      startStaffPoll();
     } catch (e) {
       chat.msgs.pop();
-      pushMsg('bot', 'Em chuyển chưa được ạ. Anh/chị gọi trực tiếp chủ nhà giúp em nhé.',
+      pushMsg('bot', e.message === 'NOT_ACTIVATED'
+        ? 'Phần nhắn cho nhân viên chưa được bật trên hệ thống ạ. Anh/chị gọi trực tiếp giúp em nhé.'
+        : 'Em chuyển chưa được ạ. Anh/chị gọi trực tiếp giúp em nhé.',
         [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }]);
     }
+    screenChat();
+  }
+
+  /* ---------- Hỏi máy chủ xem nhân viên đã trả lời chưa ----------
+     Chỉ chạy khi đang mở màn trò chuyện; rời màn là tự tắt. */
+  const STAFF_POLL_MS = 8000;
+  let staffPoll = null;
+
+  function startStaffPoll() {
+    clearInterval(staffPoll);
+    if (!enabled || !state.phone) return;
+    staffPoll = setInterval(pullStaffReplies, STAFF_POLL_MS);
+  }
+  function stopStaffPoll() { clearInterval(staffPoll); staffPoll = null; }
+
+  async function pullStaffReplies() {
+    if (!document.getElementById('chatBody')) { stopStaffPoll(); return; }   // đã rời màn chat
+    let r;
+    try {
+      r = await rpc('tenant_messages', { p_phone: state.phone, p_after: chat.lastPull || null });
+    } catch (e) { return; }                       // mạng chập chờn: bỏ qua lượt này
+    if (!r) return;
+    chat.lastPull = r.now || chat.lastPull;
+    const list = (r.messages || []).filter(m => m.sender === 'staff' && !chat.seen[m.id]);
+    if (!list.length) return;
+    list.forEach(m => {
+      chat.seen[m.id] = true;
+      pushMsg('bot', `${esc(m.body).split('\n').join('<br>')}`, [], false,
+        { staff: m.staffName || 'Nhân viên trực' });
+    });
     screenChat();
   }
 

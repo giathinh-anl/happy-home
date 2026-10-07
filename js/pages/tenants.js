@@ -233,65 +233,142 @@
     { key: 'address', label: 'Địa chỉ thường trú' },
   ];
 
+  const G = () => window.HHGemini;
+
   HH.pages.tenantNew = {
     render(ctx) {
+      const aiOn = !!(G() && G().configured());
       return h`<div class="page-head">
         <div><a class="back-link" href="#/b/${ctx.bid}/tenants">← Khách thuê</a>
           <div class="page-title">Thêm khách thuê</div></div></div>
+        ${raw(aiOn ? '' : `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">${HH.ic('alert', 16)}</span>
+          <div><b>Chưa bật trợ lý AI</b> nên chưa đọc được ảnh căn cước. Bạn vẫn nhập tay được bên dưới.
+          Bật bằng cách điền <span class="code">aiProxyUrl</span> hoặc <span class="code">geminiApiKey</span> trong js/config.js.</div></div>`)}
         <div class="card card-pad" id="ocrCard">
           <div class="ocr-drop" id="ocrDrop">
             <div class="big-ic">${HH.ic('camera', 30)}</div>
-            <h3 style="margin:8px 0">Chụp hoặc tải ảnh căn cước công dân</h3>
-            <p class="muted">Hệ thống tự nhận diện và điền sẵn thông tin</p>
-            <div style="margin-top:16px" class="row-gap-2" style="justify-content:center">
-              <label class="btn btn-primary">Chọn ảnh mặt trước<input type="file" accept="image/*" id="ocrFile" hidden></label>
+            <h3 style="margin:8px 0">Chụp, tải hoặc dán ảnh căn cước công dân</h3>
+            <p class="muted">${aiOn ? 'Hệ thống đọc chữ trên ảnh rồi điền sẵn, mọi ô vẫn sửa được' : 'Bật trợ lý AI thì ảnh sẽ được đọc tự động'}</p>
+            <div style="margin-top:16px" class="row-gap-2 wrap" style="justify-content:center">
+              <label class="btn btn-primary">${raw(HH.ic('upload', 16))} Chọn ảnh mặt trước<input type="file" accept="image/*" id="ocrFile" hidden></label>
+              <label class="btn btn-outline">${raw(HH.ic('camera', 16))} Chụp ảnh<input type="file" accept="image/*" capture="environment" id="ocrCam" hidden></label>
             </div>
-            <p class="muted text-sm" style="margin-top:12px">Hoặc kéo thả ảnh vào đây</p>
+            <p class="muted text-sm" style="margin-top:12px">Hoặc kéo thả ảnh vào đây, hoặc bấm vào khung rồi dán bằng <kbd>Ctrl</kbd>+<kbd>V</kbd></p>
           </div>
           <div class="center" style="margin-top:16px"><a href="#" id="manualLink">Hoặc nhập thủ công →</a></div>
         </div>`;
     },
     mount(ctx) {
       const file = document.getElementById('ocrFile');
+      const cam = document.getElementById('ocrCam');
       const drop = document.getElementById('ocrDrop');
       file.onchange = () => { if (file.files[0]) startOcr(ctx, file.files[0]); };
+      cam.onchange = () => { if (cam.files[0]) startOcr(ctx, cam.files[0]); };
       ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = 'var(--brand-500)'; }));
       ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = ''; }));
       drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) startOcr(ctx, e.dataTransfer.files[0]); });
+      // Dán ảnh từ bộ nhớ tạm (chụp màn hình CCCD rồi Ctrl+V).
+      // Router không gọi unmount, nên listener tự tháo khi khung đã rời khỏi trang.
+      if (pasteHandler) document.removeEventListener('paste', pasteHandler);
+      pasteHandler = (e) => {
+        if (!document.getElementById('ocrDrop')) {       // đã sang trang khác
+          document.removeEventListener('paste', pasteHandler); pasteHandler = null; return;
+        }
+        const items = (e.clipboardData && e.clipboardData.items) || [];
+        for (const it of items) {
+          if (it.kind === 'file' && String(it.type || '').startsWith('image/')) {
+            const f = it.getAsFile();
+            if (f) { e.preventDefault(); startOcr(ctx, f); return; }
+          }
+        }
+      };
+      document.addEventListener('paste', pasteHandler);
       document.getElementById('manualLink').onclick = (e) => { e.preventDefault(); showForm(ctx, blankData(), null); };
     },
   };
+  let pasteHandler = null;
 
   function blankData() {
     const d = {}; OCR_FIELDS.forEach(f => d[f.key] = { value: '', confidence: 1 }); return d;
   }
 
+  /* ---------- Đọc ảnh căn cước bằng AI ----------
+     Mô hình chỉ ĐỌC chữ in trên thẻ, không suy đoán; ô nào không thấy thì để null.
+     Đọc không được thì mở biểu mẫu trống kèm lý do — KHÔNG điền dữ liệu bịa,
+     vì hồ sơ khách thuê sai tên hay sai số CCCD là sai cả hợp đồng về sau. */
+  const CCCD_SYS = `Bạn là công cụ đọc thẻ Căn cước công dân / Chứng minh nhân dân Việt Nam từ ảnh.
+NHIỆM VỤ: đọc CHÍNH XÁC chữ in trên thẻ và trả về JSON. TUYỆT ĐỐI KHÔNG suy đoán, không tự bịa.
+Ô nào trên ảnh không thấy hoặc không đọc được thì để null. Chỉ trả JSON, không giải thích.
+Định dạng:
+{"fullName":"họ và tên"|null,"idNumber":"số thẻ, chỉ chữ số"|null,
+"dateOfBirth":"dd/mm/yyyy"|null,"gender":"Nam"|"Nữ"|null,
+"hometown":"quê quán"|null,"address":"nơi thường trú"|null,
+"issueDate":"dd/mm/yyyy ngày cấp"|null,
+"isIdCard":true|false,
+"confidence":{"tên_trường":0..1}}
+QUY TẮC:
+- fullName: in hoa đúng như trên thẻ, giữ nguyên dấu tiếng Việt.
+- idNumber: chỉ giữ chữ số, bỏ khoảng trắng. Thẻ CCCD có 12 số, CMND cũ có 9 số.
+- gender: thẻ ghi "Nam"/"Nữ" (hoặc Sex: M/F) thì trả đúng "Nam" hoặc "Nữ".
+- hometown là "Quê quán", address là "Nơi thường trú" — đừng lẫn hai ô này.
+- isIdCard: false nếu ảnh KHÔNG phải thẻ căn cước/chứng minh (ảnh khác, ảnh mờ không thấy chữ).
+- confidence: mức chắc chắn của từng ô bạn đọc được (1 là chữ rõ, 0.5 là mờ phải đoán hình chữ).`;
+
   function startOcr(ctx, fileObj) {
     const card = document.getElementById('ocrCard');
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      const aiOn = !!(G() && G().configured());
+      if (!aiOn) {
+        UI.toast('Chưa bật trợ lý AI nên không đọc được ảnh, mời nhập tay', { type: 'warn' });
+        showForm(ctx, blankData(), dataUrl, 'Chưa bật trợ lý AI nên ảnh chưa được đọc. Nhập tay giúp em nhé.');
+        return;
+      }
       card.innerHTML = h`<div class="ocr-split">
-        <div class="ocr-img"><img src="${raw(reader.result)}" alt="CCCD" style="width:100%;object-fit:cover"></div>
-        <div><div class="b" style="margin-bottom:8px">Đang nhận diện...</div>
-          <div class="progress-track"><div class="progress-fill" id="ocrProg" style="width:8%"></div></div>
-          <p class="muted text-sm" style="margin-top:8px">Đang trích xuất thông tin từ ảnh giấy tờ</p></div></div>`;
-      let p = 8; const prog = document.getElementById('ocrProg');
-      const timer = setInterval(() => { p = Math.min(100, p + 12 + Math.random() * 12); prog.style.width = p + '%';
-        if (p >= 100) { clearInterval(timer); setTimeout(() => showForm(ctx, mockOcr(), reader.result), 250); } }, 160);
+        <div class="ocr-img"><img src="${raw(dataUrl)}" alt="CCCD" style="width:100%;object-fit:cover"></div>
+        <div><div class="b" style="margin-bottom:8px">Đang đọc thẻ căn cước...</div>
+          <div class="progress-track"><div class="progress-fill" id="ocrProg" style="width:10%"></div></div>
+          <p class="muted text-sm" style="margin-top:8px">Đang đọc chữ trên ảnh, mất khoảng 5 tới 20 giây.</p></div></div>`;
+      // thanh tiến trình bò dần tới 90% rồi chờ kết quả thật
+      let p = 10; const prog = document.getElementById('ocrProg');
+      const timer = setInterval(() => { p = Math.min(90, p + 6); if (prog) prog.style.width = p + '%'; }, 400);
+
+      let out = null, errMsg = '';
+      try {
+        const mime = (fileObj && fileObj.type) || 'image/jpeg';
+        out = await G().readDoc([{ mime, data: String(dataUrl).split(',')[1] }], CCCD_SYS,
+          'Đọc thẻ căn cước công dân trong ảnh này và trả JSON theo đúng định dạng đã nêu.');
+      } catch (e) {
+        errMsg = G().errText(e.message);
+      }
+      clearInterval(timer);
+      if (prog) prog.style.width = '100%';
+
+      if (!out) {
+        showForm(ctx, blankData(), dataUrl, errMsg || 'Chưa đọc được ảnh. Nhập tay giúp em nhé.');
+        return;
+      }
+      if (out.isIdCard === false) {
+        showForm(ctx, blankData(), dataUrl,
+          'Ảnh này không giống thẻ căn cước nên em chưa đọc được. Chụp lại cho rõ mặt trước, hoặc nhập tay.');
+        return;
+      }
+      showForm(ctx, fromAi(out), dataUrl, '', out.issueDate || '');
     };
     reader.readAsDataURL(fileObj);
   }
 
-  function mockOcr() {
-    // Giả lập kết quả OCR — vài trường độ tin cậy thấp để minh họa
-    return {
-      fullName: { value: 'NGUYỄN VĂN AN', confidence: 0.98 },
-      idNumber: { value: '079201001234', confidence: 0.95 },
-      dateOfBirth: { value: '15/03/1992', confidence: 0.62 },
-      gender: { value: 'Nam', confidence: 0.99 },
-      hometown: { value: 'Hà Nội', confidence: 0.91 },
-      address: { value: 'Số 12, P. Tân Phú, Quận 7, TP.HCM', confidence: 0.74 },
-    };
+  /** Kết quả AI -> dạng { khóa: {value, confidence} } mà biểu mẫu đang dùng */
+  function fromAi(out) {
+    const conf = out.confidence || {};
+    const d = {};
+    OCR_FIELDS.forEach(f => {
+      let v = out[f.key];
+      if (f.key === 'idNumber' && v) v = String(v).replace(/\D/g, '');
+      d[f.key] = { value: v == null ? '' : String(v), confidence: v == null ? 0 : (+conf[f.key] || 0.75) };
+    });
+    return d;
   }
 
   // Phòng truyền qua đường dẫn: #/b/<bid>/tenants/new?room=P101
@@ -300,10 +377,11 @@
     return m ? decodeURIComponent(m[1]) : '';
   }
 
-  function showForm(ctx, data, imgUrl) {
+  function showForm(ctx, data, imgUrl, warn, issueDate) {
     const card = document.getElementById('ocrCard');
     const preRoom = roomFromUrl();
     const existing = data.idNumber && data.idNumber.value ? S.tenantByIdNumber(data.idNumber.value.replace(/\s/g, '')) : null;
+    const readCount = OCR_FIELDS.filter(f => (data[f.key] || {}).value).length;
     const fieldsHtml = OCR_FIELDS.map(f => {
       const d = data[f.key] || { value: '', confidence: 1 };
       const low = d.confidence < 0.8;
@@ -320,16 +398,26 @@
       <div>Khách thuê này đã có hồ sơ từ hợp đồng trước (${existing.fullName}).
       <button class="btn btn-sm btn-outline" id="reuseBtn" style="margin-left:8px">Dùng lại hồ sơ cũ</button></div></div>` : '';
 
+    // Đọc được thì nói rõ là phải kiểm tra lại; không đọc được thì nói thẳng lý do
+    const readAlert = warn
+      ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">${HH.ic('alert', 16)}</span>
+          <div>${U.esc(warn)}</div></div>`
+      : (readCount ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
+          <div>Đã đọc được <b>${readCount}/${OCR_FIELDS.length}</b> ô từ ảnh. Ô nào có dấu <b>độ tin cậy thấp</b> là chữ mờ,
+          <b>đối chiếu lại với thẻ</b> trước khi lưu.</div></div>` : '');
+
     const imgPane = imgUrl
       ? `<div class="ocr-img"><img src="${imgUrl}" style="width:100%"><button class="btn btn-sm btn-outline" style="position:absolute;bottom:8px;left:8px">${HH.ic('search', 16)} Phóng to</button></div>`
       : `<div class="ocr-img" style="min-height:220px">Nhập thủ công<br>(không có ảnh)</div>`;
 
     card.innerHTML = h`
       ${raw(dupAlert)}
+      ${raw(readAlert)}
       <div class="ocr-split">
         <div>${raw(imgPane)}</div>
         <div><div class="grid-2">${raw(fieldsHtml)}</div>
           <div class="grid-2" style="margin-top:12px">
+            <div class="field"><label>Ngày cấp CCCD</label><input class="input mono" data-k="cccdIssueDate" value="${issueDate || ''}" placeholder="dd/mm/yyyy"></div>
             <div class="field"><label>Điện thoại</label><input class="input mono" data-k="phone" placeholder="09xxxxxxxx"></div>
             <div class="field"><label>Ở phòng (tùy chọn)</label>
               <select class="select" data-k="roomCode">
@@ -365,8 +453,8 @@
           fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\s/g, ''),
           dob: get('dateOfBirth'), gender: get('gender'), hometown: get('hometown'),
           phone: get('phone'), occupation: get('occupation') || '', address: get('address') || '',
-          cccdIssueDate: '', cccdIssuePlace: get('cccdIssuePlace') || 'Cục CSQLHC về TTXH',
-          cccdFront: true, cccdBack: !!get('backUploaded'), vehiclePlate: null,
+          cccdIssueDate: get('cccdIssueDate').trim(), cccdIssuePlace: get('cccdIssuePlace') || 'Cục CSQLHC về TTXH',
+          cccdFront: !!imgUrl, cccdBack: !!get('backUploaded'), vehiclePlate: null,
           ttlock: false, tamtru: false, occupants: 1, isRep: isFirst,
         });
         // Phòng chưa ghi tên khách thì lấy tên người đầu tiên cho khớp danh sách phòng
