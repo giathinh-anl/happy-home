@@ -314,6 +314,80 @@ QUY TẮC:
 - isIdCard: false nếu ảnh KHÔNG phải thẻ căn cước/chứng minh (ảnh khác, ảnh mờ không thấy chữ).
 - confidence: mức chắc chắn của từng ô bạn đọc được (1 là chữ rõ, 0.5 là mờ phải đoán hình chữ).`;
 
+  /* Mặt sau thẻ: ngày cấp, nơi cấp và đặc điểm nhận dạng nằm ở đây, mặt trước
+     không có. Đó là lý do ô "Ngày cấp CCCD" trống khi chỉ đưa mặt trước. */
+  const CCCD_SAU_SYS = `Bạn là công cụ đọc MẶT SAU thẻ Căn cước công dân / Chứng minh nhân dân Việt Nam.
+NHIỆM VỤ: đọc CHÍNH XÁC chữ in trên thẻ và trả về JSON. TUYỆT ĐỐI KHÔNG suy đoán, không bịa.
+Ô nào không thấy thì để null. Chỉ trả JSON, không giải thích.
+Định dạng:
+{"issueDate":"dd/mm/yyyy ngày cấp thẻ"|null,
+"issuePlace":"nơi cấp / cơ quan cấp"|null,
+"isBackSide":true|false,
+"confidence":{"tên_trường":0..1}}
+QUY TẮC:
+- Mặt sau thẻ chip thường chỉ ghi ngày tháng năm cấp ở góc phải, dạng "Ngày, tháng, năm"
+  hoặc chỉ có số ngày tháng năm — lấy đúng ngày đó cho issueDate.
+- issuePlace: nếu thấy dòng "CỤC TRƯỞNG CỤC CẢNH SÁT QUẢN LÝ HÀNH CHÍNH VỀ TRẬT TỰ XÃ HỘI"
+  thì trả "Cục CSQLHC về TTXH".
+- isBackSide: false nếu ảnh là MẶT TRƯỚC (có ảnh chân dung, họ tên, ngày sinh) hoặc không phải thẻ.`;
+
+  /** Đọc mặt sau rồi điền thẳng vào ô trên biểu mẫu, không vẽ lại cả trang
+      để chữ người dùng đã gõ không bị mất. */
+  async function docMatSau(fileObj, btn) {
+    const card = document.getElementById('ocrCard');
+    const o = (k) => card.querySelector(`[data-k="${k}"]`);
+    const bao = card.querySelector('#backMsg');
+    const dataUrl = await U.fileToDataUrl(fileObj);
+
+    anhSau = dataUrl;
+    veAnhSau();
+
+    if (!(G() && G().configured())) {
+      if (bao) bao.innerHTML = `<span class="hint">Đã lưu ảnh mặt sau. Chưa bật trợ lý AI nên ngày cấp phải nhập tay.</span>`;
+      return;
+    }
+    if (btn) btn.classList.add('loading');
+    if (bao) bao.innerHTML = `<span class="hint">Đang đọc mặt sau...</span>`;
+    try {
+      const out = await G().readDoc([{ mime: fileObj.type || 'image/jpeg', data: String(dataUrl).split(',')[1] }],
+        CCCD_SAU_SYS, 'Đọc mặt sau thẻ căn cước trong ảnh này và trả JSON theo đúng định dạng đã nêu.');
+      if (out && out.isBackSide === false) {
+        if (bao) bao.innerHTML = `<span class="err">Ảnh này trông như mặt trước. Chụp mặt sau (mặt có ngày cấp) giúp em.</span>`;
+      } else if (out && (out.issueDate || out.issuePlace)) {
+        if (out.issueDate && o('cccdIssueDate')) { o('cccdIssueDate').value = out.issueDate; kiemMot(o('cccdIssueDate')); }
+        if (out.issuePlace) noiCap = out.issuePlace;
+        if (bao) bao.innerHTML = `<span class="hint" style="color:var(--success)">Đã đọc mặt sau${out.issueDate ? ', ngày cấp ' + U.esc(out.issueDate) : ''}.</span>`;
+      } else {
+        if (bao) bao.innerHTML = `<span class="hint">Đã lưu ảnh, nhưng không đọc được ngày cấp. Nhập tay giúp em.</span>`;
+      }
+    } catch (e) {
+      if (bao) bao.innerHTML = `<span class="err">${U.esc(G().errText(e.message))}</span>`;
+    }
+    if (btn) btn.classList.remove('loading');
+  }
+
+  function veAnhSau() {
+    const box = document.getElementById('backBox');
+    if (!box) return;
+    box.innerHTML = anhSau
+      ? `<img src="${anhSau}" alt="Mặt sau CCCD" style="width:100%;display:block">
+         <button class="btn btn-sm btn-outline" id="backRedo" style="position:absolute;bottom:8px;left:8px">${HH.ic('refresh', 16)} Chọn lại</button>`
+      : `<div class="center" style="padding:16px">
+           <div class="muted text-sm" style="margin-bottom:8px">Chưa có ảnh mặt sau</div>
+           <label class="btn btn-outline btn-sm">${HH.ic('upload', 16)} Chọn ảnh mặt sau
+             <input type="file" accept="image/*" id="backFile" hidden></label>
+         </div>`;
+    noiBackFile();
+  }
+  function noiBackFile() {
+    const card = document.getElementById('ocrCard');
+    if (!card) return;
+    const f = card.querySelector('#backFile');
+    if (f) f.onchange = () => { if (f.files[0]) docMatSau(f.files[0], null); };
+    const redo = card.querySelector('#backRedo');
+    if (redo) redo.onclick = () => { anhSau = null; veAnhSau(); };
+  }
+
   function startOcr(ctx, fileObj) {
     const card = document.getElementById('ocrCard');
     const reader = new FileReader();
@@ -371,6 +445,92 @@ QUY TẮC:
     return d;
   }
 
+  /* ============================================================
+     RÀNG BUỘC: phải điền đủ mới lưu được
+     Hồ sơ khách thuê là căn cứ cho hợp đồng, tạm trú và hóa đơn sau này.
+     Thiếu một ô là về sau phải đi hỏi lại khách, nên chặn ngay từ đây.
+     Báo lỗi ngay dưới từng ô chứ không chỉ hiện một dòng chung, để biết
+     đúng ô nào đang thiếu.
+     ============================================================ */
+  let anhSau = null;                       // ảnh mặt sau đã chọn
+  let noiCap = '';                         // nơi cấp đọc được từ mặt sau
+
+  /** dd/mm/yyyy có phải ngày có thật không (chặn 31/02, 45/13...) */
+  function ngayThat(s) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s || '').trim());
+    if (!m) return null;
+    const d = +m[1], th = +m[2], n = +m[3];
+    const dt = new Date(n, th - 1, d);
+    if (dt.getDate() !== d || dt.getMonth() !== th - 1 || dt.getFullYear() !== n) return null;
+    return dt;
+  }
+
+  const BAT_BUOC = [
+    { k: 'fullName', ten: 'Họ và tên', kiem: (v) => {
+        if (v.trim().split(/\s+/).length < 2) return 'Nhập đủ họ và tên';
+        if (/\d/.test(v)) return 'Họ tên không có chữ số';
+      } },
+    { k: 'idNumber', ten: 'Số CCCD', kiem: (v) => {
+        const s = v.replace(/\D/g, '');
+        if (s.length !== 12 && s.length !== 9) return 'CCCD có 12 số, CMND cũ có 9 số';
+      } },
+    { k: 'dateOfBirth', ten: 'Ngày sinh', kiem: (v) => {
+        const d = ngayThat(v);
+        if (!d) return 'Nhập dạng dd/mm/yyyy';
+        if (d > new Date()) return 'Ngày sinh không thể ở tương lai';
+        if (new Date().getFullYear() - d.getFullYear() > 120) return 'Năm sinh không hợp lý';
+      } },
+    { k: 'gender', ten: 'Giới tính', kiem: (v) => {
+        if (!/^(nam|nữ|nu)$/i.test(v.trim())) return 'Chỉ nhận "Nam" hoặc "Nữ"';
+      } },
+    { k: 'hometown', ten: 'Quê quán' },
+    { k: 'address', ten: 'Địa chỉ thường trú' },
+    { k: 'cccdIssueDate', ten: 'Ngày cấp CCCD', kiem: (v) => {
+        const d = ngayThat(v);
+        if (!d) return 'Nhập dạng dd/mm/yyyy, có ở mặt sau thẻ';
+        if (d > new Date()) return 'Ngày cấp không thể ở tương lai';
+      } },
+    { k: 'phone', ten: 'Điện thoại', kiem: (v) => {
+        const s = v.replace(/\s|\./g, '');
+        if (!/^0\d{9}$/.test(s)) return 'Số di động 10 chữ số, bắt đầu bằng 0';
+      } },
+  ];
+
+  /** Kiểm một ô, gắn/bỏ báo lỗi ngay dưới ô đó. Trả về lời báo lỗi hoặc '' */
+  function kiemMot(el) {
+    if (!el) return '';
+    const r = BAT_BUOC.find(x => x.k === el.dataset.k);
+    if (!r) return '';
+    const v = el.value || '';
+    let loi = '';
+    if (!v.trim()) loi = `Chưa nhập ${r.ten}`;      // giữ nguyên hoa thường, "CCCD" viết thường trông cẩu thả
+    else if (r.kiem) loi = r.kiem(v) || '';
+
+    const o = el.closest('.field');
+    if (o) {
+      let bao = o.querySelector('.err-msg');
+      if (loi) {
+        el.style.borderColor = 'var(--danger)';
+        if (!bao) { bao = document.createElement('span'); bao.className = 'err err-msg'; o.appendChild(bao); }
+        bao.textContent = loi;
+      } else {
+        el.style.borderColor = '';
+        if (bao) bao.remove();
+      }
+    }
+    return loi;
+  }
+
+  /** Kiểm cả biểu mẫu. Trả về ô đầu tiên bị sai (null nếu sạch) */
+  function kiemHet(card) {
+    let dau = null;
+    BAT_BUOC.forEach(r => {
+      const el = card.querySelector(`[data-k="${r.k}"]`);
+      if (kiemMot(el) && !dau) dau = el;
+    });
+    return dau;
+  }
+
   // Phòng truyền qua đường dẫn: #/b/<bid>/tenants/new?room=P101
   function roomFromUrl() {
     const m = /[?&]room=([^&]+)/.exec(HH.router.current() || '');
@@ -387,7 +547,7 @@ QUY TẮC:
       const low = d.confidence < 0.8;
       const conf = low ? '<span class="conf warn" title="Độ tin cậy thấp">' + HH.ic('alert', 16) + '</span>' : (d.value ? '<span class="conf ok">✓</span>' : '');
       return h`<div class="field ocr-field ${raw(low ? 'low' : '')}">
-        <label>${f.label}</label>
+        <label>${f.label} <span style="color:var(--danger)">*</span></label>
         <input class="input" data-k="${f.key}" value="${d.value}">
         ${raw(conf)}
         ${raw(low ? '<span class="hint" style="color:var(--warning)">Độ tin cậy thấp, vui lòng kiểm tra</span>' : '')}
@@ -407,18 +567,22 @@ QUY TẮC:
           <b>đối chiếu lại với thẻ</b> trước khi lưu.</div></div>` : '');
 
     const imgPane = imgUrl
-      ? `<div class="ocr-img"><img src="${imgUrl}" style="width:100%"><button class="btn btn-sm btn-outline" style="position:absolute;bottom:8px;left:8px">${HH.ic('search', 16)} Phóng to</button></div>`
-      : `<div class="ocr-img" style="min-height:220px">Nhập thủ công<br>(không có ảnh)</div>`;
+      ? `<div class="ocr-img"><img src="${imgUrl}" style="width:100%"><span class="ocr-tag">Mặt trước</span></div>`
+      : `<div class="ocr-img" style="min-height:190px">Nhập thủ công<br>(không có ảnh)</div>`;
 
     card.innerHTML = h`
       ${raw(dupAlert)}
       ${raw(readAlert)}
       <div class="ocr-split">
-        <div>${raw(imgPane)}</div>
+        <div>${raw(imgPane)}
+          <div class="ocr-img" id="backBox" style="margin-top:10px;min-height:120px"></div>
+          <div id="backMsg" style="margin-top:6px"></div>
+          <p class="muted text-xs" style="margin-top:6px">Ngày cấp nằm ở <b>mặt sau</b> thẻ. Thêm ảnh mặt sau là tự điền.</p>
+        </div>
         <div><div class="grid-2">${raw(fieldsHtml)}</div>
           <div class="grid-2" style="margin-top:12px">
-            <div class="field"><label>Ngày cấp CCCD</label><input class="input mono" data-k="cccdIssueDate" value="${issueDate || ''}" placeholder="dd/mm/yyyy"></div>
-            <div class="field"><label>Điện thoại</label><input class="input mono" data-k="phone" placeholder="09xxxxxxxx"></div>
+            <div class="field"><label>Ngày cấp CCCD <span style="color:var(--danger)">*</span></label><input class="input mono" data-k="cccdIssueDate" value="${issueDate || ''}" placeholder="dd/mm/yyyy"></div>
+            <div class="field"><label>Điện thoại <span style="color:var(--danger)">*</span></label><input class="input mono" data-k="phone" placeholder="09xxxxxxxx"></div>
             <div class="field"><label>Ở phòng (tùy chọn)</label>
               <select class="select" data-k="roomCode">
                 <option value="">Chưa gắn phòng</option>
@@ -429,10 +593,22 @@ QUY TẮC:
           </div>
         </div>
       </div>
-      <div class="between" style="margin-top:20px">
+      <p class="muted text-xs" style="margin-top:14px">Ô có dấu <span style="color:var(--danger)">*</span> là bắt buộc.</p>
+      <div class="between" style="margin-top:8px">
         <a href="#/b/${ctx.bid}/tenants">Hủy</a>
         <button class="btn btn-primary" id="saveTenant">Lưu hồ sơ khách thuê</button>
       </div>`;
+
+    anhSau = null; noiCap = '';
+    veAnhSau();
+
+    // Gõ xong rời khỏi ô thì kiểm luôn ô đó; ô đang báo lỗi thì sửa tới đâu xóa báo tới đó
+    BAT_BUOC.forEach(r => {
+      const el = card.querySelector(`[data-k="${r.k}"]`);
+      if (!el) return;
+      el.addEventListener('blur', () => kiemMot(el));
+      el.addEventListener('input', () => { if (el.closest('.field').querySelector('.err-msg')) kiemMot(el); });
+    });
 
     if (existing) document.getElementById('reuseBtn').onclick = () => {
       UI.toast(`Đã dùng lại hồ sơ ${existing.fullName}`, { type: 'ok' }); HH.router.go(`/b/${ctx.bid}/tenants`);
@@ -440,8 +616,16 @@ QUY TẮC:
     document.getElementById('saveTenant').onclick = (e) => {
       const btn = e.currentTarget;
       const get = (k) => (card.querySelector(`[data-k="${k}"]`) || {}).value || '';
-      if (!get('fullName').trim() || !get('idNumber').trim()) {
-        UI.toast('Vui lòng nhập họ tên và số CCCD', { type: 'error' }); return;
+      const sai = kiemHet(card);
+      if (sai) {
+        sai.focus();
+        sai.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const thieu = BAT_BUOC.filter(r => {
+          const el = card.querySelector(`[data-k="${r.k}"]`);
+          return el && el.closest('.field').querySelector('.err-msg');
+        }).length;
+        UI.toast(`Còn ${thieu} ô chưa đúng hoặc chưa điền`, { type: 'error' });
+        return;
       }
       btn.classList.add('loading');
       setTimeout(() => {
@@ -450,11 +634,13 @@ QUY TẮC:
         const isFirst = !!room && !S.tenantsOf(ctx.bid).some(t => t.roomCode === room);
         S.addTenant({
           id: U.uid('tn'), buildingId: ctx.bid, roomCode: room,
-          fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\s/g, ''),
-          dob: get('dateOfBirth'), gender: get('gender'), hometown: get('hometown'),
-          phone: get('phone'), occupation: get('occupation') || '', address: get('address') || '',
-          cccdIssueDate: get('cccdIssueDate').trim(), cccdIssuePlace: get('cccdIssuePlace') || 'Cục CSQLHC về TTXH',
-          cccdFront: !!imgUrl, cccdBack: !!get('backUploaded'), vehiclePlate: null,
+          fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\D/g, ''),
+          dob: get('dateOfBirth').trim(), gender: /^nam$/i.test(get('gender').trim()) ? 'Nam' : 'Nữ',
+          hometown: get('hometown').trim(),
+          phone: get('phone').replace(/\s|\./g, ''), occupation: get('occupation') || '',
+          address: get('address').trim(),
+          cccdIssueDate: get('cccdIssueDate').trim(), cccdIssuePlace: noiCap || 'Cục CSQLHC về TTXH',
+          cccdFront: !!imgUrl, cccdBack: !!anhSau, vehiclePlate: null,
           ttlock: false, tamtru: false, occupants: 1, isRep: isFirst,
         });
         // Phòng chưa ghi tên khách thì lấy tên người đầu tiên cho khớp danh sách phòng

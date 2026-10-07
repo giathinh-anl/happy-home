@@ -491,6 +491,13 @@ table.dt tr.disabled-row td { color: var(--neutral-400); background: var(--neutr
 .ocr-field .conf { position: absolute; right: 10px; top: 32px; font-size: 14px; }
 .ocr-field .conf.ok { color: var(--success); }
 .ocr-field .conf.warn { color: var(--warning); }
+/* Nhãn góc ảnh để phân biệt mặt trước với mặt sau */
+.ocr-img .ocr-tag {
+  position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 99px;
+  background: rgba(10, 40, 39, .72); color: #fff; font-size: 11px; font-weight: 700;
+}
+/* Ô bắt buộc đang báo lỗi */
+.field .err-msg { display: block; margin-top: 4px; }
 .progress-track { height: 8px; background: var(--neutral-200); border-radius: var(--r-pill); overflow: hidden; }
 .progress-fill { height: 100%; background: var(--brand-500); border-radius: var(--r-pill); transition: width .2s ease; }
 
