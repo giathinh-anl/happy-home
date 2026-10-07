@@ -235,8 +235,7 @@
           <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
         </div>
         <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
-        ${enabled ? '<div class="t-hint">Bản demo: nhập SĐT của một khách thuê có trong hệ thống. Mã OTP demo là <b>123456</b>.</div>'
-          : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
+        ${enabled ? '' : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
       </div>
       <div class="tl-side">
         <div class="t-ads">${HH.promo.html(HH.promo.TENANT, { compact: true })}</div>
@@ -289,7 +288,6 @@
       <div class="otp-resend" id="resend">Gửi lại mã sau <b id="cd">60</b> giây</div>
       <button class="t-btn" id="verify">Xác nhận</button>
       <button class="t-btn ghost" id="changePhone">← Đổi số điện thoại</button>
-      <div class="t-hint">Mã demo: <b>123456</b></div>
     </div>`;
     const boxes = Array.from(document.querySelectorAll('#otpBoxes input'));
     boxes[0].focus();
