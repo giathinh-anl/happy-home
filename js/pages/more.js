@@ -149,6 +149,12 @@
      Chi  = các khoản chi ghi tay (điện nước chung, sửa chữa, lương...).
      Lợi nhuận = thu - chi, xem theo từng tháng và tổng cả năm. */
   let expMonth = null;   // tháng đang xem 'YYYY-MM'
+  /* Bấm vào một thẻ tổng thì bảng "Chi tiết" bên dưới chỉ còn những khoản
+     làm nên con số đó. null = xem tất. */
+  let exLoc = null;      // null | 'auto' | 'income' | 'expense'
+  // Dùng chung cho cả nút bỏ lọc lẫn câu "tháng này không có ..." nên để danh
+  // từ ngắn, ghép vào câu nào cũng xuôi.
+  const EX_TEN = { auto: 'phiếu thu', income: 'khoản thu khác', expense: 'khoản chi' };
 
   function monthStats(bid, period) {
     const pays = S.paymentsOfBuilding(bid, period);
@@ -175,7 +181,8 @@
       const txRows = m.txs.map(t => ({
         date: t.date, kind: t.kind, cat: t.category || '', note: t.note || '', amount: t.amount, id: t.id,
       }));
-      const all = autoRows.concat(txRows).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const tatCa = autoRows.concat(txRows).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const all = exLoc ? tatCa.filter(r => r.kind === exLoc) : tatCa;
       const tag = { auto: '<span class="badge s-success">Thu tự động</span>',
         income: '<span class="badge s-info">Thu khác</span>',
         expense: '<span class="badge s-danger">Chi</span>' };
@@ -229,32 +236,43 @@
       <div id="exPeriod" style="margin-bottom:16px"></div>
 
       <div class="dh-kpis" style="margin-top:0">
-        <div class="dh-kpi t-leaf"><span class="dh-kpi-pic">${raw(HH.pic('wallet', 36))}</span>
+        <button type="button" class="dh-kpi t-leaf ${raw(exLoc === 'auto' ? 'on' : '')}" data-exloc="auto"
+          title="Bấm để chỉ xem các phiếu thu"><span class="dh-kpi-pic">${raw(HH.pic('wallet', 36))}</span>
           <span class="k">Tiền thu được ${mLabel}</span>
           <span class="v">${U.currency(m.auto)}</span>
-          <span class="dl flat">${m.pays.length} phiếu thu, tự cộng</span></div>
-        <div class="dh-kpi t-sky"><span class="dh-kpi-pic">${raw(HH.pic('coins', 36))}</span>
+          <span class="dl flat">${m.pays.length} phiếu thu, tự cộng</span></button>
+        <button type="button" class="dh-kpi t-sky ${raw(exLoc === 'income' ? 'on' : '')}" data-exloc="income"
+          title="Bấm để chỉ xem khoản thu khác"><span class="dh-kpi-pic">${raw(HH.pic('coins', 36))}</span>
           <span class="k">Thu khác (ghi tay)</span>
           <span class="v">${U.currency(m.other)}</span>
-          <span class="dl flat">${m.txs.filter(t => t.kind === 'income').length} khoản</span></div>
-        <div class="dh-kpi t-coral"><span class="dh-kpi-pic">${raw(HH.pic('receipt', 36))}</span>
+          <span class="dl flat">${m.txs.filter(t => t.kind === 'income').length} khoản</span></button>
+        <button type="button" class="dh-kpi t-coral ${raw(exLoc === 'expense' ? 'on' : '')}" data-exloc="expense"
+          title="Bấm để chỉ xem khoản chi"><span class="dh-kpi-pic">${raw(HH.pic('receipt', 36))}</span>
           <span class="k">Chi trong tháng</span>
           <span class="v bad">${U.currency(m.expense)}</span>
-          <span class="dl flat">${m.txs.filter(t => t.kind === 'expense').length} khoản, tự nhập</span></div>
-        <div class="dh-kpi t-sun"><span class="dh-kpi-pic">${raw(HH.pic('chart', 36))}</span>
+          <span class="dl flat">${m.txs.filter(t => t.kind === 'expense').length} khoản, tự nhập</span></button>
+        <button type="button" class="dh-kpi t-sun ${raw(!exLoc ? 'on' : '')}" data-exloc=""
+          title="Bấm để xem lại tất cả các khoản"><span class="dh-kpi-pic">${raw(HH.pic('chart', 36))}</span>
           <span class="k">Lợi nhuận ${mLabel}</span>
           <span class="v ${raw(m.profit < 0 ? 'bad' : '')}">${U.currency(m.profit)}</span>
-          <span class="dl flat">thu ${U.currency(m.income)} trừ chi ${U.currency(m.expense)}</span></div>
+          <span class="dl flat">thu ${U.currency(m.income)} trừ chi ${U.currency(m.expense)}</span></button>
       </div>
 
       <section class="card dh-panel" style="margin-top:20px">
         <header class="dh-panel-h"><span class="dh-panel-pic">${raw(HH.pic('coins', 26))}</span>
-          <h3>Chi tiết ${mLabel}</h3><span class="faint text-xs">${all.length} dòng</span></header>
+          <h3>Chi tiết ${mLabel}</h3>
+          <span class="faint text-xs">${all.length} dòng${exLoc ? ' / ' + tatCa.length : ''}</span>
+          ${raw(exLoc ? `<button class="btn btn-sm btn-outline" id="exClear" style="margin-left:auto">
+            ${HH.ic('x', 14)} Bỏ lọc: ${U.esc(EX_TEN[exLoc])}</button>` : '')}</header>
         <div class="dh-panel-b" style="padding:0">
           <div class="dt-scroll"><table class="dt">
             <thead><tr><th>Ngày</th><th>Loại</th><th>Hạng mục</th><th>Nội dung</th><th class="num">Số tiền</th><th></th></tr></thead>
-            <tbody>${raw(rows || `<tr><td colspan="6"><div class="empty"><div class="ic">${HH.pic('coins', 64)}</div>
-              <h4>Tháng này chưa có khoản nào</h4><p class="muted">Tiền khách đóng sẽ tự hiện ở đây. Khoản chi thì bấm "Khoản chi" để thêm.</p></div></td></tr>`)}</tbody>
+            <tbody>${raw(rows || (exLoc
+              ? `<tr><td colspan="6"><div class="empty"><div class="ic">${HH.pic('coins', 64)}</div>
+                  <h4>Tháng này không có ${U.esc(EX_TEN[exLoc])}</h4>
+                  <p class="muted">Bấm thẻ <b>Lợi nhuận</b> ở trên để xem lại tất cả các khoản.</p></div></td></tr>`
+              : `<tr><td colspan="6"><div class="empty"><div class="ic">${HH.pic('coins', 64)}</div>
+                  <h4>Tháng này chưa có khoản nào</h4><p class="muted">Tiền khách đóng sẽ tự hiện ở đây. Khoản chi thì bấm "Khoản chi" để thêm.</p></div></td></tr>`))}</tbody>
           </table></div>
         </div>
       </section>
@@ -291,6 +309,18 @@
         box.innerHTML = UI.periodSelector(opt);
         UI.attachPeriod(box.querySelector('[data-period-root]'), opt);
       }
+      // Bấm thẻ tổng -> bảng dưới chỉ còn khoản thuộc thẻ đó. Bấm lại thẻ đang
+      // chọn thì bỏ lọc, khỏi phải đi tìm nút nào khác.
+      document.querySelectorAll('[data-exloc]').forEach(b => b.onclick = () => {
+        const k = b.dataset.exloc || null;
+        exLoc = (k && exLoc === k) ? null : k;
+        HH.router.render();
+        const ds = document.querySelector('.dh-panel-h h3');
+        if (ds) ds.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
+      const clr = document.getElementById('exClear');
+      if (clr) clr.onclick = () => { exLoc = null; HH.router.render(); };
+
       const inc = document.getElementById('addIncome'); if (inc) inc.onclick = () => txForm(ctx, 'income');
       const exp = document.getElementById('addExpense'); if (exp) exp.onclick = () => txForm(ctx, 'expense');
       document.querySelectorAll('[data-txdel]').forEach(b => b.onclick = () => {
