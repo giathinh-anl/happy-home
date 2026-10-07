@@ -20,8 +20,12 @@
 
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 
-// Chỉ cho phép các mô hình Flash (rẻ / miễn phí), tránh bị gọi sang mô hình đắt tiền
-const ALLOWED = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+/* Chỉ cho phép các mô hình Flash (rẻ / miễn phí), chặn gọi sang mô hình đắt tiền.
+   Dùng khuôn mẫu chứ không liệt kê tên: Google khai tử và đổi tên mô hình khá
+   thường xuyên (gemini-2.0-flash đã bị gỡ), liệt kê cứng thì cứ vài tháng lại
+   phải sửa rồi triển khai lại hàm này. Khuôn này vẫn chặn "pro" và "ultra". */
+const FLASH = /^gemini-[0-9]+(\.[0-9]+)?-flash(-lite)?$/;
+const DEFAULT_MODEL = 'gemini-3.8-flash';
 
 // Giới hạn thô theo IP để tránh bị lạm dụng (đặt lại mỗi giờ, bộ nhớ tạm của instance)
 const hits = new Map<string, { n: number; t: number }>();
@@ -55,7 +59,7 @@ Deno.serve(async (req) => {
   let payload: { model?: string; body?: unknown };
   try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
 
-  const model = ALLOWED.includes(payload.model ?? '') ? payload.model! : 'gemini-2.0-flash';
+  const model = FLASH.test(payload.model ?? '') ? payload.model! : DEFAULT_MODEL;
   if (!payload.body || typeof payload.body !== 'object') return json({ error: 'bad_body' }, 400);
 
   const res = await fetch(

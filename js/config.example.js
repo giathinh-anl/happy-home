@@ -28,6 +28,8 @@ window.HH_CONFIG = {
          geminiApiKey: 'AIza...',
        Lưu ý: khóa đặt ở đây AI MỞ TRÌNH DUYỆT CŨNG ĐỌC ĐƯỢC.
 
-     geminiModel: 'gemini-2.0-flash',   // mặc định, có thể bỏ trống
+     geminiModel: 'gemini-3.8-flash',   // mặc định, có thể bỏ trống
+     Google có gỡ mô hình cũ theo thời gian. Gọi vào mà máy chủ trả 404 kèm
+     "no longer available" thì đổi tên mô hình ở dòng trên, không phải sửa mã.
   */
 };

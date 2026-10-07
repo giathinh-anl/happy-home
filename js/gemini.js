@@ -19,7 +19,9 @@
    ============================================================ */
 (function (root) {
   const CFG = () => root.HH_CONFIG || {};
-  const MODEL = () => CFG().geminiModel || 'gemini-2.0-flash';
+  // Google gỡ mô hình cũ theo thời gian (gemini-2.0-flash đã bị gỡ, gọi vào trả 404).
+  // Đổi mô hình thì khỏi sửa mã: đặt geminiModel trong js/config.js.
+  const MODEL = () => CFG().geminiModel || 'gemini-3.8-flash';
   const ENDPOINT = (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 
   const QUOTA_KEY = 'hh_ai_quota';       // đếm số lượt gọi trong ngày (gói miễn phí ~1.500/ngày)
@@ -91,9 +93,15 @@
     let res;
     try {
       if (viaProxy()) {
+        // Gắn khóa anon y như supabase-js vẫn làm. Không gắn thì cổng của
+        // Supabase chặn 401 trước khi hàm chạy, trừ khi tắt "Verify JWT" trong
+        // bảng điều khiển — mà nút đó tự bật lại mỗi lần cập nhật lại hàm.
+        // Gắn sẵn thì bật hay tắt đều chạy. Khóa anon vốn công khai.
+        const key = CFG().supabaseAnonKey || '';
         res = await fetch(CFG().aiProxyUrl, {
           method: 'POST', signal: ctrl.signal,
-          headers: { 'Content-Type': 'application/json' },
+          headers: Object.assign({ 'Content-Type': 'application/json' },
+            key ? { apikey: key, Authorization: 'Bearer ' + key } : {}),
           body: JSON.stringify({ model: MODEL(), body }),
         });
       } else {
