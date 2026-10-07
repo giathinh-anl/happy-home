@@ -86,8 +86,30 @@
     return send(body, opt.timeout || 12000);
   }
 
-  /* Gửi yêu cầu tới Gemini (qua proxy nếu có) và lấy phần chữ trả về */
+  /* Máy chủ Gemini thỉnh thoảng trả 503 (đang quá tải) rồi lần sau lại chạy.
+     Đang trình bày trước lớp mà dính một lần là coi như hỏng, nên thử lại vài
+     giây sau. CHỈ thử lại mấy lỗi tạm của máy chủ: hết lượt (429) hay sai khóa
+     thì có đợi cũng vậy, thử lại chỉ tốn thêm lượt. */
+  const TAM_THOI = [500, 502, 503, 504];
+  const CHO_LAI = [1200, 3000];          // nghỉ bao lâu trước lần thử thứ 2 và 3
+
   async function send(body, timeout) {
+    let cuoi;
+    for (let lan = 0; lan <= CHO_LAI.length; lan++) {
+      try { return await sendMot(body, timeout); }
+      catch (e) {
+        cuoi = e;
+        const m = /^AI_HTTP_(\d+)$/.exec(e.message || '');
+        const thuLaiDuoc = (m && TAM_THOI.includes(+m[1])) || e.message === 'AI_NETWORK';
+        if (!thuLaiDuoc || lan === CHO_LAI.length) throw e;
+        await new Promise(r => setTimeout(r, CHO_LAI[lan]));
+      }
+    }
+    throw cuoi;
+  }
+
+  /* Gửi yêu cầu tới Gemini (qua proxy nếu có) và lấy phần chữ trả về */
+  async function sendMot(body, timeout) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout || 12000);
     let res;
