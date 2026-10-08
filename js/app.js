@@ -55,7 +55,7 @@ HH.app = (function () {
       incidents: b ? S.incidentsOf(b.id).length : 0,
       claims: S.pendingClaimCount ? S.pendingClaimCount() : 0,
       noti: S.notificationCount ? S.notificationCount() : 0,
-      support: S.supportUnread ? S.supportUnread(b ? b.id : null) : 0,
+      support: S.supportUnread ? S.supportUnread() : 0,
     };
   }
   const modCount = (m, c) => m.seg === 'invoices' ? c.overdue

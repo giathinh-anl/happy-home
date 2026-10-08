@@ -789,10 +789,12 @@ HH.store = (function () {
        nhân viên trực trả lời, khách đọc ngay trong app. Mỗi SĐT là một cuộc. */
     supportMsgs,
     /** Gom tin thành từng cuộc theo số điện thoại, mới nhất lên đầu */
-    supportThreads(bid) {
+    /* Cố ý KHÔNG lọc theo tòa nhà. Khách hỏi gì thì hỏi, không ai đoán được
+       câu đó thuộc tòa nào; lọc theo tòa thì đang đứng nhầm tòa là câu hỏi
+       biến mất, chủ trọ tưởng không ai nhắn. Thà hiện hết rồi ghi rõ tòa. */
+    supportThreads() {
       const by = new Map();
       supportMsgs.forEach(m => {
-        if (bid && m.buildingId && m.buildingId !== bid) return;
         const k = m.tenantPhone || '';
         if (!k) return;
         if (!by.has(k)) by.set(k, { phone: k, tenantName: m.tenantName || '', roomCode: m.roomCode || '',
@@ -812,10 +814,10 @@ HH.store = (function () {
       });
       return list.sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
     },
-    /** Số câu khách hỏi mà chưa ai trả lời — dùng cho chấm đỏ trên thanh bên */
-    supportUnread(bid) {
-      return supportMsgs.filter(m => m.sender === 'tenant' && !m.readByStaff
-        && (!bid || !m.buildingId || m.buildingId === bid)).length;
+    /** Số câu khách hỏi mà chưa ai trả lời — dùng cho chấm đỏ trên thanh bên.
+        Đếm toàn bộ, không theo tòa, cùng lý do với supportThreads. */
+    supportUnread() {
+      return supportMsgs.filter(m => m.sender === 'tenant' && !m.readByStaff).length;
     },
     /** Nhân viên trả lời một cuộc */
     replySupport(phone, body, thread) {

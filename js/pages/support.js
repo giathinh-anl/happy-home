@@ -31,9 +31,10 @@
 
   HH.pages.support = {
     render(ctx) {
-      const threads = S.supportThreads(ctx.bid);
+      const threads = S.supportThreads();
       const cho = threads.filter(t => t.waiting).length;
       const live = S.usingBackend();
+      const tenToa = (id) => { const b = id && S.building(id); return b ? b.name : ''; };
 
       const banner = ready === false
         ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">${HH.ic('alert', 16)}</span>
@@ -49,7 +50,7 @@
           <span class="sp-av">${U.initials(t.tenantName || t.phone)}</span>
           <span class="sp-tx">
             <span class="sp-top"><b>${U.esc(t.tenantName || t.phone)}</b><i>${khi(t.lastAt)}</i></span>
-            <span class="sp-sub">${t.roomCode ? U.esc(t.roomCode) + ' · ' : ''}${U.esc(t.phone)}</span>
+            <span class="sp-sub">${t.roomCode ? U.esc(t.roomCode) + ' · ' : ''}${U.esc(t.phone)}${tenToa(t.buildingId) ? ' · ' + U.esc(tenToa(t.buildingId)) : ''}</span>
             <span class="sp-last">${U.esc(who + String(last.body || '').slice(0, 70))}</span>
           </span>
           ${t.unread ? `<span class="sp-dot">${t.unread}</span>` : ''}
@@ -79,7 +80,7 @@
 
       return h`<div class="page-head">
         <div><div class="page-title-lg">Hỏi đáp khách thuê</div>
-          <div class="page-sub">${ctx.building.name} · ${threads.length} cuộc trò chuyện${cho ? ', ' + cho + ' khách đang chờ trả lời' : ''}</div></div>
+          <div class="page-sub">Tất cả tòa nhà · ${threads.length} cuộc trò chuyện${cho ? ', ' + cho + ' khách đang chờ trả lời' : ''}</div></div>
       </div>
       ${raw(banner)}
       <div class="sp-wrap">
@@ -105,7 +106,7 @@
         const go = () => {
           const v = ta.value.trim();
           if (!v) return;
-          const th = S.supportThreads(ctx.bid).find(t => t.phone === openPhone);
+          const th = S.supportThreads().find(t => t.phone === openPhone);
           if (!S.replySupport(openPhone, v, th)) return;
           ta.value = '';
           HH.router.render();
