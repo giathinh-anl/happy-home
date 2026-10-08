@@ -283,7 +283,15 @@
       <p class="lead">Mã gồm 6 chữ số đã gửi tới<br><b>${masked}</b></p>
       <div id="otpErr"></div>
       <div class="otp-boxes" id="otpBoxes">
-        ${[0, 1, 2, 3, 4, 5].map(i => `<input type="tel" inputmode="numeric" maxlength="1" data-i="${i}" autocomplete="${i === 0 ? 'one-time-code' : 'off'}">`).join('')}
+        ${/* Mỗi ô PHẢI có name/id riêng. Sáu ô giống hệt nhau và đều không tên
+             thì trình duyệt coi là cùng một loại ô: nó nhớ giá trị đã gõ lần
+             trước rồi điền y chang vào cả sáu, ra kiểu "111111". Thêm mấy cờ
+             data-* để trình quản lý mật khẩu đừng nhảy vào điền hộ. */''}
+        ${[0, 1, 2, 3, 4, 5].map(i => `<input type="tel" inputmode="numeric" maxlength="1"
+          data-i="${i}" id="otp${i + 1}" name="otp-${i + 1}"
+          autocomplete="${i === 0 ? 'one-time-code' : 'off'}"
+          data-lpignore="true" data-1p-ignore data-form-type="other"
+          aria-label="Chữ số thứ ${i + 1}">`).join('')}
       </div>
       <div class="otp-resend" id="resend">Gửi lại mã sau <b id="cd">60</b> giây</div>
       <button class="t-btn" id="verify">Xác nhận</button>
@@ -294,8 +302,17 @@
     const getCode = () => boxes.map(b => b.value).join('');
     boxes.forEach((b, i) => {
       b.addEventListener('input', () => {
-        b.value = b.value.replace(/\D/g, '').slice(0, 1);
-        if (b.value && i < 5) boxes[i + 1].focus();
+        const so = (b.value || '').replace(/\D/g, '');
+        if (so.length > 1) {
+          // Điện thoại tự điền mã từ tin nhắn, hoặc gõ nhanh dồn vào một ô:
+          // rải ra các ô sau thay vì cắt bớt rồi mất số.
+          so.split('').forEach((c, j) => { if (boxes[i + j]) boxes[i + j].value = c; });
+          const tiep = Math.min(i + so.length, 5);
+          boxes[tiep].focus();
+        } else {
+          b.value = so;
+          if (so && i < 5) boxes[i + 1].focus();
+        }
         if (getCode().length === 6) doVerify();
       });
       b.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !b.value && i > 0) boxes[i - 1].focus(); });
