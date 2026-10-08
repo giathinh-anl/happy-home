@@ -11,7 +11,8 @@
 (function () {
   const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
 
-  const POLL_MS = 10000;          // bao lâu hỏi máy chủ xem có tin mới
+  const POLL_MS = 3500;          // nhịp hỏi máy chủ. Đang chat qua lại nên phải nhanh,
+                                // 10 giây thì đứng chờ tưởng hỏng.
   let poll = null;                // bộ đếm giờ của trang đang mở
   let openPhone = null;           // cuộc đang mở
   let ready = null;               // máy chủ đã có bảng chưa (null = chưa biết)
@@ -117,25 +118,30 @@
         ta.focus();
       }
 
-      startPoll(ctx);
+      startPoll();
     },
   };
 
   /* ---------- Hỏi máy chủ xem có tin mới ----------
-     Router không gọi unmount, nên bộ đếm tự tắt khi trang đã rời đi. */
-  function startPoll(ctx) {
-    clearInterval(poll);
+     Router không gọi unmount, nên bộ đếm tự tắt khi trang đã rời đi.
+
+     Bộ đếm đặt MỘT lần cho cả trang, không đặt lại trong mount. Trước đây
+     mount gọi startPoll, mà tick có tin mới lại gọi render -> mount -> startPoll:
+     vòng đếm cũ bị bỏ rơi còn vòng mới chồng lên, chat càng lâu càng nhiều vòng
+     chạy song song. */
+  function startPoll() {
+    if (poll) return;                              // đã chạy rồi thì thôi
     if (!S.usingBackend() || !HH.backend.loadKind) { ready = ready === null ? true : ready; return; }
     const tick = async () => {
       if (!document.querySelector('.sp-wrap')) { clearInterval(poll); poll = null; return; }
       const res = await HH.backend.loadKind('supportMsgs');
       if (res.missing) { if (ready !== false) { ready = false; HH.router.render(); } return; }
-      if (res.error) return;                      // mạng chập chờn: bỏ qua lượt này
+      if (res.error) return;                       // mạng chập chờn: bỏ qua lượt này
       if (ready !== true) ready = true;
       const them = S.mergeSupport(res.data);
-      if (them) HH.router.render();               // có tin mới thì vẽ lại
+      if (them) HH.router.render();                // có tin mới thì vẽ lại
     };
-    tick();
     poll = setInterval(tick, POLL_MS);
+    tick();
   }
 })();

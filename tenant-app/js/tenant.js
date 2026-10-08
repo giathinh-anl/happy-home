@@ -1522,6 +1522,22 @@
     pushMsg('me', esc(text));
     chat.busy = true; screenChat();
 
+    /* Đã chuyển cho nhân viên rồi thì mọi câu sau gửi THẲNG cho nhân viên,
+       không vòng lại con bot nữa. Không làm vậy thì khách nhắn tiếp lại bị
+       hỏi "muốn chuyển cho nhân viên không?", phải bấm nút từng câu một —
+       không ai chat kiểu đó được. */
+    if (chat.handed) {
+      chat.busy = false;
+      try {
+        await rpcNeed('tenant_send_message', { p_phone: state.phone, p_body: text });
+      } catch (e) {
+        pushMsg('bot', 'Em gửi chưa được ạ, anh/chị nhắn lại giúp em.',
+          [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }]);
+      }
+      screenChat();
+      return;
+    }
+
     // Tầng 1 — hiểu câu tại chỗ (miễn phí, tức thì)
     await new Promise(r => setTimeout(r, 320));
     let res = answer(text);
@@ -1554,7 +1570,8 @@
       chat.msgs.pop();
       chat.handed = true;
       pushMsg('bot', `Em đã <b>chuyển cho nhân viên trực</b> ✓<br>`
-        + `Nhân viên trả lời thì câu trả lời hiện ngay ở đây, anh/chị cứ mở app là thấy.`,
+        + `Từ giờ anh/chị nhắn gì ở đây là <b>tới thẳng nhân viên</b>, câu trả lời cũng hiện ngay tại đây.<br>`
+        + `Muốn hỏi lại trợ lý ảo thì bấm <b>Trò chuyện mới</b> ở góc trên.`,
         [{ label: 'Gọi luôn cho nhanh', act: 'contact' }]);
       startStaffPoll();
     } catch (e) {
@@ -1569,11 +1586,13 @@
 
   /* ---------- Hỏi máy chủ xem nhân viên đã trả lời chưa ----------
      Chỉ chạy khi đang mở màn trò chuyện; rời màn là tự tắt. */
-  const STAFF_POLL_MS = 8000;
+  // Nhịp hỏi máy chủ xem nhân viên trả lời chưa. Hai bên đang nhắn qua lại nên
+  // phải nhanh; 8 giây thì khách ngồi nhìn tưởng app treo.
+  const STAFF_POLL_MS = 3500;
   let staffPoll = null;
 
   function startStaffPoll() {
-    clearInterval(staffPoll);
+    if (staffPoll) return;                   // đang chạy rồi thì đừng chồng thêm vòng
     if (!enabled || !state.phone) return;
     staffPoll = setInterval(pullStaffReplies, STAFF_POLL_MS);
   }
