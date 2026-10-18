@@ -1342,8 +1342,15 @@
     kw: ['lien he', 'so dien thoai chu', 'goi chu', 'chu nha', 'chu tro', 'quan ly', 'gap ai', 'hotline', 'nguoi phu trach'],
     run() {
       const b = state.data.building || {};
-      return { facts: { tòa: b.name, điện_thoại: b.contactPhone || null },
-        html: b.contactPhone ? `Chủ nhà <b>${esc(b.name || '')}</b>: <b>${esc(b.contactPhone)}</b>.` : 'Em kết nối anh/chị với chủ nhà nhé.',
+      // Chưa có số thì ĐỪNG để Gemini tự soạn: thiếu dữ kiện nó viết ra câu
+      // cụt kiểu "anh/chị đang ở tòa ...". Trả câu cố định và mời nhắn cho
+      // nhân viên, vì đó mới là thứ dùng được khi không có số để gọi.
+      if (!b.contactPhone) {
+        return { html: 'Tòa nhà chưa khai báo số điện thoại liên hệ ạ. Anh/chị nhắn ở đây, em chuyển cho nhân viên trực nhé.',
+          actions: [{ label: 'Nhắn cho nhân viên', act: 'forward', data: 'Khách muốn liên hệ', solid: true }] };
+      }
+      return { facts: { tòa: b.name || null, điện_thoại: b.contactPhone },
+        html: `Chủ nhà <b>${esc(b.name || '')}</b>: <b>${esc(b.contactPhone)}</b>.`,
         actions: [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }] };
     },
   };
@@ -1367,6 +1374,10 @@
 
   /* ---------- hiểu câu hỏi ---------- */
   const T_GREET = /^(xin chao|chao|hello|hi|alo|chao em|chao ban)( (em|ban|bot|tro ly|anh|chi))?$/;
+
+  /* Khách đòi gặp người thật. Bắt cả cách nói trống không ("cần người thật",
+     "cho gặp người") lẫn nói rõ ("nhắn cho nhân viên", "gọi chủ nhà"). */
+  const T_NHAN_VIEN = /(nhan vien|nguoi that|nguoi truc|gap nguoi|gap ai|chu nha|chu tro|quan ly|tu van vien|cskh|ho tro vien)/;
 
   function understand(text, forced) {
     const t = norm(text);
@@ -1535,6 +1546,16 @@
           [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }]);
       }
       screenChat();
+      return;
+    }
+
+    /* Khách nói thẳng là muốn gặp người thật thì chuyển luôn, đừng hỏi lại
+       "có muốn chuyển không?" — họ vừa nói rồi. Và phải chặn TRƯỚC các tầng
+       đoán ý: "tôi muốn gặp nhân viên" từng bị xếp nhầm sang nhánh liên hệ
+       chủ nhà rồi trả về một câu cụt. */
+    if (T_NHAN_VIEN.test(norm(text))) {
+      chat.busy = false;
+      await forwardToLandlord(text);
       return;
     }
 
