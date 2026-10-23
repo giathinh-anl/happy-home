@@ -47,6 +47,17 @@
   };
   const hotline = () => HOME.hotline || 'đang cập nhật';
 
+  // Dòng chữ tự gõ dưới tiêu đề băng-rôn lớn. CHỈ viết những việc web làm được thật,
+  // không hứa thêm: ví dụ không ghi "tiền về tự khớp" khi hàm đối soát ngân hàng
+  // chưa triển khai (xem FACEBOOK_SETUP.md / bank-webhook).
+  const TYPED = [
+    'Ghi chỉ số điện, hóa đơn tự tính tiền',
+    'Khách trả tiền bằng mã VietQR',
+    'Báo hỏng có ảnh, theo dõi tới khi xong',
+    'Điểm thanh toán cho từng phòng',
+    'Một hệ thống cho chủ trọ, nhân viên và khách thuê',
+  ];
+
   // <b> = cụm chữ được tô sáng, <br> = xuống dòng
   const OWNER = [
     { tone: 'teal', tag: 'Về chúng tôi', panel: 'profile', title: 'Happy Home —<br>chỗ ở tử tế, <b>tiền bạc rõ ràng</b>',
@@ -394,6 +405,7 @@
       <div class="ad-left">
         <span class="ad-eyebrow">Nhà trọ ${esc(HOME.name)} · TP.HCM</span>
         <div class="ad-rot">${rot}</div>
+        <div class="ad-type" aria-label="${esc(TYPED[0])}"><span class="ad-type-t" aria-hidden="true"></span><i class="ad-caret" aria-hidden="true"></i></div>
         <ul class="ad-ticks">${ticks}</ul>
         <div class="ad-dots">${dots}</div>
       </div>
@@ -403,10 +415,38 @@
     </section>`;
   }
 
+  /* Chữ tự gõ từng ký tự, giữ lại một lúc, xóa dần rồi sang câu kế.
+     - Máy bật "giảm chuyển động": đứng yên ở câu đầu, không gõ.
+     - Tab ẩn thì tạm dừng, trang đã đổi (phần tử không còn trong DOM) thì dừng hẳn,
+       không để bộ đếm giờ mồ côi chạy mãi. */
+  function typer(el, lines, soft) {
+    if (!el || !lines.length) return;
+    if (!soft) { el.textContent = lines[0]; return; }
+    let li = 0, ci = 0, xoa = false;
+    (function buoc() {
+      if (!el.isConnected) return;
+      if (document.visibilityState !== 'visible') return void setTimeout(buoc, 600);
+      const s = lines[li];
+      if (!xoa) {
+        el.textContent = s.slice(0, ++ci);
+        if (ci >= s.length) { xoa = true; return void setTimeout(buoc, 1800); }
+        setTimeout(buoc, 36 + Math.random() * 42);          // gõ không đều tay cho giống người
+      } else {
+        el.textContent = s.slice(0, --ci);
+        if (ci <= 0) { xoa = false; li = (li + 1) % lines.length; return void setTimeout(buoc, 380); }
+        setTimeout(buoc, 16);
+      }
+    })();
+  }
+
   function mountHero(scope) {
     const ad = (scope || document).querySelector('[data-promo-ad]');
     if (!ad || ad.dataset.adOn) return;
     ad.dataset.adOn = '1';
+    // Ngôi sao lấp lánh quanh cụm chữ nhấn (<b> trong tiêu đề); vẽ bằng CSS, chỉ là trang trí
+    ad.querySelectorAll('.ad-item h2 b').forEach((b) =>
+      b.insertAdjacentHTML('beforeend', '<i class="ad-sp s1" aria-hidden="true"></i><i class="ad-sp s2" aria-hidden="true"></i><i class="ad-sp s3" aria-hidden="true"></i>'));
+    typer(ad.querySelector('.ad-type-t'), TYPED, !reduced());
     const items = [].slice.call(ad.querySelectorAll('.ad-item'));
     const dots = [].slice.call(ad.querySelectorAll('.ad-dot'));
     const pans = [].slice.call(ad.querySelectorAll('.ad-panel'));

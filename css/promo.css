@@ -552,3 +552,59 @@
     animation: none !important; transition: none !important;
   }
 }
+
+/* ============================================================
+   Băng-rôn lớn: chữ tự gõ + chữ nhấn lấp lánh
+   ============================================================ */
+
+/* Dòng phụ tự gõ. Có chiều cao tối thiểu để băng-rôn không giật lên xuống mỗi lần
+   câu dài ngắn khác nhau; màn hẹp chừa hai dòng vì câu dài sẽ bẻ dòng. */
+.ad-type {
+  margin-top: 16px; min-height: 1.7em; font-size: 15.5px; font-weight: 700; line-height: 1.5;
+  color: rgba(255, 255, 255, .96);
+}
+.ad-caret {
+  display: inline-block; width: 2px; height: 1.05em; margin-left: 3px; vertical-align: -.15em;
+  background: var(--ac); animation: adCaret 1s steps(1) infinite;
+}
+@keyframes adCaret { 50% { opacity: 0; } }
+@media (max-width: 700px) { .ad-type { min-height: 3.1em; font-size: 14.5px; } }
+
+/* Chữ nhấn: vệt sáng vàng quét ngang qua chữ, nghỉ một nhịp rồi quét lại.
+   Dùng nền cắt theo chữ (background-clip: text) nên chữ phải trong suốt; trình duyệt
+   không hỗ trợ thì @supports bỏ qua, chữ vẫn trắng đọc được. Không dùng text-shadow
+   ở đây vì chữ trong suốt sẽ để lộ bóng bên dưới thành vệt xám. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .ad-item h2 b {
+    background-image: linear-gradient(100deg, #fff 0%, #fff 36%, #FFD36B 47%, #FFF3CF 52%, #fff 62%, #fff 100%);
+    background-size: 280% 100%; background-position: 100% 0;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    text-shadow: none; filter: drop-shadow(0 2px 10px rgba(0, 20, 19, .32));
+    animation: adShimmer 3.6s ease-in-out infinite;
+  }
+}
+@keyframes adShimmer { 0%, 28% { background-position: 100% 0; } 72%, 100% { background-position: 0 0; } }
+
+/* Ba ngôi sao bốn cánh chớp tắt lệch nhịp quanh cụm chữ nhấn */
+.ad-sp {
+  position: absolute; width: 13px; height: 13px; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, #FFF8DE 0 28%, #FFD36B 62%);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  -webkit-text-fill-color: initial;
+  animation: adTwinkle 2.8s ease-in-out infinite;
+}
+.ad-sp.s1 { top: -9px; right: -8px; animation-delay: .3s; }
+.ad-sp.s2 { bottom: -3px; left: 22%; width: 9px; height: 9px; animation-delay: 1.3s; }
+.ad-sp.s3 { top: 4px; left: -11px; width: 8px; height: 8px; animation-delay: 2s; }
+@keyframes adTwinkle {
+  0%, 100% { opacity: 0; transform: scale(.25) rotate(0deg); }
+  42% { opacity: 1; transform: scale(1) rotate(45deg); }
+  70% { opacity: 0; transform: scale(.4) rotate(90deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-item h2 b { animation: none; background-position: 0 0; }
+  .ad-sp { display: none; }
+  .ad-caret { animation: none; }
+}
