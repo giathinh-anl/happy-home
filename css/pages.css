@@ -38,7 +38,7 @@
   padding: .06em 0 .14em; color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(95deg, var(--wood-500), var(--coral));
 }
-.login-sub { margin-top: 12px; max-width: 440px; font-size: 17px; font-weight: 600; color: var(--ink-2); animation: fxUp .7s var(--ease-out) .6s backwards; }
+.login-sub { margin-top: 12px; max-width: 440px; text-wrap: balance; font-size: 17px; font-weight: 600; color: var(--ink-2); animation: fxUp .7s var(--ease-out) .6s backwards; }
 .login-form-wrap {
   background: var(--surface); border-radius: 28px; padding: 32px 30px;
   border: 1px solid rgba(255,255,255,.9); box-shadow: 0 30px 80px rgba(10,58,57,.16), 0 6px 18px rgba(10,58,57,.08);

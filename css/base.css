@@ -14,6 +14,10 @@ body {
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Plus Jakarta Sans mặc định để chữ số RỘNG KHÁC NHAU (khác Nunito, vốn tự đều).
+     Bật đều toàn web để mọi cột tiền, số phòng, số kWh đều thẳng hàng, kể cả chỗ
+     không gắn class .num hay .mono. */
+  font-variant-numeric: tabular-nums;
 }
 
 /* Số tiền, số lượng: chữ thường + chữ số thẳng cột (không dùng font lập trình) */

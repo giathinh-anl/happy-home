@@ -520,7 +520,7 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.015em; }
 
 /* ============================================================
    Bản sống động (cùng hệ với web quản trị)
-   Chữ tròn Baloo 2 + Nunito, icon tượng hình nhiều màu, tranh khu phố
+   Chữ Plus Jakarta Sans, icon tượng hình nhiều màu, tranh khu phố
    làm nền, chuyển động mềm. Máy bật "giảm chuyển động" thì đứng yên.
    ============================================================ */
 body { font-size: 15.5px; }
