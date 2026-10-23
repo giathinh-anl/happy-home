@@ -2,7 +2,8 @@
    Trang: Hợp đồng — danh sách, lập mới (5 bước), trả phòng & thanh lý
    ============================================================ */
 (function () {
-  const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
+  const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
+  const { GIA_MIN, GIA_MAX, COC_MAX } = V;
 
   /* ---------------- DANH SÁCH + NHẮC HẾT HẠN ---------------- */
   // Nhãn đếm ngược theo mức độ khẩn
@@ -151,7 +152,11 @@
         };
         sel.onchange = upd; upd();
         rent.oninput = () => { const n = U.parseNum(rent.value); rent.value = n ? U.number(n) : ''; };
+        const rules = UI.formRules(el, [
+          { el: '#rnRent', ten: 'Giá thuê mới', batBuoc: false, kiem: (v) => V.tien(v, { ten: 'Giá thuê mới', min: GIA_MIN, max: GIA_MAX }) },
+        ]);
         el.querySelector('#rnGo').onclick = (e) => {
+          if (!rules.check()) return;
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
             S.renewContract(c.id, +sel.value, U.parseNum(rent.value) || null);
@@ -340,8 +345,8 @@
       <div class="grid-2">
         <div class="field"><label>Giá thuê (₫/tháng)</label><input class="input money" id="edRent" value="${U.number(c.rent)}"></div>
         <div class="field"><label>Tiền cọc (₫)</label><input class="input money" id="edDep" value="${U.number(c.deposit)}"></div>
-        <div class="field"><label>Ngày bắt đầu</label><input class="input" type="date" id="edStart" value="${new Date(c.start).toISOString().slice(0, 10)}"></div>
-        <div class="field"><label>Ngày kết thúc</label><input class="input" type="date" id="edEnd" value="${new Date(c.end).toISOString().slice(0, 10)}"></div>
+        <div class="field"><label>Ngày bắt đầu</label><input class="input" type="date" id="edStart" value="${U.dateKey(c.start)}"></div>
+        <div class="field"><label>Ngày kết thúc</label><input class="input" type="date" id="edEnd" value="${U.dateKey(c.end)}"></div>
         <div class="field"><label>Ngày chốt hóa đơn</label><select class="select" id="edBill">
           ${raw([1, 5, 10, 15].map(x => `<option ${c.billingDay === x ? 'selected' : ''}>${x}</option>`).join(''))}</select></div>
         <div class="field"><label>Hạn thanh toán (ngày)</label><input class="input mono" id="edDue" value="${c.dueDays}"></div>
@@ -350,14 +355,23 @@
       onMount(el, close) {
         ['edRent', 'edDep'].forEach(id => { const i = el.querySelector('#' + id);
           i.oninput = () => { const n = U.parseNum(i.value); i.value = n ? U.number(n) : ''; }; });
+        const rules = UI.formRules(el, [
+          { el: '#edRent', ten: 'Giá thuê', kiem: (v) => V.tien(v, { ten: 'Giá thuê', min: GIA_MIN, max: GIA_MAX }) },
+          { el: '#edDep', ten: 'Tiền cọc', batBuoc: false, kiem: (v) => V.tien(v, { ten: 'Tiền cọc', max: COC_MAX }) },
+          { el: '#edStart', ten: 'Ngày bắt đầu', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày bắt đầu' }) },
+          { el: '#edEnd', ten: 'Ngày kết thúc', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày kết thúc' })
+              || V.khoangNgay(el.querySelector('#edStart').value, v) },
+          { el: '#edDue', ten: 'Hạn thanh toán', kiem: (v) => V.so(v, { ten: 'Hạn thanh toán (ngày)', min: 0, max: 30, nguyen: true }) },
+        ]);
         el.querySelector('#edSave').onclick = () => {
+          if (!rules.check()) return;
           const patch = {
-            rent: U.parseNum(el.querySelector('#edRent').value) || c.rent,
+            rent: U.parseNum(el.querySelector('#edRent').value),
             deposit: U.parseNum(el.querySelector('#edDep').value) || 0,
             start: new Date(el.querySelector('#edStart').value).toISOString(),
             end: new Date(el.querySelector('#edEnd').value).toISOString(),
             billingDay: +el.querySelector('#edBill').value,
-            dueDays: U.parseNum(el.querySelector('#edDue').value) || 5,
+            dueDays: U.parseNum(el.querySelector('#edDue').value),
           };
           S.updateContract(c.id, patch);
           const room = S.room(ctx.bid, c.roomCode); if (room) { room.contractEnd = patch.end; room.price = patch.rent; }
@@ -518,13 +532,19 @@
       <div class="field" style="margin-top:12px"><label>Địa chỉ thường trú</label><input class="input" data-n="address"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" data-save>Tạo khách</button>`,
       onMount(el, close) {
+        const rules = UI.formRules(el, [
+          { el: '[data-n="fullName"]', ten: 'Họ và tên', kiem: V.hoTen },
+          { el: '[data-n="phone"]', ten: 'Số điện thoại', kiem: (v) => V.sdt(v)
+              || (S.tenantsOf(ctx.bid).some(t => V.chuanSdt(t.phone) === V.chuanSdt(v)) ? 'Số điện thoại này đã có khách dùng' : '') },
+          { el: '[data-n="idNumber"]', ten: 'Số CCCD', batBuoc: false, kiem: V.cccd },
+          { el: '[data-n="dob"]', ten: 'Ngày sinh', batBuoc: false, kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày sinh', khongTuongLai: true, namMin: new Date().getFullYear() - 120 }) },
+        ]);
         el.querySelector('[data-save]').onclick = () => {
           const g = (k) => ((el.querySelector(`[data-n="${k}"]`) || {}).value || '').trim();
-          if (!g('fullName') || !g('phone')) { UI.toast('Nhập họ tên và số điện thoại', { type: 'error' }); return; }
-          if (S.tenantsOf(ctx.bid).some(t => t.phone === g('phone'))) { UI.toast('Số điện thoại này đã tồn tại', { type: 'error' }); return; }
+          if (!rules.check()) return;
           const t = S.addTenant({ id: U.uid('tn'), buildingId: ctx.bid, roomCode: null,
-            fullName: g('fullName'), idNumber: g('idNumber'), dob: g('dob'), gender: g('gender'),
-            hometown: '', phone: g('phone'), occupation: g('occupation'), address: g('address'),
+            fullName: g('fullName'), idNumber: g('idNumber').replace(/[\s.]/g, ''), dob: g('dob'), gender: g('gender'),
+            hometown: '', phone: V.chuanSdt(g('phone')), occupation: g('occupation'), address: g('address'),
             cccdIssueDate: '', cccdIssuePlace: 'Cục CSQLHC về TTXH', cccdFront: false, cccdBack: false,
             vehiclePlate: null, ttlock: false, tamtru: false, occupants: 1, isRep: false });
           S.log('tenant.create', `Thêm khách thuê ${t.fullName}`);
@@ -579,7 +599,13 @@
     g('cycle').onchange = () => t.cycle = g('cycle').value;
     g('billingDay').onchange = () => t.billingDay = +g('billingDay').value;
     g('dueDays').oninput = () => t.dueDays = U.parseNum(g('dueDays').value) || 0;
-    wireNav(ctx);
+    const rules = UI.formRules(body, [
+      { el: '[data-t="start"]', ten: 'Ngày bắt đầu', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày bắt đầu' }) },
+      { el: '[data-t="rent"]', ten: 'Giá thuê', kiem: (v) => V.tien(v, { ten: 'Giá thuê', min: GIA_MIN, max: GIA_MAX }) },
+      { el: '[data-t="deposit"]', ten: 'Tiền cọc', batBuoc: false, kiem: (v) => V.tien(v, { ten: 'Tiền cọc', max: COC_MAX }) },
+      { el: '[data-t="dueDays"]', ten: 'Hạn thanh toán', kiem: (v) => V.so(v, { ten: 'Hạn thanh toán (ngày)', min: 0, max: 30, nguyen: true }) },
+    ]);
+    wireNav(ctx, () => rules.check());
   }
 
   // Bước 4 — Dịch vụ
@@ -599,7 +625,14 @@
       ${rows}${navFoot(ctx)}`;
     body.querySelectorAll('[data-sv]').forEach(c => c.onchange = () => w.services[c.dataset.sv].on = c.checked);
     body.querySelectorAll('[data-svu]').forEach(i => i.oninput = () => { const n = U.parseNum(i.value); w.services[i.dataset.svu].unit = n; i.value = n ? U.number(n) : ''; });
-    wireNav(ctx);
+    wireNav(ctx, () => {
+      // dịch vụ đang bật mà để trống đơn giá thì hóa đơn sẽ tính 0 ₫ mà không ai hay
+      const thieu = svcs.find(x => w.services[x.id].on && w.services[x.id].unit == null);
+      if (!thieu) return true;
+      UI.toast(`Nhập đơn giá cho "${thieu.name}", hoặc bỏ tích dịch vụ này`, { type: 'error' });
+      const i = body.querySelector(`[data-svu="${thieu.id}"]`); if (i) i.focus();
+      return false;
+    });
   }
 
   // Bước 5 — Bàn giao
@@ -625,7 +658,10 @@
       const n = U.parseNum(i.value); i.value = n != null ? n : '';
       w.handoverReadings[i.dataset.h] = n;
     });
-    wireNav(ctx);
+    const rules = UI.formRules(body, [
+      { el: '[data-h="elec"]', ten: 'Chỉ số điện', batBuoc: false, kiem: (v) => V.so(v, { ten: 'Chỉ số điện', min: 0, max: 9999999, nguyen: true }) },
+    ]);
+    wireNav(ctx, () => rules.check());
   }
 
   // Màn hình xác nhận cuối
@@ -859,7 +895,7 @@ QUY TẮC:
     if (!document.querySelector('[data-f="tenantName"]')) return scan.form;
     return {
       roomCode: g('roomCode'), tenantName: g('tenantName'), idNumber: g('idNumber').replace(/\s/g, ''),
-      dob: g('dob'), phone: g('phone').replace(/\s/g, ''), address: g('address'),
+      dob: g('dob'), phone: V.chuanSdt(g('phone')), address: g('address'),
       rent: U.parseNum(g('rent')), deposit: U.parseNum(g('deposit')),
       startDate: g('startDate'), endDate: g('endDate'),
       billingDay: U.parseNum(g('billingDay')) || 1, dueDays: U.parseNum(g('dueDays')) || 5,
@@ -982,10 +1018,21 @@ QUY TẮC:
 
   function saveScan(ctx, btn) {
     const f = readScanForm() || {};
-    if (!f.roomCode) { UI.toast('Chọn phòng của hợp đồng', { type: 'error' }); return; }
-    if (!f.tenantName) { UI.toast('Nhập tên khách thuê', { type: 'error' }); return; }
-    if (!f.rent) { UI.toast('Nhập giá thuê', { type: 'error' }); return; }
-    if (!f.startDate || !f.endDate) { UI.toast('Nhập ngày bắt đầu và ngày kết thúc', { type: 'error' }); return; }
+    const fv = (k) => ((document.querySelector(`[data-f="${k}"]`) || {}).value || '');
+    const rules = UI.formRules(document, [
+      { el: '[data-f="roomCode"]', ten: 'Phòng', thieu: 'Chọn phòng của hợp đồng' },
+      { el: '[data-f="tenantName"]', ten: 'Khách thuê', kiem: V.hoTen },
+      { el: '[data-f="idNumber"]', ten: 'Số CCCD', batBuoc: false, kiem: V.cccd },
+      { el: '[data-f="dob"]', ten: 'Ngày sinh', batBuoc: false, kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày sinh', khongTuongLai: true, namMin: new Date().getFullYear() - 120 }) },
+      { el: '[data-f="phone"]', ten: 'Điện thoại', batBuoc: false, kiem: V.sdt },
+      { el: '[data-f="rent"]', ten: 'Giá thuê', kiem: (v) => V.tien(v, { ten: 'Giá thuê', min: GIA_MIN, max: GIA_MAX }) },
+      { el: '[data-f="deposit"]', ten: 'Tiền cọc', batBuoc: false, kiem: (v) => V.tien(v, { ten: 'Tiền cọc', max: COC_MAX }) },
+      { el: '[data-f="startDate"]', ten: 'Ngày bắt đầu', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày bắt đầu' }) },
+      { el: '[data-f="endDate"]', ten: 'Ngày kết thúc', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày kết thúc' }) || V.khoangNgay(fv('startDate'), v) },
+      { el: '[data-f="billingDay"]', ten: 'Ngày chốt', kiem: (v) => V.so(v, { ten: 'Ngày chốt tiền', min: 1, max: 28, nguyen: true }) },
+      { el: '[data-f="dueDays"]', ten: 'Số ngày trả chậm', kiem: (v) => V.so(v, { ten: 'Số ngày được trả chậm', min: 0, max: 30, nguyen: true }) },
+    ]);
+    if (!rules.check()) return;
     const room = S.room(ctx.bid, f.roomCode);
     if (!room) { UI.toast('Không tìm thấy phòng này', { type: 'error' }); return; }
 
@@ -1101,7 +1148,12 @@ QUY TẮC:
       ${tFoot(ctx)}`;
     body.querySelector('[data-x="date"]').oninput = (e) => t.returnDate = e.target.value;
     body.querySelector('[data-x="reason"]').onchange = (e) => t.reason = e.target.value;
-    tWire(ctx);
+    // trả phòng được phép ghi trước một chút (hẹn ngày dọn), nhưng không trước ngày bắt đầu hợp đồng
+    const c = ctx._c;
+    const rules = UI.formRules(body, [
+      { el: '[data-x="date"]', ten: 'Ngày trả phòng', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày trả phòng', khongTruoc: c ? V.ngayISO(U.dateKey(c.start)) : undefined }) },
+    ]);
+    tWire(ctx, () => rules.check());
   }
 
   function tStep2(ctx, body) {

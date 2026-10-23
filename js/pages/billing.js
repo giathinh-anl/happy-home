@@ -2,7 +2,7 @@
    Trang: Chỉ số điện nước, Hóa đơn, Chi tiết HĐ, Thanh toán/công nợ
    ============================================================ */
 (function () {
-  const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
+  const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
 
   /* ================= GHI CHỈ SỐ (§3.6) ================= */
   HH.pages.readings = {
@@ -552,15 +552,24 @@
               <span class="a-amt">${U.currency(need)}</span>
               ${applied > 0 ? (full ? '<span class="a-check">✓</span>' : `<span class="a-partial">${U.currency(applied)} / ${U.currency(need)}</span>`) : '<span class="faint">-</span>'}</div>`;
           });
-          rows += `<div class="alloc-row" style="border-top:2px solid var(--neutral-200)"><b>Số dư chuyển kỳ sau</b>
-            <b class="a-amt" style="color:${amt > 0 ? 'var(--info)' : 'inherit'}">${U.currency(amt)}</b></div>`;
+          // Hệ thống chưa có sổ "tiền thừa chuyển kỳ sau", nên không cho nhập quá công nợ (xem luật #payAmt bên dưới)
+          rows += `<div class="alloc-row" style="border-top:2px solid var(--neutral-200)"><b>Còn nợ sau khi thu</b>
+            <b class="a-amt">${U.currency(Math.max(0, totalDebt - (U.parseNum(amtInp.value) || 0)))}</b></div>`;
           box.innerHTML = rows;
         };
         amtInp.oninput = () => { const n = U.parseNum(amtInp.value); amtInp.value = n != null ? U.number(n) : ''; renderAlloc(); };
         renderAlloc();
+        const rules = UI.formRules(el, [
+          { el: '#payAmt', ten: 'Số tiền nhận', kiem: (v) => {
+              const n = V.docTien(v);
+              if (n == null || n <= 0) return 'Nhập số tiền lớn hơn 0';
+              if (n > totalDebt) return `Nhiều hơn công nợ ${U.currency(totalDebt)}, nhập tối đa số này`;
+            } },
+          { el: '#payDate', ten: 'Ngày nhận', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày nhận', khongTuongLai: true }) },
+        ]);
         el.querySelector('#doPay').onclick = (e) => {
+          if (!rules.check()) return;
           let amt = U.parseNum(amtInp.value) || 0;
-          if (amt <= 0) { UI.toast('Nhập số tiền hợp lệ', { type: 'error' }); return; }
           e.currentTarget.classList.add('loading');
           const method = el.querySelector('#payMethod').value;
           const date = new Date(el.querySelector('#payDate').value).toISOString();

@@ -157,6 +157,63 @@ HH.ui = (function () {
     });
   }
 
+  /* ---------- Kiểm tra biểu mẫu tại chỗ ----------
+     Lỗi hiện ngay dưới ô sai (viền đỏ + dòng chữ), ô đang báo lỗi thì sửa tới đâu xóa báo tới đó.
+     rules = [{ el: '#payAmt' | Element, ten: 'Số tiền', kiem: (giaTri, el) => 'lỗi' | '' }]
+     rule.canhGac = các ô phụ cùng nằm dưới dòng lỗi này, sửa ô nào cũng kiểm lại luật.
+     Ô bỏ trống tự báo "Chưa nhập <ten>" (hoặc rule.thieu) trừ khi rule có batBuoc: false.
+     Trả về { check(): true khi sạch, otherwise cuộn tới + báo ô sai đầu tiên; clear() }. */
+  function formRules(root, rules) {
+    const resolve = (r) => (typeof r.el === 'string' ? root.querySelector(r.el) : r.el);
+    function kiemMot(r) {
+      const el = resolve(r); if (!el || el.disabled) return '';
+      const v = el.type === 'checkbox' ? (el.checked ? '1' : '') : (el.value || '');
+      let loi = '';
+      if (!v.trim()) loi = r.batBuoc === false ? '' : (r.thieu || `Chưa nhập ${r.ten}`);
+      else if (r.kiem) loi = r.kiem(v, el) || '';
+      const o = el.closest('.field') || el.parentElement;
+      if (o) {
+        let bao = o.querySelector(':scope > .err-msg');
+        if (loi) {
+          el.style.borderColor = 'var(--danger)'; el.setAttribute('aria-invalid', 'true');
+          if (!bao) { bao = document.createElement('span'); bao.className = 'err err-msg'; bao.setAttribute('role', 'alert'); o.appendChild(bao); }
+          bao.textContent = loi;
+        } else {
+          el.style.borderColor = ''; el.removeAttribute('aria-invalid');
+          if (bao) bao.remove();
+        }
+      }
+      return loi;
+    }
+    rules.forEach(r => {
+      const el = resolve(r); if (!el) return;
+      // Gọi lại formRules cho cùng một ô (vd. kiểm lúc bấm Lưu) chỉ thay luật, không dồn thêm trình nghe sự kiện
+      const moi = !el.__hhKiem;
+      el.__hhKiem = () => kiemMot(r);
+      if (!moi) return;
+      const o = () => el.closest('.field') || el.parentElement;
+      el.addEventListener('blur', () => el.__hhKiem());
+      const live = () => { const f = o(); if (f && f.querySelector(':scope > .err-msg')) el.__hhKiem(); };
+      el.addEventListener('input', live); el.addEventListener('change', live);
+      // Luật gom nhiều ô chung một dòng lỗi (vd. tiền tố + từ số + đến số): sửa ô nào cũng kiểm lại luật này
+      (r.canhGac || []).forEach(sel => { const e2 = root.querySelector(sel);
+        if (e2) { e2.addEventListener('input', live); e2.addEventListener('change', live); } });
+    });
+    return {
+      check() {
+        let dau = null, n = 0;
+        rules.forEach(r => { if (kiemMot(r)) { n++; if (!dau) dau = resolve(r); } });
+        if (!dau) return true;
+        dau.scrollIntoView({ block: 'center', behavior: 'smooth' }); dau.focus({ preventScroll: true });
+        toast(n === 1 ? 'Còn 1 ô chưa đúng, xem dòng đỏ' : `Còn ${n} ô chưa đúng, xem các dòng đỏ`, { type: 'error' });
+        return false;
+      },
+      clear() { rules.forEach(r => { const el = resolve(r); if (!el) return; el.style.borderColor = '';
+        el.removeAttribute('aria-invalid'); const o = el.closest('.field') || el.parentElement;
+        const b = o && o.querySelector(':scope > .err-msg'); if (b) b.remove(); }); },
+    };
+  }
+
   /* ---------- Menu thả xuống ---------- */
   function openMenu(anchor, items) {
     closeMenus();
@@ -530,5 +587,5 @@ HH.ui = (function () {
   }
 
   return { STATUS, statusBadge, metricCard, toast, modal, closeTopModal, dangerDialog,
-    openMenu, closeMenus, periodSelector, attachPeriod, DataTable, clearBulkBars, paginate, cardifyTables, watchTables };
+    openMenu, closeMenus, periodSelector, attachPeriod, DataTable, clearBulkBars, paginate, cardifyTables, watchTables, formRules };
 })();

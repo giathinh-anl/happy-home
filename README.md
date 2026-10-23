@@ -108,6 +108,17 @@ Hệ thống **chỉ soạn, không tự gửi**: chủ trọ đọc, sửa tron
 
 **Phí trễ hạn** do chủ trọ bật ở nút *Phí trễ hạn*, **mặc định tắt**: miễn *N* ngày đầu (mặc định 3), sau đó *X* ₫ mỗi ngày, tổng không quá **10% tiền hóa đơn** (trần cố định trong mã). Phí tính trên tiền gốc nên không tính chồng lên phí đã ghi. Phí chỉ là *tạm tính* cho tới khi chủ trọ bấm **Ghi phí vào hóa đơn** (có hộp xác nhận); lúc đó hóa đơn có thêm dòng "Phí trễ hạn", khách thấy trong app, và gỡ lại được từng hóa đơn. Phí là số chụp tại thời điểm ghi, không tự tăng theo ngày; muốn cập nhật thì ghi lại (thay dòng cũ, không cộng dồn). Chỉ thu khi hợp đồng thuê đã ghi điều khoản này. Chính sách lưu trên tòa nhà, cần chạy `supabase/migration-late-fee.sql` để lưu lên máy chủ (chưa chạy thì app báo khi lưu và cài đặt mất khi tải lại). Mã tính toán ở `js/reminders.js`, giao diện ở `js/pages/reminders.js`.
 
+## Kiểm tra dữ liệu nhập
+
+Mọi biểu mẫu nhập tiền, ngày, danh tính đều kiểm ngay tại ô: gõ xong rời ô là hiện lỗi đỏ ngay dưới ô sai, sửa tới đâu xóa báo tới đó, bấm Lưu mà còn sai thì cuộn tới ô sai đầu tiên. Luật nằm ở `js/validate.js` (thuần, có kiểm thử), phần gắn vào ô ở `UI.formRules` trong `js/components.js`. Đã áp cho: ghi thanh toán, gia hạn và sửa hợp đồng, lập hợp đồng 5 bước, quét hợp đồng giấy, trả phòng, tạo khách thuê (cả trong hợp đồng), xe của khách, dịch vụ, tài sản trong kho, sự cố, tạo phòng hàng loạt, tòa nhà, thu chi, nhân viên.
+
+Các luật đáng nói:
+- **Tiền** đọc chuỗi thô: chỉ nhận chữ số và dấu nhóm nghìn. Trước đây `U.parseNum` bỏ hết ký tự lạ nên `-5` thành 5 và `1,5` thành 15 mà không báo gì. Giá thuê phải từ 100.000 ₫ đến 500 triệu để bắt gõ nhầm thừa/thiếu số 0.
+- **Ghi thanh toán** không cho nhập quá công nợ. Trước đây phần dư hiện là "chuyển kỳ sau" nhưng thực tế bị bỏ, vì hệ thống chưa có sổ tiền thừa.
+- **Ngày** phải có thật (chặn 31/02), không ở tương lai khi là ngày thu/chi, ngày kết thúc phải sau ngày bắt đầu.
+- **Số điện thoại** là khóa đăng nhập app khách thuê nên không được trùng người khác (cùng CCCD thì là cùng một người); `+84` và khoảng trắng được chuẩn hóa về `0xxxxxxxxx`. **Biển số xe** không được trùng xe khác.
+- **Diện tích** đọc đúng `20,5` (trước đây thành 205).
+
 ## Thu tiền chuyển khoản tự động
 
 Câu hỏi thường gặp: *"khách chuyển khoản xong thì công nợ tự xóa được không?"* — được, nhưng cần
@@ -184,6 +195,7 @@ js/
   utils.js            # định dạng tiền/số/ngày, tag template html
   scoring.js          # điểm thanh toán của hợp đồng (không đụng DOM, có kiểm thử)
   reminders.js        # mức nhắc nợ, phí trễ hạn, soạn tin (không đụng DOM, có kiểm thử)
+  validate.js         # luật kiểm tra dữ liệu nhập: tiền, ngày, sđt, CCCD, biển số (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -206,6 +218,7 @@ js/
 tests/
   scoring.test.js     # kiểm thử luật điểm: node tests/scoring.test.js
   reminders.test.js   # kiểm thử nhắc nợ + phí: node tests/reminders.test.js
+  validate.test.js    # kiểm thử luật nhập liệu: node tests/validate.test.js
 ```
 
 ## Kiểm thử
@@ -213,9 +226,10 @@ tests/
 ```bash
 node tests/scoring.test.js
 node tests/reminders.test.js
+node tests/validate.test.js
 ```
 
-Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh toán (20 ca) và cho nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin); cả hai đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) và luật nhập liệu (29 ca); cả ba đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 ## Lưu dữ liệu & thao tác thật
 

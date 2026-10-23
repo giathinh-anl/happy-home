@@ -2,7 +2,7 @@
    Trang: Hồ sơ khách thuê + thêm bằng nhận diện CCCD (§3.4)
    ============================================================ */
 (function () {
-  const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
+  const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
 
   let tnSearch = '', tnFilter = null;
   const TN_FILTERS = [
@@ -187,8 +187,16 @@
       el.querySelectorAll('[data-delveh]').forEach(b => b.onclick = () => {
         S.removeVehicle(t.id, +b.dataset.delveh); UI.toast('Đã xóa xe', { type: 'ok' }); draw(el);
       });
+      // Biển số: bỏ trống thì cho qua (xóa biển), có thì phải đúng dạng và chưa đăng ký cho xe khác
+      UI.formRules(el, Array.from(el.querySelectorAll('[data-f="plate"]')).map(inp => ({
+        el: inp, ten: 'Biển số', batBuoc: false,
+        kiem: (v) => V.bienSo(v) || ((o) => (o ? `Biển số này đã đăng ký cho ${o.fullName}${o.roomCode ? ' (phòng ' + o.roomCode + ')' : ''}` : ''))(S.vehicleOwnerOf(v, t.id, +inp.dataset.v)),
+      })));
       el.querySelectorAll('[data-v]').forEach(inp => inp.onchange = () => {
-        S.updateVehicle(t.id, +inp.dataset.v, { [inp.dataset.f]: inp.value.trim() });
+        if (inp.dataset.f === 'plate' && inp.__hhKiem && inp.__hhKiem()) return;   // sai thì giữ nguyên chữ đang gõ, không lưu
+        const val = inp.dataset.f === 'plate' ? inp.value.trim().toUpperCase() : inp.value.trim();
+        if (inp.dataset.f === 'plate') inp.value = val;
+        S.updateVehicle(t.id, +inp.dataset.v, { [inp.dataset.f]: val });
       });
     };
     UI.modal({
@@ -469,21 +477,12 @@ QUY TẮC:
   let noiCap = '';                         // nơi cấp đọc được từ mặt sau
 
   /** dd/mm/yyyy có phải ngày có thật không (chặn 31/02, 45/13...) */
-  function ngayThat(s) {
-    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s || '').trim());
-    if (!m) return null;
-    const d = +m[1], th = +m[2], n = +m[3];
-    const dt = new Date(n, th - 1, d);
-    if (dt.getDate() !== d || dt.getMonth() !== th - 1 || dt.getFullYear() !== n) return null;
-    return dt;
-  }
+  const ngayThat = V.ngayDMY;
 
   const BAT_BUOC = [
-    { k: 'fullName', ten: 'Họ và tên', kiem: (v) => {
-        if (v.trim().split(/\s+/).length < 2) return 'Nhập đủ họ và tên';
-        if (/\d/.test(v)) return 'Họ tên không có chữ số';
-      } },
+    { k: 'fullName', ten: 'Họ và tên', kiem: V.hoTen },
     { k: 'idNumber', ten: 'Số CCCD', kiem: (v) => {
+        // ảnh đọc ra có thể kèm khoảng trắng/dấu chấm, bỏ đi rồi mới đếm số
         const s = v.replace(/\D/g, '');
         if (s.length !== 12 && s.length !== 9) return 'CCCD có 12 số, CMND cũ có 9 số';
       } },
@@ -503,9 +502,12 @@ QUY TẮC:
         if (!d) return 'Nhập dạng dd/mm/yyyy, có ở mặt sau thẻ';
         if (d > new Date()) return 'Ngày cấp không thể ở tương lai';
       } },
-    { k: 'phone', ten: 'Điện thoại', kiem: (v) => {
-        const s = v.replace(/\s|\./g, '');
-        if (!/^0\d{9}$/.test(s)) return 'Số di động 10 chữ số, bắt đầu bằng 0';
+    { k: 'phone', ten: 'Điện thoại', kiem: (v, el) => {
+        const loi = V.sdt(v); if (loi) return loi;
+        // số điện thoại là khóa đăng nhập app khách thuê: không được trùng người khác (cùng CCCD thì là cùng một người)
+        const t = S.tenantByPhone(v);
+        const idForm = ((document.querySelector('[data-k="idNumber"]') || {}).value || '').replace(/\D/g, '');
+        if (t && !(idForm && t.idNumber === idForm)) return `Số này đang là của ${t.fullName}${t.roomCode ? ' (phòng ' + t.roomCode + ')' : ''}`;
       } },
   ];
 
@@ -517,7 +519,7 @@ QUY TẮC:
     const v = el.value || '';
     let loi = '';
     if (!v.trim()) loi = `Chưa nhập ${r.ten}`;      // giữ nguyên hoa thường, "CCCD" viết thường trông cẩu thả
-    else if (r.kiem) loi = r.kiem(v) || '';
+    else if (r.kiem) loi = r.kiem(v, el) || '';
 
     const o = el.closest('.field');
     if (o) {
@@ -623,6 +625,10 @@ QUY TẮC:
       el.addEventListener('input', () => { if (el.closest('.field').querySelector('.err-msg')) kiemMot(el); });
     });
 
+    // CCCD đổi thì lỗi "số này đang là của ..." ở ô điện thoại có thể không còn đúng (cùng CCCD = cùng một người)
+    const idEl = card.querySelector('[data-k="idNumber"]'), phEl = card.querySelector('[data-k="phone"]');
+    if (idEl && phEl) idEl.addEventListener('input', () => { if (phEl.closest('.field').querySelector('.err-msg')) kiemMot(phEl); });
+
     if (existing) document.getElementById('reuseBtn').onclick = () => {
       UI.toast(`Đã dùng lại hồ sơ ${existing.fullName}`, { type: 'ok' }); HH.router.go(`/b/${ctx.bid}/tenants`);
     };
@@ -650,7 +656,7 @@ QUY TẮC:
           fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\D/g, ''),
           dob: get('dateOfBirth').trim(), gender: /^nam$/i.test(get('gender').trim()) ? 'Nam' : 'Nữ',
           hometown: get('hometown').trim(),
-          phone: get('phone').replace(/\s|\./g, ''), occupation: get('occupation') || '',
+          phone: V.chuanSdt(get('phone')), occupation: get('occupation') || '',
           address: get('address').trim(),
           cccdIssueDate: get('cccdIssueDate').trim(), cccdIssuePlace: noiCap || 'Cục CSQLHC về TTXH',
           cccdFront: !!imgUrl, cccdBack: !!anhSau, vehiclePlate: null,

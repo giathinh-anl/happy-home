@@ -405,9 +405,17 @@ HH.app = (function () {
       <div class="field" style="margin-top:12px"><label>Địa chỉ</label><input class="input" id="nbAddr" placeholder="Số nhà, đường, quận, thành phố"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="nbSave">Thêm tòa nhà</button>`,
       onMount(el, close) {
+        const rules = HH.ui.formRules(el, [
+          { el: '#nbName', ten: 'Tên tòa nhà', thieu: 'Vui lòng nhập tên tòa nhà', kiem: (v) => {
+              const t = v.trim().toLowerCase();
+              if (t.length > 80) return 'Tên tòa nhà tối đa 80 ký tự';
+              if (S.buildings.some(b => (b.name || '').trim().toLowerCase() === t)) return 'Đã có tòa nhà tên này';
+            } },
+          { el: '#nbAddr', ten: 'Địa chỉ', batBuoc: false, kiem: (v) => (v.trim().length > 200 ? 'Địa chỉ tối đa 200 ký tự' : '') },
+        ]);
         el.querySelector('#nbSave').onclick = () => {
+          if (!rules.check()) return;
           const name = el.querySelector('#nbName').value.trim();
-          if (!name) { HH.ui.toast('Vui lòng nhập tên tòa nhà', { type: 'error' }); return; }
           const b = S.addBuilding({ id: U.uid('b'), name, address: el.querySelector('#nbAddr').value.trim(), floors: 1, perFloor: 0 });
           S.log('building.add', `Thêm tòa nhà ${name}`);
           close(); HH.ui.toast('Đã thêm tòa nhà. Giờ hãy tạo phòng.', { type: 'ok' }); HH.router.go(`/b/${b.id}/units`);

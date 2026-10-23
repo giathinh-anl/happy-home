@@ -2,7 +2,7 @@
    Trang bổ sung: Thông báo, Khóa thông minh, Cấu hình tòa nhà
    ============================================================ */
 (function () {
-  const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
+  const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
 
   /* ---------------- THÔNG BÁO ---------------- */
   HH.pages.noti = {
@@ -108,11 +108,20 @@
       </div></div>`;
     },
     mount(ctx) {
+      const bRules = UI.formRules(document, [
+        { el: '#bName', ten: 'Tên tòa nhà', kiem: (v) => {
+            const t = v.trim().toLowerCase();
+            if (t.length > 80) return 'Tên tòa nhà tối đa 80 ký tự';
+            if (S.buildings.some(b => b.id !== ctx.bid && (b.name || '').trim().toLowerCase() === t)) return 'Đã có tòa nhà tên này';
+          } },
+        { el: '#bAddr', ten: 'Địa chỉ', batBuoc: false, kiem: (v) => (v.trim().length > 200 ? 'Địa chỉ tối đa 200 ký tự' : '') },
+        { el: '#bFloors', ten: 'Số tầng', kiem: (v) => V.so(v, { ten: 'Số tầng', min: Math.max(1, ...S.roomsOf(ctx.bid).map(r => r.floor || 1)), max: 60, nguyen: true }) },
+      ]);
       document.getElementById('saveBuilding').onclick = (e) => {
+        if (!bRules.check()) return;
         const name = document.getElementById('bName').value.trim();
         const address = document.getElementById('bAddr').value.trim();
-        const floors = U.parseNum(document.getElementById('bFloors').value) || ctx.building.floors;
-        if (!name) { UI.toast('Tên tòa nhà không được để trống', { type: 'error' }); return; }
+        const floors = U.parseNum(document.getElementById('bFloors').value);
         e.currentTarget.classList.add('loading');
         setTimeout(() => {
           S.updateBuilding(ctx.bid, { name, address, floors });
@@ -368,9 +377,14 @@
       onMount(el, close) {
         const amt = el.querySelector('#txAmount');
         amt.oninput = () => { const n = U.parseNum(amt.value); amt.value = n ? U.number(n) : ''; };
+        const rules = UI.formRules(el, [
+          { el: '#txAmount', ten: 'Số tiền', kiem: (v) => V.tien(v, { ten: 'Số tiền', min: 1, max: 10000000000 }) },
+          { el: '#txDate', ten: 'Ngày', kiem: (v) => V.ngayHopLe(v, { ten: 'Ngày', khongTuongLai: true }) },
+          { el: '#txNote', ten: 'Ghi chú', batBuoc: false, kiem: (v) => (v.trim().length > 200 ? 'Ghi chú tối đa 200 ký tự' : '') },
+        ]);
         el.querySelector('#txSave').onclick = (e) => {
+          if (!rules.check()) return;
           const amount = U.parseNum(amt.value);
-          if (!amount) { UI.toast('Nhập số tiền hợp lệ', { type: 'error' }); return; }
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
             S.addTransaction({ id: U.uid('tx'), buildingId: ctx.bid, kind,
@@ -1077,17 +1091,21 @@
         el.querySelectorAll('[data-perm]').forEach(c => c.onchange = sync);
         el.querySelector('#permAll').onclick = () => { el.querySelectorAll('[data-perm]').forEach(c => c.checked = true); sync(); };
         el.querySelector('#permNone').onclick = () => { el.querySelectorAll('[data-perm]').forEach(c => c.checked = false); sync(); };
+        const rules = UI.formRules(el, [
+          { el: '[data-s="email"]', ten: 'Email', kiem: (v) => V.email(v)
+              || (S.staffList().some(x => (x.email || '').toLowerCase() === v.trim().toLowerCase()) ? 'Email này đã được thêm' : '') },
+          { el: '[data-s="fullName"]', ten: 'Họ và tên', batBuoc: false, kiem: V.hoTen },
+          { el: '[data-s="phone"]', ten: 'Số điện thoại', batBuoc: false, kiem: V.sdt },
+        ]);
         el.querySelector('[data-save]').onclick = (e) => {
           const g = (k) => ((el.querySelector(`[data-s="${k}"]`) || {}).value || '').trim();
           const email = (isNew ? g('email') : existing.email).toLowerCase();
-          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { UI.toast('Email không hợp lệ', { type: 'error' }); return; }
-          if (isNew && S.staffList().some(x => (x.email || '').toLowerCase() === email)) {
-            UI.toast('Email này đã được thêm', { type: 'error' }); return; }
+          if (!rules.check()) return;
           const permissions = [...el.querySelectorAll('[data-perm]')].filter(c => c.checked).map(c => c.dataset.perm);
           const buildingIds = [...el.querySelectorAll('[data-bld]')].filter(c => c.checked).map(c => c.dataset.bld);
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
-            const patch = { email, fullName: g('fullName'), phone: g('phone'), role: g('role'), permissions, buildingIds };
+            const patch = { email, fullName: g('fullName'), phone: g('phone') ? V.chuanSdt(g('phone')) : '', role: g('role'), permissions, buildingIds };
             if (isNew) {
               S.addStaff(Object.assign({ id: U.uid('st'), status: 'active', createdAt: new Date().toISOString() }, patch));
               S.log('staff.add', `Thêm nhân viên ${email} (${permissions.length} quyền)`);

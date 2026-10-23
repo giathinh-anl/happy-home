@@ -2,7 +2,7 @@
    Trang: Danh sách phòng — sơ đồ + bảng (§3.3)
    ============================================================ */
 (function () {
-  const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
+  const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
   const tone = (st) => (UI.STATUS.room[st] || { tone: 'neutral' }).tone;
 
   // máy trạng thái đơn giản: chuyển hợp lệ theo trình tự
@@ -228,8 +228,12 @@
           close(); showRoom(ctx, S.room(ctx.bid, r.code));
         });
         const save = el.querySelector('#saveRoomInfo');
+        const descRule = UI.formRules(el, [
+          { el: '#roomDesc', ten: 'Mô tả', batBuoc: false, kiem: (v) => (v.trim().length > 1000 ? 'Mô tả tối đa 1.000 ký tự' : '') },
+        ]);
         if (save) save.onclick = async () => {
           if (save.disabled) return;
+          if (!descRule.check()) return;
           S.updateRoom(ctx.bid, r.code, { description: el.querySelector('#roomDesc').value.trim() });
           save.disabled = true; save.classList.add('loading');
           const was = save.textContent; save.textContent = 'Đang lưu...';
@@ -337,13 +341,30 @@
         // format tiền
         get('price').oninput = () => { const n = U.parseNum(get('price').value); get('price').value = n ? U.number(n) : ''; };
         preview();
+        const rules = UI.formRules(el, [
+          // tiền tố + từ số + đến số chung một dòng lỗi
+          { el: '[data-f="to"]', ten: 'Khoảng số phòng', canhGac: ['[data-f="from"]', '[data-f="prefix"]'], kiem: () => {
+              const pre = get('prefix').value.trim();
+              if (pre && !/^[A-Za-z0-9]{1,6}$/.test(pre)) return 'Tiền tố chỉ gồm chữ và số, tối đa 6 ký tự';
+              const a = V.so(get('from').value, { ten: 'Số bắt đầu', min: 0, max: 999, nguyen: true });
+              if (a) return a;
+              const b = V.so(get('to').value, { ten: 'Số kết thúc', min: 0, max: 999, nguyen: true });
+              if (b) return b;
+              const from = +get('from').value, to = +get('to').value;
+              if (to < from) return 'Số kết thúc phải lớn hơn hoặc bằng số bắt đầu';
+              if (to - from + 1 > 60) return `Tạo tối đa 60 phòng mỗi lần, khoảng này có ${to - from + 1} phòng`;
+            } },
+          { el: '[data-f="price"]', ten: 'Giá thuê', kiem: (v) => V.tien(v, { ten: 'Giá thuê', min: V.GIA_MIN, max: V.GIA_MAX }) },
+          { el: '[data-f="area"]', ten: 'Diện tích', kiem: (v) => V.so(v, { ten: 'Diện tích', min: 5, max: 500 }) },
+        ]);
 
         el.querySelector('[data-next]').onclick = () => {
+          if (!rules.check()) return;
           const list = preview();
           const existing = new Set(S.roomsOf(ctx.bid).map(r => r.code));
           const type = get('type').value; const t = types[type];
-          const price = U.parseNum(get('price').value) || t.price;
-          const area = U.parseNum(get('area').value) || t.area;
+          const price = U.parseNum(get('price').value);
+          const area = V.docSo(get('area').value);
           const max = parseInt(get('max').value);
           const floor = get('floor').value === 'new' ? ctx.building.floors + 1 : parseInt(get('floor').value);
           const rows = list.map(code => ({ code, floor, type, typeLabel: t.label, price, area, max, dup: existing.has(code) }));
@@ -372,10 +393,15 @@
     foot.innerHTML = `<button class="btn btn-outline" data-back>← Quay lại</button><span class="spacer"></span>
       <button class="btn btn-primary" data-create ${okCount === 0 ? 'disabled' : ''}>Tạo ${okCount} phòng</button>`;
     el.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => {
-      rows[+inp.dataset.i][inp.dataset.k] = U.parseNum(inp.value);
+      rows[+inp.dataset.i][inp.dataset.k] = inp.dataset.k === 'area' ? V.docSo(inp.value) : U.parseNum(inp.value);
     });
+    // mỗi dòng sửa tay lại phải hợp lệ như bước 1, nếu không phòng sẽ được tạo với giá/diện tích rỗng
+    const rowRules = UI.formRules(el, Array.from(el.querySelectorAll('[data-k]:not([disabled])')).map(inp => inp.dataset.k === 'price'
+      ? { el: inp, ten: 'Giá thuê', kiem: (v) => V.tien(v, { ten: 'Giá thuê', min: V.GIA_MIN, max: V.GIA_MAX }) }
+      : { el: inp, ten: 'Diện tích', kiem: (v) => V.so(v, { ten: 'Diện tích', min: 5, max: 500 }) }));
     foot.querySelector('[data-back]').onclick = () => bulkCreate(ctx) & close();
     foot.querySelector('[data-create]').onclick = (e) => {
+      if (!rowRules.check()) return;
       const btn = e.currentTarget; btn.classList.add('loading');
       setTimeout(() => {
         const create = rows.filter(r => !r.dup);

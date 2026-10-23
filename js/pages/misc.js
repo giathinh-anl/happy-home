@@ -2,7 +2,7 @@
    Trang: Dịch vụ & đơn giá, Tài sản
    ============================================================ */
 (function () {
-  const U = HH.util, S = HH.store, UI = HH.ui, h = U.html, raw = U.raw;
+  const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
   const methodLabel = { per_kwh: 'Theo chỉ số điện', per_person: 'Theo số người', flat: 'Cố định theo tháng' };
 
   /* ---------------- DỊCH VỤ & ĐƠN GIÁ ---------------- */
@@ -73,11 +73,19 @@
       onMount(el, close) {
         const unit = el.querySelector('#svUnit');
         unit.oninput = () => { const n = U.parseNum(unit.value); unit.value = n ? U.number(n) : ''; };
+        const rules = UI.formRules(el, [
+          { el: '#svName', ten: 'Tên dịch vụ', kiem: (v) => {
+              const t = v.trim().toLowerCase();
+              if (t.length > 60) return 'Tên dịch vụ tối đa 60 ký tự';
+              if (S.servicesOf(ctx.bid).some(x => x.name.trim().toLowerCase() === t && (!s || x.id !== s.id))) return 'Đã có dịch vụ tên này';
+            } },
+          { el: '#svUnit', ten: 'Đơn giá', kiem: (v) => V.tien(v, { ten: 'Đơn giá', min: 1, max: 50000000 }) },
+        ]);
         el.querySelector('#svSave').onclick = (e) => {
+          if (!rules.check()) return;
           const name = el.querySelector('#svName').value.trim();
           const m = el.querySelector('#svMethod').value;
           const u = U.parseNum(unit.value);
-          if (!name || !u) { UI.toast('Nhập tên và đơn giá hợp lệ', { type: 'error' }); return; }
           const unitLabel = m === 'per_kwh' ? '₫/kWh' : m === 'per_person' ? '₫/người' : '₫/tháng';
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
@@ -300,12 +308,21 @@
         });
         const buy = el.querySelector('[data-a="buy"]');
         buy.oninput = () => { const n = U.parseNum(buy.value); buy.value = n ? U.number(n) : ''; };
+        const rules = UI.formRules(el, [
+          { el: '[data-a="name"]', ten: 'Tên tài sản', kiem: (v) => {
+              const t = v.trim();
+              if (t.length > 80) return 'Tên tài sản tối đa 80 ký tự';
+              const dup = catalog(ctx.bid).find(x => x.name.toLowerCase() === t.toLowerCase());
+              if (isNew && dup) return `Kho đã có "${dup.name}". Dùng "Nhập thêm vào kho" để cộng số lượng.`;
+            } },
+          { el: '[data-a="buy"]', ten: 'Giá tài sản', kiem: (v) => V.tien(v, { ten: 'Giá tài sản', min: 1, max: 1000000000 }) },
+          { el: '[data-a="life"]', ten: 'Số tháng khấu hao', batBuoc: false, kiem: (v) => V.so(v, { ten: 'Số tháng khấu hao', min: 1, max: 600, nguyen: true }) },
+          ...(isNew ? [{ el: '[data-a="qty"]', ten: 'Số lượng', kiem: (v) => V.so(v, { ten: 'Số lượng', min: 1, max: 10000, nguyen: true }) }] : []),
+        ]);
         el.querySelector('[data-add]').onclick = (e) => {
           const get = (k) => (el.querySelector(`[data-a="${k}"]`) || {}).value || '';
+          if (!rules.check()) return;
           const name = get('name').trim(), price = U.parseNum(get('buy'));
-          if (!name || !price) { UI.toast('Nhập tên và giá tài sản', { type: 'error' }); return; }
-          const dup = catalog(ctx.bid).find(x => x.name.toLowerCase() === name.toLowerCase());
-          if (isNew && dup) { UI.toast(`Kho đã có "${dup.name}". Dùng "Nhập thêm vào kho" để cộng số lượng.`, { type: 'error' }); return; }
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
             const base = { icon, buyPrice: price, unit: get('unit'), lifeMonths: U.parseNum(get('life')) || 60 };
@@ -329,9 +346,12 @@
       <div class="field"><label>Nhập thêm bao nhiêu?</label><input class="input num" id="inQty" value="1"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="inGo">Nhập kho</button>`,
       onMount(el, close) {
+        const rules = UI.formRules(el, [
+          { el: '#inQty', ten: 'Số lượng', kiem: (v) => V.so(v, { ten: 'Số lượng', min: 1, max: 10000, nguyen: true }) },
+        ]);
         el.querySelector('#inGo').onclick = () => {
-          const n = U.parseNum(el.querySelector('#inQty').value) || 0;
-          if (n <= 0) { UI.toast('Nhập số lượng lớn hơn 0', { type: 'error' }); return; }
+          if (!rules.check()) return;
+          const n = U.parseNum(el.querySelector('#inQty').value);
           S.stockAsset(ctx.bid, { name: it.name, quantity: n, icon: it.icon, unit: it.unit, buyPrice: it.buyPrice, lifeMonths: it.lifeMonths });
           S.log('asset.stock', `Nhập thêm ${it.name} × ${n}`);
           close(); UI.toast(`Đã nhập thêm ${n} ${(it.unit || 'cái').toLowerCase()}`, { type: 'ok' }); HH.router.render();
@@ -363,12 +383,15 @@
         const sel = el.querySelector('#trItem'), hint = el.querySelector('#trHint');
         const stockOf = (name) => (items.find(x => x.name === name) || {});
         sel.onchange = () => { const x = stockOf(sel.value); hint.textContent = `Kho còn ${x.stock || 0} ${(x.unit || 'cái').toLowerCase()}`; };
+        const rules = UI.formRules(el, [
+          { el: '#trQty', ten: 'Số lượng', kiem: (v) => V.so(v, { ten: 'Số lượng', min: 1, max: stockOf(sel.value).stock || 0, nguyen: true })
+              .replace(/tối đa (\d+)$/, 'tối đa $1 (số đang có trong kho)') },
+        ]);
         el.querySelector('#trGo').onclick = () => {
+          if (!rules.check()) return;
           const name = sel.value, room = el.querySelector('#trRoom').value;
-          const qty = U.parseNum(el.querySelector('#trQty').value) || 0;
+          const qty = U.parseNum(el.querySelector('#trQty').value);
           const x = stockOf(name);
-          if (qty <= 0) { UI.toast('Nhập số lượng lớn hơn 0', { type: 'error' }); return; }
-          if (qty > (x.stock || 0)) { UI.toast(`Kho chỉ còn ${x.stock || 0}`, { type: 'error' }); return; }
           const r = S.moveAssetQty(ctx.bid, name, null, room, qty);
           if (!r.ok) { UI.toast('Không đủ số lượng trong kho', { type: 'error' }); return; }
           S.log('asset.move', `Chuyển ${name} × ${qty} từ kho vào phòng ${room}`);
@@ -384,9 +407,12 @@
       <div class="field"><label>Trả về kho bao nhiêu?</label><input class="input num" id="rtQty" value="${max}"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="rtGo">Trả về kho</button>`,
       onMount(el, close) {
+        const rules = UI.formRules(el, [
+          { el: '#rtQty', ten: 'Số lượng', kiem: (v) => V.so(v, { ten: 'Số lượng', min: 1, max, nguyen: true }) },
+        ]);
         el.querySelector('#rtGo').onclick = () => {
-          const n = U.parseNum(el.querySelector('#rtQty').value) || 0;
-          if (n <= 0 || n > max) { UI.toast(`Nhập từ 1 đến ${max}`, { type: 'error' }); return; }
+          if (!rules.check()) return;
+          const n = U.parseNum(el.querySelector('#rtQty').value);
           const r = S.moveAssetQty(ctx.bid, a.name, a.roomCode, null, n);
           if (!r.ok) { UI.toast('Không trả được, thử lại', { type: 'error' }); return; }
           S.log('asset.move', `Trả ${a.name} × ${n} từ phòng ${a.roomCode} về kho`);
@@ -492,9 +518,15 @@
         <textarea class="textarea" id="icTitle" placeholder="VD: Bóng đèn nhà tắm bị cháy"></textarea></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="icSave">Tạo yêu cầu</button>`,
       onMount(el, close) {
+        const rules = UI.formRules(el, [
+          { el: '#icTitle', ten: 'mô tả sự cố', kiem: (v) => {
+              if (v.trim().length < 5) return 'Mô tả quá ngắn, ghi rõ hỏng gì để thợ biết';
+              if (v.trim().length > 500) return 'Mô tả tối đa 500 ký tự';
+            } },
+        ]);
         el.querySelector('#icSave').onclick = (e) => {
+          if (!rules.check()) return;
           const title = el.querySelector('#icTitle').value.trim();
-          if (!title) { UI.toast('Nhập mô tả sự cố', { type: 'error' }); return; }
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
             S.addIncident({ id: U.uid('sc'), buildingId: ctx.bid, roomCode: el.querySelector('#icRoom').value,

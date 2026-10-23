@@ -534,6 +534,20 @@ HH.store = (function () {
     roomsOf: (bid) => rooms.filter(r => r.buildingId === bid),
     room: (bid, code) => rooms.find(r => r.buildingId === bid && r.code === code),
     tenantsOf: (bid) => tenants.filter(t => t.buildingId === bid),
+    // Số điện thoại là khóa đăng nhập app khách thuê nên không được trùng giữa hai người
+    tenantByPhone: (phone) => { const p = HH.validate.chuanSdt(phone); return p ? tenants.find(t => HH.validate.chuanSdt(t.phone) === p) : undefined; },
+    // Biển số đã đăng ký cho khách nào khác chưa (bỏ qua chính xe đang sửa: tenantId + index)
+    vehicleOwnerOf(plate, exceptTenantId, exceptIdx) {
+      const p = HH.validate.chuanBienSo(plate); if (!p) return null;
+      for (const t of tenants) {
+        const list = api.vehiclesOf(t);
+        for (let i = 0; i < list.length; i++) {
+          if (t.id === exceptTenantId && i === exceptIdx) continue;
+          if (HH.validate.chuanBienSo(list[i].plate) === p) return t;
+        }
+      }
+      return null;
+    },
     tenantById: (id) => tenants.find(t => t.id === id),
     tenantByIdNumber: (idn) => tenants.find(t => t.idNumber === idn),
     contractsOf: (bid) => contracts.filter(c => c.buildingId === bid),
