@@ -29,6 +29,7 @@ HH.app = (function () {
   const MORE = [
     { ic: 'gauge',    label: 'Chỉ số điện',          seg: 'readings', perm: 'readings' },
     { ic: 'wallet',   label: 'Thanh toán & công nợ', seg: 'payments', perm: 'payments' },
+    { ic: 'megaphone', label: 'Nhắc nợ',            seg: 'reminders', perm: 'payments' },
     { ic: 'chat',     label: 'Hỏi đáp khách thuê',   seg: 'support', perm: 'tenants' },
     { ic: 'wrench',   label: 'Sự cố phòng',          seg: 'incidents', perm: 'incidents' },
     { ic: 'chart',    label: 'Thu chi',              seg: 'expenses', perm: 'expenses', pic: 'coins' },
@@ -52,6 +53,7 @@ HH.app = (function () {
     const b = S.building(bid);
     return {
       overdue: b ? S.invoicesOf(b.id).filter(i => i.status === 'overdue').length : 0,
+      remind: b ? S.remindDueCount(b.id) : 0,
       incidents: b ? S.incidentsOf(b.id).length : 0,
       claims: S.pendingClaimCount ? S.pendingClaimCount() : 0,
       noti: S.notificationCount ? S.notificationCount() : 0,
@@ -60,7 +62,8 @@ HH.app = (function () {
   }
   const modCount = (m, c) => m.seg === 'invoices' ? c.overdue
     : m.seg === 'incidents' ? c.incidents
-    : m.seg === 'support' ? c.support : 0;
+    : m.seg === 'support' ? c.support
+    : m.seg === 'reminders' ? c.remind : 0;
   const isCompanyActive = (t, path) => t.key === 'home' ? (path === '/buildings' || path.startsWith('/b/')) : path === t.path;
 
   /* ---------- Máy tính: thanh trên ---------- */

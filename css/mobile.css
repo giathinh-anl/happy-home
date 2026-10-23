@@ -105,3 +105,10 @@
   .lz-chip { min-height: 40px; }
   .period .mo { min-height: 38px; }
 }
+
+/* Hộp soạn tin nhắc nợ: hàng nút gọn lại cho vừa màn hình hẹp */
+@media (max-width: 640px) {
+  .dialog-foot .rm-f-close { display: none; }          /* đã có dấu ✕ ở đầu hộp */
+  .dialog-foot .rm-f-direct { flex: 1 1 100%; order: -1; }
+  .dialog-foot .rm-f-act { flex: 1 1 0; }
+}

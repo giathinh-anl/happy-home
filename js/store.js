@@ -1052,6 +1052,59 @@ HH.store = (function () {
       api.log('invoice.cancel', `Hủy hóa đơn ${id}`, reason);
       persist();
     },
+    /* ---------- NHẮC NỢ + PHÍ TRỄ HẠN ----------
+       Phần tính toán nằm ở js/reminders.js (thuần, có kiểm thử). Ở đây chỉ nối vào dữ liệu thật.
+       Chính sách phí lưu trên tòa nhà (lateFeePerDay, lateGraceDays); mặc định tắt. */
+    lateFeePolicy(bid) {
+      const b = buildings.find(x => x.id === bid) || {};
+      return HH.reminders.chinhSach({ moiNgay: b.lateFeePerDay, mienNgay: b.lateGraceDays });
+    },
+    setLateFeePolicy(bid, p) {
+      const c = HH.reminders.chinhSach(p);
+      api.log('latefee.policy', c.moiNgay
+        ? `Bật phí trễ hạn ${U.currency(c.moiNgay)}/ngày, miễn ${c.mienNgay} ngày đầu (trần 10% tiền hóa đơn)`
+        : 'Tắt phí trễ hạn');
+      api.updateBuilding(bid, { lateFeePerDay: c.moiNgay, lateGraceDays: c.mienNgay });
+      return c;
+    },
+    // Các phòng đang vào diện nhắc nợ, đã tính sẵn mức và phí
+    remindGroups(bid) {
+      return HH.reminders.gomTheoPhong(invoices.filter(i => i.buildingId === bid), api.lateFeePolicy(bid), U.today());
+    },
+    // Lần nhắc gần nhất của một phòng, đọc lại từ nhật ký (nhật ký là thứ duy nhất được lưu bền ở máy chủ)
+    lastReminder(bid, roomCode) {
+      const pre = `Nhắc nợ phòng ${roomCode} (${bid})`;
+      let best = null;
+      auditLog.forEach(l => {
+        if (!l.action || !l.action.startsWith('remind.') || !(l.message || '').startsWith(pre)) return;
+        if (!best || new Date(l.at) > new Date(best.at)) best = l;
+      });
+      return best ? { at: best.at, ma: best.action.slice(7), kenh: best.reason || '' } : null;
+    },
+    // Số phòng ĐÃ quá hạn mà nên nhắc ngay (dùng cho số đếm trên menu)
+    remindDueCount(bid) {
+      return api.remindGroups(bid).filter(g => g.muc.bac >= 1
+        && HH.reminders.trangThaiNhac(api.lastReminder(bid, g.roomCode), g.muc, U.today()).nenNhac).length;
+    },
+    logReminder(g, kenh) {
+      api.log('remind.' + g.muc.ma, `Nhắc nợ phòng ${g.roomCode} (${g.buildingId}) — ${g.muc.ten}, tổng ${U.currency(g.tongCanTra)}`, kenh || null);
+      persist();
+    },
+    // Ghi (hoặc gỡ, khi amount = 0) dòng "Phí trễ hạn" vào hóa đơn. Luôn thay dòng cũ, không cộng dồn.
+    applyLateFee(invId, amount, note) {
+      const inv = api.invoice(invId);
+      if (!inv || inv.status === 'cancelled' || inv.status === 'draft') return null;
+      const old = HH.reminders.phiDaAp(inv), fee = Math.max(0, Math.round(amount || 0));
+      inv.lines = (inv.lines || []).filter(l => l.type !== 'latefee');
+      if (fee > 0) inv.lines.push({ label: 'Phí trễ hạn', amount: fee, type: 'latefee', meta: note || '' });
+      inv.total = inv.total - old + fee;
+      inv.paid = Math.min(inv.paid, inv.total);
+      inv.status = inv.paid >= inv.total ? 'paid' : (api.isOverdue(inv) ? 'overdue' : (inv.paid > 0 ? 'partial' : 'issued'));
+      inv.edited = true; inv.editedAt = new Date().toISOString(); inv.editedBy = prefs.userName;
+      api.log('invoice.latefee', fee ? `Ghi phí trễ hạn ${U.currency(fee)} vào ${invId}` : `Gỡ phí trễ hạn khỏi ${invId}`, note || null);
+      persist();
+      return inv;
+    },
     /* ---------- THU TIỀN ---------- */
     // Sinh số phiếu thu: PT-YYMM-NNN
     nextReceiptNo(date) {

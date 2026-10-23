@@ -765,6 +765,7 @@
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Thanh toán & công nợ</div>
           <div class="page-sub">${ctx.building.name} · kỳ ${S.periodLabel(per)}</div></div></div>
+        <div class="page-actions"><a class="btn btn-outline" href="#/b/${ctx.bid}/reminders">${raw(HH.ic('megaphone', 16))} Nhắc nợ</a></div>
       </div>
       <div id="periodSel" style="margin-bottom:16px"></div>
       ${raw(cards)}

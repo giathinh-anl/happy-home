@@ -93,6 +93,21 @@ Mỗi phòng có một **điểm thanh toán** hiện trên trang Khách thuê (
 
 Điểm = trung bình có trọng số × 100, hóa đơn mới nặng hơn (mỗi kỳ lùi về trước nhân 0,85) nên khách sửa được thói quen thì điểm lên lại. Hạng: ≥ 90 Xuất sắc · ≥ 75 Tốt · ≥ 50 Trung bình · còn lại Cần nhắc. Dưới 3 hóa đơn được chấm thì ghi **tạm tính**. Tính theo **hợp đồng đang hiệu lực** để điểm của khách cũ không dồn sang khách mới. Mã nằm ở `js/scoring.js`, rê chuột vào huy hiệu để xem lời giải thích từng phòng.
 
+## Nhắc nợ nhiều cấp + phí trễ hạn
+
+Trang **Nhắc nợ** (menu Thêm, hoặc nút trên trang Thanh toán & công nợ) gom các phòng sắp đến hạn hoặc đã quá hạn và soạn sẵn tin nhắc theo bốn mức, giọng văn nặng dần:
+
+| Mức | Khi nào | Giọng |
+|---|---|---|
+| Sắp đến hạn | còn 0–3 ngày tới hạn | nhắc lịch sự, không nói đến phạt |
+| Nhắc nhẹ | quá hạn 1–3 ngày | nêu số ngày trễ, xin chuyển trong hôm nay |
+| Có phí | quá hạn 4–7 ngày | báo quy định phí trễ hạn và số phí tạm tính (nếu đã bật phí) |
+| Khẩn | quá hạn từ 8 ngày | tổng cần trả, đề nghị trả ngay, nhắc điều khoản hợp đồng |
+
+Hệ thống **chỉ soạn, không tự gửi**: chủ trọ đọc, sửa trong ô tin nhắn rồi bấm **Chép tin**, **Zalo** (tự chép tin, mở cuộc trò chuyện) hoặc **SMS**. Mỗi lần nhắc được ghi vào nhật ký, trang sẽ hiện *"Đã nhắc hôm qua (nhắc nhẹ)"*, và báo *nên nhắc mức cao hơn* khi khách trễ thêm sang mức mới. Tin có số tài khoản khi `js/config.js` khai báo `bank: { name, account, holder }`; chưa khai báo thì **không bịa số tài khoản**, hộp soạn tin có cảnh báo.
+
+**Phí trễ hạn** do chủ trọ bật ở nút *Phí trễ hạn*, **mặc định tắt**: miễn *N* ngày đầu (mặc định 3), sau đó *X* ₫ mỗi ngày, tổng không quá **10% tiền hóa đơn** (trần cố định trong mã). Phí tính trên tiền gốc nên không tính chồng lên phí đã ghi. Phí chỉ là *tạm tính* cho tới khi chủ trọ bấm **Ghi phí vào hóa đơn** (có hộp xác nhận); lúc đó hóa đơn có thêm dòng "Phí trễ hạn", khách thấy trong app, và gỡ lại được từng hóa đơn. Phí là số chụp tại thời điểm ghi, không tự tăng theo ngày; muốn cập nhật thì ghi lại (thay dòng cũ, không cộng dồn). Chỉ thu khi hợp đồng thuê đã ghi điều khoản này. Chính sách lưu trên tòa nhà, cần chạy `supabase/migration-late-fee.sql` để lưu lên máy chủ (chưa chạy thì app báo khi lưu và cài đặt mất khi tải lại). Mã tính toán ở `js/reminders.js`, giao diện ở `js/pages/reminders.js`.
+
 ## Thu tiền chuyển khoản tự động
 
 Câu hỏi thường gặp: *"khách chuyển khoản xong thì công nợ tự xóa được không?"* — được, nhưng cần
@@ -168,6 +183,7 @@ css/
 js/
   utils.js            # định dạng tiền/số/ngày, tag template html
   scoring.js          # điểm thanh toán của hợp đồng (không đụng DOM, có kiểm thử)
+  reminders.js        # mức nhắc nợ, phí trễ hạn, soạn tin (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -185,18 +201,21 @@ js/
     support.js        # hỏi đáp khách thuê (nhân viên trả lời tin khách nhắn)
     contracts.js      # hợp đồng, lập mới 5 bước, thanh lý
     billing.js        # chỉ số, hóa đơn, chi tiết, thanh toán
+    reminders.js      # trang Nhắc nợ + chính sách phí trễ hạn
     misc.js           # dịch vụ, tài sản
 tests/
   scoring.test.js     # kiểm thử luật điểm: node tests/scoring.test.js
+  reminders.test.js   # kiểm thử nhắc nợ + phí: node tests/reminders.test.js
 ```
 
 ## Kiểm thử
 
 ```bash
 node tests/scoring.test.js
+node tests/reminders.test.js
 ```
 
-Không cần cài gì thêm. Hiện mới có bộ kiểm thử cho luật điểm thanh toán (20 ca, đã thử phá luật để chắc bộ kiểm thử bắt được lỗi). Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh toán (20 ca) và cho nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin); cả hai đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 ## Lưu dữ liệu & thao tác thật
 

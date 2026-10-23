@@ -15,6 +15,12 @@ window.HH_CONFIG = {
   supabaseUrl: 'https://YOUR-PROJECT-REF.supabase.co',
   supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY',
 
+  /* ---------- Tài khoản nhận tiền (tùy chọn) ----------
+     Điền thì tin nhắc nợ (trang "Nhắc nợ" và trợ lý) có sẵn số tài khoản để khách chuyển.
+     Không điền thì tin nhắc nợ không có dòng số tài khoản, không tự bịa số.
+       bank: { name: 'Vietcombank', account: '0123456789', holder: 'NGUYEN VAN A' },
+  */
+
   /* ---------- Trợ lý AI (tùy chọn) ----------
      Không điền gì cũng được: trợ lý vẫn trả lời các câu hỏi thường gặp
      bằng luật từ khóa + dữ liệu thật (miễn phí, không gọi mạng).

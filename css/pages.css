@@ -986,3 +986,31 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 .sp-empty.sm { padding: 24px 16px; }
 .sp-empty .ic { opacity: .4; margin-bottom: 8px; }
 .sp-empty h4 { margin-bottom: 6px; }
+
+/* ---------- Nhắc nợ nhiều cấp + phí trễ hạn (js/pages/reminders.js) ---------- */
+.rm-note {
+  display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 14px;
+  border: 1px solid var(--info-line); background: var(--info-bg); color: #23466F;
+  border-radius: var(--r-input); font-size: 13.5px; line-height: 1.5;
+}
+.rm-note svg { flex: 0 0 auto; margin-top: 2px; }
+.rm-st { font-size: 12.5px; font-weight: 600; }
+.rm-st.rm-can  { color: var(--danger); }
+.rm-st.rm-xong { color: var(--success); }
+.badge.rm-khan { background: var(--danger); color: #fff; border-color: var(--danger); font-weight: 700; }
+.rm-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.rm-sum > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-input); background: var(--neutral-100); }
+.rm-sum span { display: block; font-size: 12px; color: var(--ink-2); }
+.rm-sum b { font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rm-sum .tot { background: var(--danger-bg); border-color: var(--danger-line); }
+.rm-sum .tot b { color: var(--danger); }
+.rm-apply {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px; padding: 8px 12px; background: var(--warning-bg); border: 1px solid var(--warning-line);
+  border-radius: var(--r-input); font-size: 13px;
+}
+.rm-switch { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.rm-switch input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 auto; }
+.rm-demo { margin-top: 10px; padding: 10px 12px; background: var(--neutral-100); border-radius: var(--r-input); font-size: 13px; line-height: 1.5; }
+#rmText { line-height: 1.55; }
+.dialog-foot .rm-f-close { margin-right: auto; }
