@@ -60,7 +60,7 @@ Vào không được thì đọc đúng dòng báo lỗi:
 | Xác thực | Đăng nhập (kiểm tra email khi rời ô, trạng thái chờ, dải lỗi) |
 | Công ty | **Tổng quan** (4 thẻ KPI có xu hướng, dòng tiền 6 kỳ, vòng cung tiến độ thu, 3 biểu đồ tròn, tiêu thụ điện nước, hiệu suất từng tòa, chi phí theo hạng mục, phiếu thu gần đây, top công nợ, việc cần xử lý) · Tòa nhà · Nhật ký hệ thống |
 | Phòng | Sơ đồ theo tầng + chế độ bảng · tooltip · **tạo phòng hàng loạt** (2 bước, phát hiện trùng mã) · **đổi trạng thái** (DangerDialog, máy trạng thái) |
-| Khách thuê | Danh sách · **thêm bằng nhận diện CCCD** (mô phỏng OCR, chỉ báo độ tin cậy, phát hiện trùng, lối nhập thủ công) |
+| Khách thuê | Danh sách · **thêm bằng ảnh CCCD**: Gemini đọc chữ trên thẻ rồi điền sẵn họ tên, số CCCD, ngày sinh, quê quán, thường trú; ảnh mặt sau cho ngày cấp; ô nào chữ mờ thì gắn cờ độ tin cậy thấp; đọc không được thì để trống chứ không điền bừa · **bắt điền đủ 8 ô** (kiểm cả định dạng) mới cho lưu · **điểm thanh toán** của từng phòng (xem mục dưới) |
 | Hợp đồng | Danh sách · **lập hợp đồng 5 bước** (Phòng → Khách → Điều khoản → Dịch vụ → Bàn giao → xác nhận) · lưu nháp · **trả phòng & thanh lý** (kiểm kê tài sản, quyết toán cọc) |
 | Điện nước | **Ghi chỉ số** nhập nhanh (Tab/Enter xuống dòng, tính tiêu thụ tức thì, cảnh báo bất thường, chỉ số khách tự ghi chờ duyệt, xử lý quay vòng đồng hồ) |
 | Hóa đơn | Danh sách + 4 thẻ chỉ số + chọn kỳ · **sinh hóa đơn hàng loạt** (kiểm tra điều kiện) · **phát hành** (tiến trình từng bước) · **chi tiết hóa đơn** (căn cứ tính từng dòng, lịch sử thanh toán, dải "đã chỉnh sửa") · **hủy hóa đơn** (DangerDialog) |
@@ -78,6 +78,20 @@ Vào không được thì đọc đúng dòng báo lỗi:
 - Phím tắt: `/` tìm kiếm · `n` tạo mới · `Esc` đóng · `?` bảng phím tắt.
 - Phân quyền sinh menu theo vai trò; chặn truy cập route ngoài phạm vi.
 - Responsive: thanh bên thành ngăn kéo trên màn hình hẹp.
+
+## Điểm thanh toán
+
+Mỗi phòng có một **điểm thanh toán** hiện trên trang Khách thuê (huy hiệu cạnh tên phòng) kèm bộ lọc **Hay trả trễ**, để chủ trọ biết nhắc ai trước. Luật đơn giản, giải thích được, không dùng AI:
+
+| Hóa đơn | Điểm |
+|---|---|
+| Trả đủ, đúng hoặc trước hạn | 1,00 |
+| Trả đủ nhưng trễ *d* ngày | 1 − 0,7 × min(*d*, 30) / 30 (trễ 5 ngày ≈ 0,88; từ 30 ngày trở lên = 0,30) |
+| Quá hạn, đã trả một phần | 0,25 |
+| Quá hạn, chưa trả đồng nào | 0 |
+| Chưa tới hạn, hoặc trả đủ mà không có phiếu thu ghi ngày | không tính |
+
+Điểm = trung bình có trọng số × 100, hóa đơn mới nặng hơn (mỗi kỳ lùi về trước nhân 0,85) nên khách sửa được thói quen thì điểm lên lại. Hạng: ≥ 90 Xuất sắc · ≥ 75 Tốt · ≥ 50 Trung bình · còn lại Cần nhắc. Dưới 3 hóa đơn được chấm thì ghi **tạm tính**. Tính theo **hợp đồng đang hiệu lực** để điểm của khách cũ không dồn sang khách mới. Mã nằm ở `js/scoring.js`, rê chuột vào huy hiệu để xem lời giải thích từng phòng.
 
 ## Thu tiền chuyển khoản tự động
 
@@ -150,8 +164,10 @@ css/
   layout.css          # khung + thanh bên 2 tầng — §1.5
   components.css      # thành phần dùng chung — Phần II
   pages.css           # style riêng từng màn hình
+  mobile.css          # giao diện điện thoại: bảng thành thẻ, nút đủ to, số tiền không gãy dòng
 js/
   utils.js            # định dạng tiền/số/ngày, tag template html
+  scoring.js          # điểm thanh toán của hợp đồng (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -165,11 +181,22 @@ js/
   pages/
     auth-dashboard.js # đăng nhập, tổng quan, tòa nhà, nhật ký
     rooms.js          # phòng (sơ đồ/bảng), tạo hàng loạt, đổi trạng thái
-    tenants.js        # khách thuê + OCR
+    tenants.js        # khách thuê + đọc ảnh CCCD + điểm thanh toán
+    support.js        # hỏi đáp khách thuê (nhân viên trả lời tin khách nhắn)
     contracts.js      # hợp đồng, lập mới 5 bước, thanh lý
     billing.js        # chỉ số, hóa đơn, chi tiết, thanh toán
     misc.js           # dịch vụ, tài sản
+tests/
+  scoring.test.js     # kiểm thử luật điểm: node tests/scoring.test.js
 ```
+
+## Kiểm thử
+
+```bash
+node tests/scoring.test.js
+```
+
+Không cần cài gì thêm. Hiện mới có bộ kiểm thử cho luật điểm thanh toán (20 ca, đã thử phá luật để chắc bộ kiểm thử bắt được lỗi). Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 ## Lưu dữ liệu & thao tác thật
 
@@ -179,9 +206,9 @@ js/
 
 ## Còn là mô phỏng (chưa nối máy chủ thật)
 
-- **OCR CCCD** được mô phỏng (điền sẵn dữ liệu mẫu kèm độ tin cậy) — chưa gọi dịch vụ nhận diện thật.
+- **Mã xác thực (OTP) của app khách thuê** là mã cố định, chưa nối dịch vụ SMS.
 - Dữ liệu chỉ nằm **trên trình duyệt này**; chưa đồng bộ nhiều thiết bị / nhiều người dùng (cần backend + database).
-- Một vài màn hình phụ (Tổng báo cáo, Khách chuyển khoản, Đăng tin, Công ty/nhóm, Khóa thông minh, Thu chi) hiện là trang giữ chỗ.
+- **Khóa thông minh** là màn hình mô phỏng, chưa nối khóa thật. Ba trang **Báo cáo, Sổ kế toán, Nhân sự & phân quyền** vẫn là trang giữ chỗ.
 
 ## Bước tiếp theo để thành "bản chính" thật
 Muốn nhiều người dùng chung + đồng bộ nhiều máy thì cần **máy chủ + cơ sở dữ liệu**: thay `js/store.js` bằng lớp gọi API thật (đăng nhập/JWT, REST/GraphQL), thêm OCR thật và cổng thanh toán. Giao diện & luồng nghiệp vụ hiện tại dùng lại được gần như nguyên vẹn.

@@ -546,6 +546,14 @@ HH.store = (function () {
     invoice: (id) => invoices.find(i => i.id === id),
     invoicesForContract: (cid) => invoices.filter(i => i.contractId === cid),
     paymentsOf: (invId) => payments.filter(p => p.invoiceId === invId),
+    /* Điểm thanh toán của hợp đồng đang hiệu lực của phòng (luật ở js/scoring.js).
+       Tính theo HỢP ĐỒNG chứ không theo phòng: phòng đổi khách thì điểm của người
+       trước không được dồn sang người sau. */
+    paymentScore(bid, code) {
+      const room = rooms.find(r => r.buildingId === bid && r.code === code);
+      const inv = room && room.contractId ? invoices.filter(i => i.contractId === room.contractId) : [];
+      return HH.scoring.tinh(inv, (i) => payments.filter(p => p.invoiceId === i.id), U.today());
+    },
 
     /* ---------- Tổng hợp dashboard (theo kỳ đang chọn) ---------- */
     dashboardSummary() {

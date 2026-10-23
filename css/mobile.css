@@ -59,6 +59,10 @@
   table.dt.dt-cards td.col-actions::before { content: none; }
   table.dt.dt-cards .kebab { min-width: 40px; min-height: 40px; }
 
+  /* thanh đầu nhóm phòng (Khách thuê): tên phòng, số khách, huy hiệu điểm tự bẻ dòng cho vừa */
+  table.dt.dt-cards tr.tenant-group-head td { flex-wrap: wrap; justify-content: flex-start; gap: 4px 10px; padding: 6px 4px; }
+  table.dt.dt-cards tr.tenant-group-head .sc-badge { margin-left: 0; }
+
   /* chân bảng: đếm dòng và nút trang xếp dọc cho vừa chiều ngang */
   .dt-foot { flex-direction: column; align-items: stretch; gap: 10px; text-align: center; }
   .dt-foot .pager { justify-content: center; flex-wrap: wrap; }

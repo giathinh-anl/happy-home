@@ -10,7 +10,18 @@
     { key: 'notamtru', label: 'Chưa đăng ký tạm trú', tone: 'warning', test: t => !t.tamtru },
     { key: 'docs',     label: 'Khách đã nộp giấy tờ', tone: 'success', test: t => t.cccdFront && t.cccdBack },
     { key: 'nodocs',   label: 'Khách chưa nộp giấy tờ', tone: 'danger', test: t => !(t.cccdFront && t.cccdBack) },
+    // Phòng có điểm thanh toán hạng "Cần nhắc": chủ trọ lọc ra để nhắc trước
+    { key: 'cannhac',  label: 'Hay trả trễ',          tone: 'danger', test: t => t.roomCode && S.paymentScore(t.buildingId, t.roomCode).hang === 'can-nhac' },
   ];
+
+  /** Huy hiệu điểm thanh toán; rê chuột vào thì hiện lời giải thích vì sao có số điểm đó */
+  function scoreBadge(bid, roomCode) {
+    if (!roomCode) return '';
+    const s = S.paymentScore(bid, roomCode);
+    if (s.diem == null) return `<span class="sc-badge sc-chua-co" title="${U.esc(HH.scoring.giaiThich(s))}">Chưa có điểm</span>`;
+    return `<span class="sc-badge sc-${s.hang}" title="${U.esc(HH.scoring.giaiThich(s))}">`
+      + `<b>${s.diem}</b> ${s.ten}${s.tamTinh ? ' <i>tạm tính</i>' : ''}</span>`;
+  }
 
   const VEH_TYPES = ['Xe máy', 'Ô tô', 'Xe đạp', 'Xe điện', 'Khác'];
   const vehIcon = (type) => ({ 'Xe máy': HH.ic('car', 16), 'Ô tô': HH.ic('car', 16), 'Xe đạp': HH.ic('car', 16), 'Xe điện': HH.ic('car', 16) }[type] || HH.ic('car', 16));
@@ -59,7 +70,9 @@
     const pg = UI.paginate(rooms, tnPage, { unit: 'phòng', sizes: [8, 16, 32] });
     const body = pg.items.map(rc => {
       const grp = list.filter(t => (t.roomCode || '(chưa gắn phòng)') === rc);
-      return `<tr class="tenant-group-head"><td colspan="9">${U.esc(rc)} <span class="cnt">(${grp.length}) khách thuê</span></td></tr>`
+      const chuaGan = rc.startsWith('(');
+      return `<tr class="tenant-group-head"><td colspan="9">${U.esc(rc)} <span class="cnt">(${grp.length}) khách thuê</span>`
+        + `${chuaGan ? '' : ' ' + scoreBadge(ctx.bid, rc)}</td></tr>`
         + grp.map(tenantRow).join('');
     }).join('');
     return { body, pg };
