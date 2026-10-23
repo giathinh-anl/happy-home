@@ -229,6 +229,14 @@ HH.ui = (function () {
     root.querySelectorAll('[data-yr]').forEach(b => b.addEventListener('click', () => {
       rerender((o._year || parseInt(o.value)) + parseInt(b.dataset.yr));
     }));
+    // Điện thoại: dải tháng vuốt ngang được, nên phải đưa tháng đang chọn vào giữa,
+    // không thì mở trang ra chỉ thấy T1..T7 còn T10 nằm ngoài màn hình.
+    // Máy tính dải tháng tự xuống dòng nên scrollWidth == clientWidth, đoạn này không làm gì.
+    const ms = root.querySelector('.months'), on = ms && ms.querySelector('.mo.active');
+    if (ms && on && ms.scrollWidth > ms.clientWidth) {
+      const lech = on.getBoundingClientRect().left - ms.getBoundingClientRect().left;
+      ms.scrollLeft += lech - (ms.clientWidth - on.offsetWidth) / 2;
+    }
   }
 
   /* ---------- DataTable ---------- */
@@ -279,10 +287,12 @@ HH.ui = (function () {
       const rid = opt.rowId(r);
       let tds = '';
       if (opt.selectable) tds += `<td class="col-check"><input type="checkbox" data-row-check="${esc(rid)}" ${state.selected.has(rid) ? 'checked' : ''}></td>`;
-      opt.columns.forEach(c => {
+      opt.columns.forEach((c, i) => {
         const cls = (c.align === 'right' || c.mono) ? 'num' : '';
         const content = c.render ? c.render(r) : esc(r[c.key] ?? '-');
-        tds += `<td class="${cls} ${c.tdClass ? c.tdClass(r) : ''}">${content}</td>`;
+        // data-label + dt-title chỉ để điện thoại dựng dòng bảng thành thẻ (css/mobile.css):
+        // cột đầu làm tên thẻ, các cột sau thành cặp "nhãn: giá trị". Máy tính không dùng tới.
+        tds += `<td class="${cls} ${c.tdClass ? c.tdClass(r) : ''} ${i === 0 ? 'dt-title' : ''}" data-label="${esc(c.label)}">${content}</td>`;
       });
       if (opt.actions) tds += `<td class="col-actions"><button class="kebab" data-kebab="${esc(rid)}" aria-label="Thao tác">⋯</button></td>`;
       const rowCls = opt.rowClass ? opt.rowClass(r) : '';
@@ -305,7 +315,7 @@ HH.ui = (function () {
         return `<div class="dt-scroll"><table class="dt"><thead>${headHtml()}</thead><tbody>${sk}</tbody></table></div>`;
       }
       const body = bodyRows().map(rowHtml).join('');
-      return `<div class="dt-scroll"><table class="dt ${opt.onRowClick ? 'dt-clickable' : ''}">
+      return `<div class="dt-scroll"><table class="dt dt-cards ${opt.onRowClick ? 'dt-clickable' : ''}">
         <thead>${headHtml()}</thead><tbody>${body}</tbody></table></div>${footHtml(rows.length)}`;
     }
 
@@ -422,6 +432,55 @@ HH.ui = (function () {
 
   function clearBulkBars() { document.querySelectorAll('.bulkbar').forEach(b => b.remove()); }
 
+  /* ---------- Bảng viết tay -> thẻ trên điện thoại ----------
+     DataTable tự gắn data-label cho từng ô. Còn nhiều trang viết <table class="dt">
+     bằng tay (Khách thuê, Thanh toán, Thu chi, Dịch vụ...). Thay vì sửa từng trang,
+     hàm này nhận các bảng đó và gắn nhãn cột lấy từ <thead>, để css/mobile.css dựng
+     thành thẻ. Chỉ ĐỔI CLASS và THUỘC TÍNH, không đụng nội dung ô, nên nút bấm và
+     sự kiện trong ô vẫn y nguyên.
+     Bỏ qua bảng có ô nhập (ghi chỉ số điện cần gõ liên tục, nhảy ô bằng Enter) và bảng
+     có dòng tổng (tfoot): hai loại đó đổi sang thẻ sẽ khó dùng hơn. */
+  function cardifyTables(root) {
+    (root || document).querySelectorAll('table.dt').forEach((t) => {
+      if (!t.classList.contains('dt-cards')) {
+        if (t.querySelector('tbody input, tbody select, tbody textarea, tfoot')) return;
+        const heads = Array.from(t.querySelectorAll('thead th')).map((th) => th.textContent.replace(/[▲▼]/g, '').trim());
+        if (!heads.length) return;
+        t.querySelectorAll('tbody tr').forEach((tr) => {
+          const tds = Array.from(tr.children);
+          if (tds.some((td) => td.colSpan > 1)) return;          // dòng trống / dòng gộp: để nguyên
+          let daCoTen = false;
+          tds.forEach((td, i) => {
+            if (!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i] || '');
+            if (!daCoTen && !td.classList.contains('col-check') && !td.classList.contains('col-actions')) {
+              td.classList.add('dt-title'); daCoTen = true;        // ô nội dung đầu tiên làm tên thẻ
+            }
+          });
+        });
+        t.classList.add('dt-cards');
+      }
+      // Ô chứa khối con (nhiều dòng "Địa chỉ: ... / Nghề nghiệp: ...") thì phải xếp DỌC dưới
+      // nhãn; xếp ngang như ô một giá trị là chữ chồng lên nhau. Áp cho cả bảng của DataTable.
+      t.querySelectorAll('tbody td:not([data-st])').forEach((td) => {
+        td.setAttribute('data-st', '1');
+        if (!td.classList.contains('dt-title') && td.querySelector('div, p, ul, table')) td.classList.add('dt-stack');
+      });
+    });
+  }
+  // Trang vẽ lại liên tục (đổi trang, đổi tháng, lọc...) nên canh theo DOM thay vì gọi tay ở từng nơi.
+  // Chỉ đổi class/thuộc tính (không thêm bớt phần tử) nên không tự kích hoạt lại chính nó.
+  function watchTables() {
+    const app = document.getElementById('app');
+    if (!app || app.__wt) return;
+    app.__wt = true;
+    let hen = 0;
+    new MutationObserver(() => {
+      if (hen) return;
+      hen = requestAnimationFrame(() => { hen = 0; cardifyTables(app); });
+    }).observe(app, { childList: true, subtree: true });
+    cardifyTables(app);
+  }
+
   /* ---------- Phân trang dùng chung (cho lưới/nhóm không dùng DataTable) ---------- */
   // state: { page, size } — trả về { items, html, attach }
   function paginate(all, state, opts) {
@@ -471,5 +530,5 @@ HH.ui = (function () {
   }
 
   return { STATUS, statusBadge, metricCard, toast, modal, closeTopModal, dangerDialog,
-    openMenu, closeMenus, periodSelector, attachPeriod, DataTable, clearBulkBars, paginate };
+    openMenu, closeMenus, periodSelector, attachPeriod, DataTable, clearBulkBars, paginate, cardifyTables, watchTables };
 })();

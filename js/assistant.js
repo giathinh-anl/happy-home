@@ -120,6 +120,18 @@ HH.assistant = (function () {
 
   window.addEventListener('resize', () => { if (pos) datViTri(); });
 
+  /* Đang cuộn thì nút mờ đi, dừng 0,7 giây thì hiện lại. Nút nổi cố định một
+     chỗ nên khi cuộn nó trượt qua số liệu bên dưới (nhất là cột tiền căn phải
+     trên điện thoại); mờ đi lúc cuộn thì đọc được, bấm vẫn bấm được. */
+  let henGioCuon = null;
+  window.addEventListener('scroll', () => {
+    const f = document.getElementById('asFab');
+    if (!f) return;
+    f.classList.add('dang-cuon');
+    clearTimeout(henGioCuon);
+    henGioCuon = setTimeout(() => f.classList.remove('dang-cuon'), 700);
+  }, { passive: true });
+
   function mount() {
     if (state.mounted) return;
     load();

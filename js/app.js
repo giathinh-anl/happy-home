@@ -465,6 +465,7 @@ HH.app = (function () {
         else S.prefs.auth = false;
       } catch (e) { console.error('Khởi tạo backend lỗi:', e); S.prefs.auth = false; }
     }
+    HH.ui.watchTables();         // bảng viết tay cũng thành thẻ trên điện thoại (xem components.js)
     HH.router.start();
   }
 

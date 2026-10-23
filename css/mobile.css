@@ -1,0 +1,103 @@
+/* ============================================================
+   Happy Home — Giao diện ĐIỆN THOẠI (web quản trị)
+
+   Máy tính giữ nguyên bố cục nhiều cột. Màn hình hẹp thì đổi cách hiển thị
+   cho hợp ngón tay, không chỉ thu nhỏ bản máy tính lại:
+     1. Bảng dữ liệu     -> mỗi dòng thành một thẻ (không bắt vuốt ngang)
+     2. Số tiền          -> không gãy dòng, cỡ chữ co theo bề rộng
+     3. Đầu trang        -> gọn lại, nhường chỗ cho nội dung
+     4. Nút, ô nhập      -> đủ cao để bấm (44px)
+     5. Bộ chọn tháng    -> một hàng vuốt ngang, tự cuộn tới tháng đang chọn
+
+   Tệp này nạp SAU các tệp khác nên đè được; mọi quy tắc đều nằm trong
+   @media nên máy tính không bị ảnh hưởng. Muốn tắt cả bộ: bỏ thẻ <link>.
+   ============================================================ */
+
+@media (max-width: 640px) {
+
+  /* ---------- 1. Bảng dữ liệu thành thẻ ----------
+     Chỉ áp cho bảng do DataTable dựng (có class dt-cards). Bảng viết tay
+     (ghi chỉ số điện có ô nhập...) giữ nguyên dạng bảng cuộn ngang. */
+  .dt-scroll { overflow: visible; }
+  table.dt.dt-cards,
+  table.dt.dt-cards tbody { display: block; width: 100%; }
+  table.dt.dt-cards thead { display: none; }
+
+  table.dt.dt-cards tbody tr {
+    position: relative; display: block;
+    margin: 10px 12px; padding: 12px 14px 10px;
+    background: var(--surface-2, #F6F8F7); border: 1px solid var(--line); border-radius: 14px;
+  }
+  table.dt.dt-cards tbody tr:hover { background: var(--surface-2, #F6F8F7); }
+  table.dt.dt-cards tbody tr:last-child td { border-bottom: 0; }
+
+  table.dt.dt-cards tbody td {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+    padding: 5px 0; border: 0; text-align: right;
+  }
+  /* nhãn cột lấy từ data-label do DataTable gắn */
+  table.dt.dt-cards tbody td::before {
+    content: attr(data-label); flex: none; max-width: 46%;
+    font-size: 12px; font-weight: 600; color: var(--ink-3, #6b7f7d); text-align: left;
+  }
+  /* ô nhiều dòng (địa chỉ + nghề nghiệp, thông tin CCCD...): nhãn ở trên, nội dung xếp dọc dưới */
+  table.dt.dt-cards tbody td.dt-stack { display: block; text-align: left; }
+  table.dt.dt-cards tbody td.dt-stack::before { display: block; max-width: none; margin-bottom: 4px; }
+  table.dt.dt-cards tbody td.dt-stack .ln { display: block; margin: 2px 0; }
+  /* cột đầu làm tên thẻ: không nhãn, to và đậm, có đường kẻ ngăn */
+  table.dt.dt-cards tbody td.dt-title {
+    justify-content: flex-start; padding: 0 40px 8px 0; margin-bottom: 4px;
+    font-size: 15px; font-weight: 800; border-bottom: 1px dashed var(--line);
+  }
+  table.dt.dt-cards tbody td.dt-title::before { content: none; }
+  /* ô chọn nhiều dòng: chọn hàng loạt là việc của máy tính, ẩn đi cho thẻ gọn */
+  table.dt.dt-cards td.col-check { display: none; }
+  /* nút ⋯ thao tác nằm góc phải trên của thẻ */
+  table.dt.dt-cards td.col-actions {
+    position: absolute; top: 4px; right: 4px; width: auto; padding: 0;
+  }
+  table.dt.dt-cards td.col-actions::before { content: none; }
+  table.dt.dt-cards .kebab { min-width: 40px; min-height: 40px; }
+
+  /* chân bảng: đếm dòng và nút trang xếp dọc cho vừa chiều ngang */
+  .dt-foot { flex-direction: column; align-items: stretch; gap: 10px; text-align: center; }
+  .dt-foot .pager { justify-content: center; flex-wrap: wrap; }
+
+  /* ---------- 2. Số tiền không gãy dòng ----------
+     Trước đây "59.689.000" xuống một dòng còn chữ "₫" rớt xuống dòng dưới. */
+  .metric .m-value { font-size: clamp(17px, 5.3vw, 24px); white-space: nowrap; }
+  .metric { padding: 12px 14px; }
+
+  /* ---------- 3. Đầu trang gọn ---------- */
+  .page-head.has-art { padding: 12px 14px; gap: 10px; }
+  .page-head .ph-art { display: none; }
+  .page-title, .page-title-lg { font-size: 22px; }
+  .page-head .page-actions { width: 100%; flex-wrap: wrap; gap: 8px; }
+  .page-head .page-actions .btn { flex: 1 1 auto; }
+
+  /* ---------- 5. Bộ chọn tháng: một hàng vuốt ngang ---------- */
+  .period { display: flex; width: 100%; flex-wrap: nowrap; }
+  .period .months {
+    flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
+  }
+  .period .months::-webkit-scrollbar { display: none; }
+  .period .mo { flex: none; scroll-snap-align: center; }
+  .period .yr { flex: none; }
+
+  /* ---------- Nút Trợ lý mờ đi khi cuộn (js/assistant.js gắn class dang-cuon) ---------- */
+  .as-fab { transition: opacity .25s ease, transform .16s, box-shadow .16s; }
+  .as-fab.dang-cuon { opacity: .25; }
+}
+
+/* ---------- 4. Nút và ô nhập đủ cao để bấm ----------
+   Theo cỡ ngón tay chứ không theo cỡ màn hình: máy tính bảng và điện thoại
+   xoay ngang (rộng hơn 640px) vẫn cần nút to. Chuột thì giữ cỡ gọn. */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .btn.btn-sm { min-height: 40px; padding-left: 13px; padding-right: 13px; }
+  .input, .select, select.input { min-height: 44px; }
+  .kebab { min-width: 40px; min-height: 40px; }
+  .lz-chip { min-height: 40px; }
+  .period .mo { min-height: 38px; }
+}
