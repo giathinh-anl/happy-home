@@ -31,6 +31,9 @@
       + `&addInfo=${encodeURIComponent(content || '')}`
       + `&accountName=${encodeURIComponent(BANK.holder)}`;
   }
+  // Bản demo (không nối máy chủ) giữ tài khoản mẫu cho đẹp. Bản chạy thật mà chủ nhà chưa khai báo
+  // HH_CONFIG.bank thì KHÔNG hiện số mẫu và mã QR: khách chuyển vào số bịa là mất tiền thật.
+  const BANK_OK = !!(window.HH_CONFIG && HH_CONFIG.bank && HH_CONFIG.bank.account) || !enabled;
   const PHONE_KEY = 'hh_tenant_phone';
   // Logo dùng chung với web quản trị (thư mục assets ở gốc dự án)
   const LOGO = '../assets/logo-mark.svg', LOGO_3D = '../assets/logo-3d.webp';
@@ -536,9 +539,47 @@
         <div class="inv-total grand"><span>Tổng cộng</span><span class="mono">${vnd(inv.total)}</span></div>
       </div>
       ${remain > 0 ? `<button class="t-btn" id="pay">Thanh toán ${vnd(remain)}</button>` : ''}
+      ${splitCard(inv)}
     `);
     const p = el('pay'); if (p) p.onclick = () => go('#/pay/' + inv.id);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+    wireSplit(inv);
+  }
+
+  /* ---------- chia hóa đơn cho bạn cùng phòng (js/split.js) ----------
+     Hệ thống ghi thu theo cả phòng. Phần dưới đây chỉ là cách chia để mỗi người biết mình đóng bao nhiêu
+     và nhắc nhau, không phải sổ nợ riêng. Danh sách người ở lấy từ chủ nhà (roommates). */
+  function splitData(inv) {
+    const mates = (state.data.roommates || []).filter(m => m.fullName);
+    if (!mates.length || !window.HH.split || inv.status === 'cancelled' || inv.status === 'draft') return null;
+    const ppl = [{ id: 'me', ten: state.data.tenant.fullName }].concat(mates.map((m, i) => ({ id: 'm' + i, ten: m.fullName })));
+    return { mates, kq: HH.split.theoDaTra(HH.split.chia(inv.lines, ppl), inv.paid) };
+  }
+  function splitCard(inv) {
+    const sd = splitData(inv); if (!sd) return '';
+    const rows = sd.kq.nguoi.map((p, i) => {
+      const mate = i ? sd.mates[i - 1] : null;
+      return `<div class="sp-row">
+        <div class="sp-top"><div><b>${i ? esc(p.ten) : 'Phần của bạn'}</b>${mate && mate.isRep ? ' <span class="sp-tag">Đại diện</span>' : ''}</div>
+          <div class="sp-amt mono">${vnd(p.tong)}</div></div>
+        ${p.daTra ? `<div class="sp-sub">${p.conNo > 0 ? 'còn lại ' + vnd(p.conNo) : 'đã đóng đủ'}</div>` : ''}
+        ${i ? `<div class="sp-acts"><button class="sp-btn" data-spcopy="${i}">Chép tin nhắc</button>
+          ${mate && mate.phone ? `<a class="sp-btn" data-spzalo="${i}" href="https://zalo.me/${esc(String(mate.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">Zalo</a>` : ''}</div>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="t-card">
+      <div class="t-section-head"><h3>Chia cho ${sd.kq.nguoi.length} người ở</h3></div>
+      <div class="sp-note">Chia ${sd.kq.deu ? 'đều theo đầu người' : 'theo tỉ lệ'}. Chủ nhà ghi thu theo cả phòng, nên mỗi người chuyển phần của mình
+        với <b>cùng nội dung</b> <span class="mono">${esc(payContent(inv))}</span>.</div>
+      ${rows}</div>`;
+  }
+  function wireSplit(inv) {
+    const sd = splitData(inv); if (!sd) return;
+    const text = (i) => HH.split.soanTin(sd.kq.nguoi[i], { phong: state.data.room.code, ky: inv.period, noiDungCK: payContent(inv),
+      taiKhoan: BANK_OK ? { ten: BANK.name, so: BANK.account, chu: BANK.holder } : null, nguoiGui: state.data.tenant.fullName });
+    // Zalo không nhận sẵn nội dung qua đường dẫn: chép trước để dán vào ô chat
+    document.querySelectorAll('[data-spcopy]').forEach(b => b.onclick = () => copy(text(+b.dataset.spcopy), 'tin nhắc'));
+    document.querySelectorAll('[data-spzalo]').forEach(a => a.addEventListener('click', () => copy(text(+a.dataset.spzalo), 'tin nhắc')));
   }
 
   /* ---------- màn hình: THANH TOÁN ---------- */
@@ -547,6 +588,20 @@
     if (!inv) { shell('Thanh toán', `<div class="t-empty"><div class="eic">${HH.pic('wallet', 64)}</div><p>Không có khoản cần thanh toán</p></div>`); return; }
     const remain = inv.total - inv.paid;
     const content = payContent(inv);
+    if (!BANK_OK) {
+      shell('Thanh toán', `
+        <div style="text-align:center;margin-bottom:8px">
+          <div style="color:var(--neutral-600)">Hóa đơn ${vnPeriod(inv.period)}</div>
+          <div class="mono" style="font-size:28px;font-weight:800">${vnd(remain)}</div>
+        </div>
+        ${errBox('Chủ nhà chưa cài tài khoản nhận tiền trong ứng dụng, nên chưa có mã QR. Vui lòng hỏi chủ nhà số tài khoản và chỉ chuyển theo thông tin chủ nhà cung cấp trực tiếp.')}
+        <div class="t-card"><div class="bank-row"><span class="bk">Nội dung chuyển khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div></div>
+        <button class="t-btn" id="paid" style="margin-top:6px">Tôi đã chuyển khoản</button>
+      `);
+      document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy, b.dataset.l));
+      el('paid').onclick = () => { state.claim = { invoiceId: inv.id, amount: remain, note: content, photo: null }; go('#/proof'); };
+      return;
+    }
     shell('Thanh toán', `
       <div style="text-align:center;margin-bottom:8px">
         <div style="color:var(--neutral-600)">Hóa đơn ${vnPeriod(inv.period)}</div>
@@ -828,7 +883,7 @@
         <div class="cc-label">Hợp đồng đến ngày</div>
         <div class="cc-date">${fmtDate(c.end)}</div>
         <div class="cc-meta">${meta}${c.rent ? ' · ' + vnd(c.rent) + '/tháng' : ''}</div>
-        <button class="t-btn" style="background:rgba(255,255,255,.22);margin-top:12px" data-nav="#/contract">Xem hợp đồng & điều khoản</button>
+        <button class="t-btn" style="background:rgba(255,255,255,.22);margin-top:12px" data-nav="#/contract">${state.data && state.data.renewal && state.data.renewal.status === 'pending' ? 'Đã xin gia hạn, chờ chủ nhà' : renewEligible() ? 'Xin gia hạn hợp đồng' : 'Xem hợp đồng & điều khoản'}</button>
       </div>`;
   }
 
@@ -854,6 +909,7 @@
       .replace('{deposit}', vnd(c.deposit)).replace('{rent}', vnd(c.rent)).replace('{dueDays}', c.dueDays || 5) }));
     shell('Hợp đồng & điều khoản', `
       ${contractCard(c)}
+      ${renewalCard(c)}
       <div class="t-card">
         <div class="t-section-head"><h3>Thông tin hợp đồng</h3></div>
         <div class="t-row"><span class="k">Phòng</span><span class="v">${esc(state.data.room.code || '')}</span></div>
@@ -870,6 +926,72 @@
           <div class="tb">${esc(t.body)}</div></div>`).join('')}
       </div>`);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+    wireRenewal(c);
+  }
+
+  /* ---------- xin gia hạn hợp đồng ----------
+     Hàm tenant_request_renewal (supabase/migration-renewal.sql). Chỉ người đại diện hợp đồng xin được,
+     và chỉ khi hợp đồng còn tối đa 90 ngày hoặc đã quá hạn. Chủ nhà chấp nhận thì hợp đồng gia hạn thật;
+     đây là YÊU CẦU, không tự gia hạn. */
+  const rnUi = { months: 12, busy: false };
+  const RN_MONTHS = [3, 6, 12, 24];
+  const renewEligible = () => { const c = state.data.contract; return !!(c && c.end && daysLeft(c.end) <= 90); };
+  const withinDays = (d, n) => d && (TODAY - new Date(d)) / 86400000 <= n;
+  function renewNewEnd(c, months) {
+    const e = new Date(c.end), d = new Date(e > TODAY ? e : TODAY);
+    d.setMonth(d.getMonth() + months);
+    return d;
+  }
+  function renewalCard(c) {
+    const rn = state.data.renewal, rep = !!(state.data.tenant && state.data.tenant.isRep);
+    const card = (inner) => `<div class="t-card rn-card"><div class="t-section-head"><h3>Gia hạn hợp đồng</h3></div>${inner}</div>`;
+    if (rn && rn.status === 'pending') {
+      return card(`<div class="rn-status wait">Đã gửi yêu cầu gia hạn <b>${rn.months} tháng</b> ngày ${fmtDate(rn.createdAt)}.
+        Đang chờ chủ nhà xác nhận, anh/chị không cần gửi lại.</div>`);
+    }
+    let note = '';
+    if (rn && rn.status === 'approved' && withinDays(rn.decidedAt, 14)) {
+      note = `<div class="rn-status ok">Chủ nhà đã <b>chấp nhận</b> gia hạn ${rn.months} tháng. Hợp đồng nay có hạn đến <b>${fmtDate(c.end)}</b>.</div>`;
+    } else if (rn && rn.status === 'rejected' && withinDays(rn.decidedAt, 30)) {
+      note = `<div class="rn-status no">Chủ nhà <b>chưa đồng ý</b> gia hạn lần trước${rn.reply ? ': “' + esc(rn.reply) + '”' : ''}.</div>`;
+    }
+    if (!renewEligible()) return note ? card(note) : '';
+    if (!rep) return card(note + `<div class="sp-note">Chỉ người đại diện hợp đồng xin gia hạn được. Nhờ người đại diện bấm giúp ở app của họ.</div>`);
+    const chips = RN_MONTHS.map(m => `<button class="rn-chip ${rnUi.months === m ? 'on' : ''}" data-rnm="${m}">${m} tháng</button>`).join('');
+    return card(`${note}
+      <div class="sp-note">Hợp đồng ${c.end && daysLeft(c.end) < 0 ? 'đã hết hạn' : 'còn ' + daysLeft(c.end) + ' ngày'}. Gửi một nút là chủ nhà nhận được yêu cầu gia hạn, giá thuê giữ nguyên trừ khi chủ nhà báo lại.</div>
+      <div class="rn-chips">${chips}</div>
+      <div class="rn-preview">Hạn mới dự kiến: <b class="mono">${fmtDate(renewNewEnd(c, rnUi.months))}</b></div>
+      <textarea class="rn-note" id="rnNote" maxlength="300" placeholder="Lời nhắn cho chủ nhà (không bắt buộc)"></textarea>
+      <button class="t-btn" id="rnSend" ${rnUi.busy ? 'disabled' : ''}>Gửi xin gia hạn ${rnUi.months} tháng</button>`);
+  }
+  function wireRenewal(c) {
+    document.querySelectorAll('[data-rnm]').forEach(b => b.onclick = () => { rnUi.months = +b.dataset.rnm; screenContract(); });
+    const send = el('rnSend'); if (!send) return;
+    send.onclick = async () => {
+      if (rnUi.busy) return;
+      const note = (el('rnNote').value || '').trim();
+      if (note.length > 300) { toast('Lời nhắn tối đa 300 ký tự'); return; }
+      rnUi.busy = true; send.disabled = true; send.textContent = 'Đang gửi...';
+      try {
+        const res = await rpcNeed('tenant_request_renewal', { p_phone: state.phone, p_months: rnUi.months, p_note: note || null });
+        if (res && res.error) {
+          toast({ too_early: 'Còn hơn 90 ngày mới đến hạn, chưa xin gia hạn được', not_rep: 'Chỉ người đại diện hợp đồng xin gia hạn được',
+            no_contract: 'Không thấy hợp đồng đang hiệu lực', bad_months: 'Số tháng chưa hợp lệ' }[res.error] || 'Chưa gửi được, thử lại giúp em');
+        } else {
+          try { state.data = await loadData(state.phone); } catch (e) { /* giữ dữ liệu cũ */ }
+          if (!state.data.renewal || state.data.renewal.status !== 'pending') {
+            state.data.renewal = { id: res.id, status: 'pending', months: res.months, createdAt: new Date().toISOString() };
+          }
+          toast('Đã gửi yêu cầu gia hạn cho chủ nhà');
+        }
+      } catch (e) {
+        toast(e.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm xin gia hạn (chủ nhà cần chạy SQL).'
+          : e.message === 'PHONE_NOT_FOUND' ? 'Không tìm thấy số điện thoại này trên hệ thống' : 'Chưa gửi được, anh/chị thử lại giúp em');
+      }
+      rnUi.busy = false;
+      screenContract();
+    };
   }
 
   /* ---------- màn hình: LỊCH SỬ ĐIỆN ---------- */
@@ -1256,6 +1378,9 @@
       'thanh toan the nao', 'cach thanh toan', 'noi dung chuyen', 'ghi noi dung'],
     run() {
       const inv = currentUnpaid();
+      if (!BANK_OK) return { facts: { tài_khoản: 'chưa cài' },
+        html: `Chủ nhà chưa cài tài khoản nhận tiền trong ứng dụng. Anh/chị vui lòng hỏi chủ nhà số tài khoản và chỉ chuyển theo thông tin chủ nhà cung cấp trực tiếp.`,
+        actions: [{ label: 'Liên hệ chủ nhà', go: '#/account', solid: true }] };
       return { facts: { ngân_hàng: BANK.name, số_tài_khoản: BANK.account, chủ_tài_khoản: BANK.holder,
           nội_dung: payContent(inv) || state.data.tenant.roomCode, số_tiền: inv ? vnd(inv.total - inv.paid) : '0 ₫' },
         html: `Anh/chị quét <b>mã VietQR</b> hoặc chuyển khoản:

@@ -49,6 +49,7 @@ HH.store = (function () {
   const transactions = [];
   const staff = [];
   const claims = [];
+  const renewals = [];        // khách xin gia hạn hợp đồng (chờ chủ trọ chấp nhận hoặc từ chối)
   const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
   const supportMsgs = [];     // khách nhắn cho nhân viên trực và lời nhân viên trả lời
@@ -253,7 +254,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, bankTx, auditLog, supportMsgs };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, renewals, bankTx, auditLog, supportMsgs };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -467,7 +468,8 @@ HH.store = (function () {
       if (!usingBackend()) return { ok: false, reason: 'demo' };
       const stamp = () => JSON.stringify([incidents.length, claims.length, readings.length,
         invoices.length, payments.length, tenants.length,
-        incidents.map(x => x.status).join(''), claims.map(x => x.status).join('')]);
+        incidents.map(x => x.status).join(''), claims.map(x => x.status).join(''),
+        renewals.length, renewals.map(x => x.status).join('')]);
       const before = stamp();
       const res = await HH.backend.loadAll();
       if (res.error) return { ok: false, reason: 'error' };
@@ -491,6 +493,26 @@ HH.store = (function () {
     claimsOf: (bid, status) => claims.filter(c => (!bid || c.buildingId === bid) && (!status || c.status === status)),
     claim: (id) => claims.find(c => c.id === id),
     updateClaim(id, patch) { const c = claims.find(x => x.id === id); if (c) { Object.assign(c, patch); persist(); } return c; },
+    /* ---------- Khách xin gia hạn hợp đồng ----------
+       Khách gửi từ app khách thuê (hàm tenant_request_renewal), chủ trọ chấp nhận thì hợp đồng gia hạn thật. */
+    renewals,
+    renewalsOf: (bid, status) => renewals.filter(r => r.buildingId === bid && (!status || r.status === status)),
+    pendingRenewalCount: (bid) => renewals.filter(r => r.status === 'pending' && (!bid || r.buildingId === bid)).length,
+    decideRenewal(id, approve, reply, newRent) {
+      const r = renewals.find(x => x.id === id);
+      if (!r || r.status !== 'pending') return { ok: false, reason: 'Yêu cầu này đã được xử lý rồi' };
+      if (approve) {
+        const c = contracts.find(x => x.id === r.contractId);
+        if (!c) return { ok: false, reason: 'Không tìm thấy hợp đồng của yêu cầu này' };
+        api.renewContract(c.id, r.months, newRent || null);
+      }
+      r.status = approve ? 'approved' : 'rejected';
+      r.reply = reply || null; r.decidedAt = new Date().toISOString(); r.decidedBy = prefs.userName;
+      api.log(approve ? 'renewal.approve' : 'renewal.reject',
+        `${approve ? 'Chấp nhận' : 'Từ chối'} gia hạn ${r.months} tháng phòng ${r.roomCode} (${r.tenantName || ''})`, reply || null);
+      persist();
+      return { ok: true, request: r };
+    },
     pendingClaimCount: (bid) => claims.filter(c => c.status === 'pending' && (!bid || c.buildingId === bid)).length,
     building: (id) => buildings.find(b => b.id === id),
 
@@ -514,6 +536,9 @@ HH.store = (function () {
         const pending = occ.filter(r => { const rd = api.reading(b.id, r.code, CUR_PERIOD); return !(rd && rd.elecCurr != null); });
         if (pending.length) list.push({ icon: HH.ic('gauge', 16), tone: 'info', title: `${pending.length} phòng chưa ghi chỉ số kỳ này`,
           sub: b.name, href: `#/b/${b.id}/readings` });
+        const ren = renewals.filter(x => x.buildingId === b.id && x.status === 'pending');
+        if (ren.length) list.push({ icon: HH.ic('file', 16), tone: 'info', title: `${ren.length} khách xin gia hạn hợp đồng`,
+          sub: b.name + ' · ' + ren.map(x => x.roomCode).join(', '), href: `#/b/${b.id}/contracts` });
         const inc = incidents.filter(x => x.buildingId === b.id && x.status !== 'done');
         if (inc.length) list.push({ icon: HH.ic('wrench', 16), tone: 'purple', title: `${inc.length} sự cố phòng đang mở`,
           sub: b.name, href: `#/b/${b.id}/incidents` });
@@ -997,7 +1022,7 @@ HH.store = (function () {
     // Xóa tòa nhà + toàn bộ dữ liệu liên quan
     async removeBuilding(id) {
       const b = buildings.find(x => x.id === id); if (!b) return;
-      const scoped = [rooms, tenants, contracts, services, readings, invoices, assets, incidents, transactions];
+      const scoped = [rooms, tenants, contracts, services, readings, invoices, assets, incidents, transactions, renewals];
       scoped.forEach(arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i].buildingId === id) arr.splice(i, 1); });
       for (let i = payments.length - 1; i >= 0; i--) if (payments[i].buildingId === id) payments.splice(i, 1);
       const bi = buildings.findIndex(x => x.id === id); if (bi >= 0) buildings.splice(bi, 1);

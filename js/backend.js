@@ -18,7 +18,7 @@ HH.backend = (function () {
     buildings: 'buildings', rooms: 'rooms', tenants: 'tenants', contracts: 'contracts',
     services: 'services', readings: 'readings', invoices: 'invoices', payments: 'payments',
     assets: 'assets', incidents: 'incidents', transactions: 'transactions', staff: 'staff',
-    claims: 'payment_claims', bankTx: 'bank_transactions', auditLog: 'audit_log',
+    claims: 'payment_claims', renewals: 'renewal_requests', bankTx: 'bank_transactions', auditLog: 'audit_log',
     supportMsgs: 'support_messages',
   };
   // field JS lệch quy tắc -> cột DB
@@ -221,7 +221,7 @@ HH.backend = (function () {
   // Xóa toàn bộ dữ liệu của 1 tòa nhà
   async function deleteByBuilding(bid) {
     if (!enabled) return;
-    const scoped = ['rooms', 'tenants', 'contracts', 'services', 'readings', 'invoices', 'payments', 'assets', 'incidents', 'transactions'];
+    const scoped = ['rooms', 'tenants', 'contracts', 'services', 'readings', 'invoices', 'payments', 'assets', 'incidents', 'transactions', 'renewals'];
     for (const kind of scoped) {
       const { error } = await client.from(KINDS[kind]).delete().eq('building_id', bid);
       if (error && !isMissingTable(error)) console.error('[delByBuilding ' + kind + ']', error.message);

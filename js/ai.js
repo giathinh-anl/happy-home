@@ -55,6 +55,9 @@ HH.ai = (function () {
   /* Tài khoản nhận tiền dùng trong tin nhắc nợ (giống app khách thuê) */
   const BANK = Object.assign({ name: 'MB Bank', account: '0912345678', holder: 'CTY HAPPY HOME' },
     (window.HH_CONFIG && window.HH_CONFIG.bank) || {});
+  // Bản demo (không nối máy chủ) giữ tài khoản mẫu cho đẹp. Bản chạy thật mà chưa khai báo bank thì
+  // KHÔNG đưa số mẫu vào tin gửi khách: khách chuyển nhầm vào số bịa là mất tiền thật.
+  const BANK_OK = !!(window.HH_CONFIG && window.HH_CONFIG.bank && window.HH_CONFIG.bank.account) || !(HH.backend && HH.backend.enabled);
 
   /* ============================================================
      BÓC THAM SỐ TỪ CÂU HỎI
@@ -310,9 +313,9 @@ HH.ai = (function () {
           `Chào anh/chị ${first.tenantName || ''}, Happy Home xin nhắc phòng ${first.roomCode} còn ${money(sum)} chưa thanh toán`
             + (late ? `, đã trễ hạn ${late} ngày.` : `, hạn ${U.fmtDate(first.dueDate)}.`),
           ...lines,
-          `Anh/chị chuyển khoản giúp em: ${BANK.name} - STK ${BANK.account} - ${BANK.holder}.`,
+          BANK_OK ? `Anh/chị chuyển khoản giúp em: ${BANK.name} - STK ${BANK.account} - ${BANK.holder}.` : '',
           `Ghi đúng nội dung ở trên thì hệ thống tự cập nhật. Cảm ơn anh/chị!`,
-        ].join('\n');
+        ].filter(Boolean).join('\n');
         return { room: first.roomCode, buildingId: first.buildingId, tenant: first.tenantName,
           phone: tenant.phone || '', sum, late, text };
       });

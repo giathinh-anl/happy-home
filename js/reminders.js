@@ -31,6 +31,13 @@
     { ma: 'khan',     ten: 'Quá hạn trên 7 ngày',  nhan: 'Khẩn',     bac: 3, tu: 8, den: Infinity },
   ];
 
+  /** Tài khoản nhận tiền khai trong js/config.js (bank: { name, account, holder }). Chưa khai thì null:
+      không bao giờ bịa số tài khoản vào tin nhắn gửi khách. */
+  function taiKhoan(cfg) {
+    const b = (cfg && cfg.bank) || {};
+    return b.account ? { ten: b.name, so: b.account, chu: b.holder } : null;
+  }
+
   const tien = (n) => new Intl.NumberFormat('vi-VN').format(Math.round(n || 0)) + ' ₫';
   const nhanKy = (p) => { const a = String(p || '').split('-'); return a.length === 2 ? 'T' + Number(a[1]) + '/' + a[0] : String(p || ''); };
   const ngayDMY = (x) => {
@@ -169,7 +176,7 @@
     return [mo, ...giua, dong, ...cuoi].join('\n');
   }
 
-  const api = { MUC, TRAN_PHAN_TRAM, MIEN_PHI_MAC_DINH, tien, ngayTre, mucCua, coTheNhac, chinhSach,
+  const api = { taiKhoan, MUC, TRAN_PHAN_TRAM, MIEN_PHI_MAC_DINH, tien, ngayTre, mucCua, coTheNhac, chinhSach,
     tinhPhi, gomTheoPhong, trangThaiNhac, soanTin, phiDaAp, tienGoc, conNo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.reminders = api; }

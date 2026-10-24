@@ -55,6 +55,19 @@
         </div>`;
       }
 
+      // --- Khách xin gia hạn từ app khách thuê ---
+      const pend = S.renewalsOf(ctx.bid, 'pending');
+      const renewalPanel = pend.length ? `<div class="reminder-box rn-box">
+          <div class="rem-head"><span>${HH.ic('file', 16)}</span><b>${pend.length} khách xin gia hạn hợp đồng</b>
+            <span class="muted text-xs">gửi từ app khách thuê</span></div>
+          ${pend.map(r => { const c = S.contract(r.contractId);
+            return `<div class="rem-line">
+              <div class="grow"><b>Phòng ${U.esc(r.roomCode || '')} · ${U.esc(r.tenantName || '')}</b>
+                <div class="muted text-xs">Xin gia hạn <b>${r.months} tháng</b>${c ? `, hạn mới ${U.fmtDate(newEndOf(c, r.months))}` : ''}${r.note ? ` · "${U.esc(r.note)}"` : ''} · gửi ${U.fmtDate(r.createdAt)}</div></div>
+              <button class="btn btn-sm btn-primary" data-rnok="${U.esc(r.id)}">Chấp nhận</button>
+              <button class="btn btn-sm btn-outline" data-rnno="${U.esc(r.id)}">Từ chối</button></div>`; }).join('')}
+        </div>` : '';
+
       const chips = CT_FILTERS.map(x => {
         const n = all.filter(x.test).length;
         const on = filterKey === x.key;
@@ -93,6 +106,7 @@
           <button class="btn btn-outline" id="ctScan">${HH.ic('camera', 16)} Quét hợp đồng giấy</button>
           <button class="btn btn-primary" data-primary-new>+ Lập hợp đồng</button></div>
       </div>
+      ${raw(renewalPanel)}
       ${raw(reminder)}
       <div class="lz-chips"><span class="lz-chips-ic">▽</span>${raw(chips)}</div>
       ${raw(dt.render())}`;
@@ -109,6 +123,8 @@
       });
       document.querySelectorAll('[data-remfilter]').forEach(b => b.onclick = () =>
         HH.router.go(`/b/${ctx.bid}/contracts?filter=${b.dataset.remfilter}`));
+      document.querySelectorAll('[data-rnok]').forEach(b => b.onclick = () => approveRenewalDialog(ctx, b.dataset.rnok));
+      document.querySelectorAll('[data-rnno]').forEach(b => b.onclick = () => rejectRenewalDialog(ctx, b.dataset.rnno));
       const ex = document.getElementById('ctExport');
       if (ex) ex.onclick = () => {
         U.downloadCSV(`hop-dong-${ctx.bid}.csv`,
@@ -128,6 +144,58 @@
       items.push({ icon: '⏻', label: 'Trả phòng & thanh lý', danger: true, onClick: () => HH.router.go(`/b/${ctx.bid}/contracts/${c.id}/terminate`) });
     }
     return items;
+  }
+
+  /* ---------------- KHÁCH XIN GIA HẠN (từ app khách thuê) ---------------- */
+  // Cùng cách tính với S.renewContract: cộng từ ngày hết hạn, hoặc từ hôm nay nếu đã quá hạn
+  const newEndOf = (c, months) => U.addMonths(new Date(c.end) > U.today() ? new Date(c.end) : U.today(), months);
+
+  function approveRenewalDialog(ctx, id) {
+    const r = S.renewals.find(x => x.id === id); const c = r && S.contract(r.contractId);
+    if (!r || r.status !== 'pending') { UI.toast('Yêu cầu này đã được xử lý rồi', { type: 'warning' }); HH.router.render(); return; }
+    if (!c) { UI.toast('Không tìm thấy hợp đồng của yêu cầu này', { type: 'error' }); return; }
+    UI.modal({ title: `Chấp nhận gia hạn phòng ${r.roomCode}`, bodyHtml: h`
+      <p class="muted" style="margin-bottom:12px">${r.tenantName} xin gia hạn <b>${r.months} tháng</b>.
+        Hợp đồng hết hạn ${U.fmtDate(c.end)} → hạn mới <b class="mono">${U.fmtDate(newEndOf(c, r.months))}</b>.</p>
+      ${raw(r.note ? `<div class="alert alert-info" style="margin-bottom:12px"><span class="ic">${HH.ic('chat', 16)}</span><div>Khách nhắn: ${U.esc(r.note)}</div></div>` : '')}
+      <div class="field"><label>Giá thuê mới (để trống nếu giữ nguyên ${U.currency(c.rent)})</label>
+        <input class="input money" id="rnaRent" placeholder="${U.number(c.rent)}"></div>
+      <p class="muted text-xs" style="margin-top:10px">Chấp nhận là hợp đồng được gia hạn ngay trên hệ thống. Nên báo khách và lập phụ lục nếu đổi giá.</p>`,
+      footHtml: `<button class="btn btn-outline" data-close>Quay lại</button><span class="spacer"></span><button class="btn btn-primary" id="rnaGo">Chấp nhận gia hạn</button>`,
+      onMount(el, close) {
+        const rent = el.querySelector('#rnaRent');
+        rent.oninput = () => { const n = U.parseNum(rent.value); rent.value = n ? U.number(n) : ''; };
+        const rules = UI.formRules(el, [
+          { el: '#rnaRent', ten: 'Giá thuê mới', batBuoc: false, kiem: (v) => V.tien(v, { ten: 'Giá thuê mới', min: GIA_MIN, max: GIA_MAX }) },
+        ]);
+        el.querySelector('#rnaGo').onclick = () => {
+          if (!rules.check()) return;
+          const res = S.decideRenewal(id, true, null, U.parseNum(rent.value) || null);
+          if (!res.ok) { UI.toast(res.reason, { type: 'error' }); return; }
+          close(); UI.toast(`Đã gia hạn hợp đồng phòng ${r.roomCode}`, { type: 'ok', celebrate: true }); HH.router.render();
+        };
+      } });
+  }
+
+  function rejectRenewalDialog(ctx, id) {
+    const r = S.renewals.find(x => x.id === id);
+    if (!r || r.status !== 'pending') { UI.toast('Yêu cầu này đã được xử lý rồi', { type: 'warning' }); HH.router.render(); return; }
+    UI.modal({ title: `Từ chối gia hạn phòng ${r.roomCode}`, bodyHtml: h`
+      <p class="muted" style="margin-bottom:12px">Khách <b>${r.tenantName}</b> sẽ thấy lý do này trong app khách thuê.</p>
+      <div class="field"><label>Lý do (khách sẽ đọc)</label>
+        <textarea class="textarea" id="rnrReason" placeholder="VD: Phòng đã có người đặt, mong anh/chị trả phòng đúng hạn"></textarea></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Quay lại</button><span class="spacer"></span><button class="btn btn-danger" id="rnrGo">Từ chối</button>`,
+      onMount(el, close) {
+        const rules = UI.formRules(el, [
+          { el: '#rnrReason', ten: 'lý do', kiem: (v) => (v.trim().length < 5 ? 'Ghi lý do ít nhất 5 ký tự để khách hiểu' : v.trim().length > 300 ? 'Lý do tối đa 300 ký tự' : '') },
+        ]);
+        el.querySelector('#rnrGo').onclick = () => {
+          if (!rules.check()) return;
+          const res = S.decideRenewal(id, false, el.querySelector('#rnrReason').value.trim());
+          if (!res.ok) { UI.toast(res.reason, { type: 'error' }); return; }
+          close(); UI.toast('Đã từ chối yêu cầu gia hạn', { type: 'ok' }); HH.router.render();
+        };
+      } });
   }
 
   /* ---------------- GIA HẠN ---------------- */

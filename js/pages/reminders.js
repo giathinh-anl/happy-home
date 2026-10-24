@@ -11,11 +11,7 @@
   const TONE = { 'sap-han': 'info', 'nhac-nhe': 'warning', 'nhac-phi': 'danger', 'khan': 'danger' };
   const levelBadge = (m) => `<span class="badge s-${TONE[m.ma]}${m.ma === 'khan' ? ' rm-khan' : ''}">${U.esc(m.nhan)}</span>`;
 
-  /** Tài khoản nhận tiền ghi trong js/config.js (bank). Không có thì KHÔNG bịa số tài khoản vào tin. */
-  function taiKhoan() {
-    const b = (window.HH_CONFIG && window.HH_CONFIG.bank) || {};
-    return b.account ? { ten: b.name, so: b.account, chu: b.holder } : null;
-  }
+  const taiKhoan = () => R.taiKhoan(window.HH_CONFIG);
 
   const trangThai = (bid, g) => R.trangThaiNhac(S.lastReminder(bid, g.roomCode), g.muc, U.today());
 

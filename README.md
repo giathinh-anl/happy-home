@@ -119,6 +119,14 @@ Các luật đáng nói:
 - **Số điện thoại** là khóa đăng nhập app khách thuê nên không được trùng người khác (cùng CCCD thì là cùng một người); `+84` và khoảng trắng được chuẩn hóa về `0xxxxxxxxx`. **Biển số xe** không được trùng xe khác.
 - **Diện tích** đọc đúng `20,5` (trước đây thành 205).
 
+## Chia hóa đơn cho người ở + xin gia hạn từ app khách
+
+**Chia hóa đơn phòng ghép.** Trang chi tiết hóa đơn (phòng có từ 2 người ở) có thêm khối *Chia cho N người ở*: mỗi người một phần, kèm nút chép tin nhắn có sẵn số tiền, số tài khoản và nội dung chuyển khoản, và nút mở Zalo. App khách thuê cho người đại diện thấy cùng khối này để nhắc bạn cùng phòng. Mỗi dòng của hóa đơn chia riêng, số đồng dư chia theo "phần dư lớn nhất" nên tổng các phần **luôn đúng bằng hóa đơn** (kể cả phí trễ hạn). Hệ thống vẫn ghi thu theo **cả phòng**: phần của từng người chỉ là cách chia để họ tự thỏa thuận, không phải sổ nợ riêng, và mọi người chuyển cùng một nội dung nên tiền tự khớp vào đúng hóa đơn. Mã ở `js/split.js` (thuần, có kiểm thử), dùng chung cho cả hai app.
+
+**Xin gia hạn hợp đồng.** Khi hợp đồng còn tối đa 90 ngày (hoặc đã quá hạn), **người đại diện hợp đồng** thấy nút *Xin gia hạn* trong app khách thuê: chọn 3 / 6 / 12 / 24 tháng, nhắn thêm nếu muốn, gửi. Đây là **yêu cầu**, không tự gia hạn. Chủ trọ thấy khối *N khách xin gia hạn hợp đồng* ở đầu trang Hợp đồng (và trong thông báo), bấm **Chấp nhận** (có thể đổi giá thuê mới) thì hợp đồng gia hạn thật, hoặc **Từ chối** kèm lý do để khách đọc trong app. Cần chạy `supabase/migration-renewal.sql` một lần; chưa chạy thì app khách báo "chủ nhà cần chạy SQL" khi bấm gửi, web quản trị vẫn dùng bình thường. Chưa có bước ký OTP: chủ trọ chấp nhận trên hệ thống là xác nhận.
+
+**Tài khoản nhận tiền.** Bản chạy thật (đã nối Supabase) mà `js/config.js` chưa khai báo `bank` thì app khách **không hiện số tài khoản mẫu và mã QR** (chỉ hiện nội dung chuyển khoản kèm lời nhắn hỏi chủ nhà), và tin nhắc nợ không có dòng số tài khoản. Trước đây app dùng số mẫu `0912345678` và vẽ cả mã VietQR cho số đó, khách chuyển theo là mất tiền. Bản demo không nối máy chủ vẫn dùng số mẫu cho đẹp.
+
 ## Thu tiền chuyển khoản tự động
 
 Câu hỏi thường gặp: *"khách chuyển khoản xong thì công nợ tự xóa được không?"* — được, nhưng cần
@@ -196,6 +204,7 @@ js/
   scoring.js          # điểm thanh toán của hợp đồng (không đụng DOM, có kiểm thử)
   reminders.js        # mức nhắc nợ, phí trễ hạn, soạn tin (không đụng DOM, có kiểm thử)
   validate.js         # luật kiểm tra dữ liệu nhập: tiền, ngày, sđt, CCCD, biển số (không đụng DOM, có kiểm thử)
+  split.js            # chia hóa đơn cho người ở, dùng chung với app khách (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -219,6 +228,7 @@ tests/
   scoring.test.js     # kiểm thử luật điểm: node tests/scoring.test.js
   reminders.test.js   # kiểm thử nhắc nợ + phí: node tests/reminders.test.js
   validate.test.js    # kiểm thử luật nhập liệu: node tests/validate.test.js
+  split.test.js       # kiểm thử chia hóa đơn: node tests/split.test.js
 ```
 
 ## Kiểm thử
@@ -227,9 +237,10 @@ tests/
 node tests/scoring.test.js
 node tests/reminders.test.js
 node tests/validate.test.js
+node tests/split.test.js
 ```
 
-Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) và luật nhập liệu (29 ca); cả ba đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) và chia hóa đơn (27 ca); cả bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 ## Lưu dữ liệu & thao tác thật
 

@@ -485,6 +485,7 @@
           <div class="inv-total-row"><span>Còn lại</span><span class="amt" style="color:${raw(remaining > 0 ? 'var(--danger)' : 'inherit')}">${U.currency(remaining)}</span></div>
           <div class="inv-total-row grand"><span>Tổng cộng</span><span class="amt">${U.currency(inv.total)}</span></div>
         </div>
+        ${raw(splitCard(inv))}
         <h3 style="margin:24px 0 8px">Lịch sử thanh toán</h3>
         <div class="card card-pad">${raw(payRows)}</div>
       </div>`;
@@ -505,12 +506,62 @@
         const p = S.payment(b.dataset.printrc); if (!p) return;
         printReceipt(ctx, receiptGroup(ctx, p));
       });
+      wireSplit(inv);
       const meter = document.querySelector('[data-meter]');
       if (meter) meter.onclick = (e) => { e.preventDefault();
         UI.modal({ title: 'Ảnh đồng hồ điện', bodyHtml: `<div class="ocr-img" style="min-height:280px">${HH.ic('bolt', 16)} Chưa có ảnh đồng hồ cho kỳ này</div>`,
           footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` }); };
     },
   };
+
+  /* ================= CHIA HÓA ĐƠN CHO NGƯỜI Ở (js/split.js) ================= */
+  const occupantsOf = (inv) => S.tenantsOf(inv.buildingId).filter(t => t.roomCode === inv.roomCode)
+    .sort((a, b) => (b.isRep ? 1 : 0) - (a.isRep ? 1 : 0));
+
+  function splitResult(inv) {
+    const ppl = occupantsOf(inv);
+    if (ppl.length < 2 || inv.status === 'draft' || inv.status === 'cancelled') return null;
+    return HH.split.theoDaTra(HH.split.chia(inv.lines, ppl.map(t => ({ id: t.id, ten: t.fullName }))), inv.paid);
+  }
+
+  function splitCard(inv) {
+    const kq = splitResult(inv); if (!kq) return '';
+    const byId = Object.fromEntries(occupantsOf(inv).map(t => [t.id, t]));
+    const rows = kq.nguoi.map(p => {
+      const t = byId[p.id] || {};
+      const chi = p.dong.filter(d => d.amount).map(d => `<div class="sp-line"><span>${U.esc(d.label)}</span><span class="mono">${U.currency(d.amount)}</span></div>`).join('');
+      return `<div class="sp-person">
+        <div class="sp-head"><div><b>${U.esc(p.ten || 'Chưa có tên')}</b>${t.isRep ? ' <span class="tn-tag rep">Đại diện</span>' : ''}
+            <div class="muted text-xs">${U.esc(t.phone || 'Chưa có số điện thoại')}</div></div>
+          <div class="sp-amt"><b class="mono">${U.currency(p.tong)}</b>
+            ${p.daTra ? `<div class="muted text-xs">${p.conNo > 0 ? 'còn lại ' + U.currency(p.conNo) : 'đã đóng đủ'}</div>` : ''}</div></div>
+        <details class="sp-more"><summary>Chi tiết phần này</summary>${chi}</details>
+        <div class="row-gap-2" style="margin-top:8px">
+          <button class="btn btn-sm btn-outline" data-spcopy="${U.esc(p.id)}">Chép tin nhắn</button>
+          ${t.phone ? `<a class="btn btn-sm btn-outline" data-spzalo="${U.esc(p.id)}" href="https://zalo.me/${U.esc(String(t.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">Mở Zalo</a>` : ''}
+        </div></div>`;
+    }).join('');
+    return `<h3 style="margin:24px 0 4px">Chia cho ${kq.nguoi.length} người ở</h3>
+      <p class="muted text-sm" style="margin:0 0 8px">Chia ${kq.deu ? 'đều theo đầu người' : 'theo tỉ lệ'}, tổng các phần đúng bằng hóa đơn.
+        Hệ thống vẫn ghi thu theo cả phòng; phần dưới đây để mỗi người biết mình đóng bao nhiêu và chuyển cùng nội dung <b class="mono">${U.esc(S.transferContent(inv) || '')}</b>.</p>
+      <div class="card card-pad sp-wrap">${rows}</div>`;
+  }
+
+  function wireSplit(inv) {
+    const kq = splitResult(inv); if (!kq) return;
+    const text = (id) => {
+      const p = kq.nguoi.find(x => x.id === id);
+      return HH.split.soanTin(p, { phong: inv.roomCode, ky: inv.period, noiDungCK: S.transferContent(inv),
+        taiKhoan: HH.reminders.taiKhoan(window.HH_CONFIG), nguoiGui: S.prefs.userName });
+    };
+    const chep = (id) => (navigator.clipboard && navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(text(id)).then(() => UI.toast('Đã chép tin nhắn', { type: 'ok' }),
+          () => UI.toast('Trình duyệt không cho chép tự động', { type: 'warning' }))
+      : UI.toast('Trình duyệt không hỗ trợ sao chép', { type: 'error' });
+    document.querySelectorAll('[data-spcopy]').forEach(b => b.onclick = () => chep(b.dataset.spcopy));
+    // Zalo không nhận sẵn nội dung qua đường dẫn: chép trước để người dùng dán
+    document.querySelectorAll('[data-spzalo]').forEach(a => a.addEventListener('click', () => chep(a.dataset.spzalo)));
+  }
 
   /* ================= GHI NHẬN THANH TOÁN (§3.9) ================= */
   function paymentDialog(ctx, invoice) {

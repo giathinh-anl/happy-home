@@ -803,3 +803,26 @@ body {
   .t-foot { margin: 10px 0 0; height: 150px; border-radius: 22px; }
   .chat-wrap .t-foot { display: none; }
 }
+
+/* ---------- Chia hóa đơn cho bạn cùng phòng (../js/split.js) ---------- */
+.sp-note { font-size: 13px; color: var(--neutral-600); line-height: 1.5; margin-bottom: 8px; }
+.sp-row { padding: 12px 0; border-bottom: 1px solid var(--neutral-100); }
+.sp-row:last-child { border-bottom: none; }
+.sp-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sp-amt { font-weight: 800; font-size: 16px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sp-sub { font-size: 12.5px; color: var(--neutral-600); margin-top: 2px; }
+.sp-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; background: var(--teal-50, #E3F2F0); color: var(--teal-700); margin-left: 4px; }
+.sp-acts { display: flex; gap: 8px; margin-top: 8px; }
+.sp-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; min-height: 40px; border-radius: 10px; border: 1px solid var(--neutral-200); background: var(--neutral-0); color: var(--teal-700); text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; }
+.t-btn + .t-card { margin-top: 14px; }
+
+/* ---------- Xin gia hạn hợp đồng ---------- */
+.rn-status { padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; margin-bottom: 10px; }
+.rn-status.wait { background: var(--sun-bg, #FFF4DC); color: #7A5200; }
+.rn-status.ok { background: var(--leaf-bg, #E5F5EA); color: #1B7A45; }
+.rn-status.no { background: var(--coral-bg, #FDE8E3); color: #B03A24; }
+.rn-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.rn-chip { font: inherit; font-size: 14px; font-weight: 600; min-height: 42px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--neutral-200); background: var(--neutral-0); color: var(--neutral-700, #3a4a49); cursor: pointer; }
+.rn-chip.on { border-color: var(--teal-600, #12726F); background: var(--teal-50, #E3F2F0); color: var(--teal-700); }
+.rn-preview { font-size: 13.5px; color: var(--neutral-600); margin-bottom: 10px; }
+.rn-note { width: 100%; box-sizing: border-box; min-height: 64px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--neutral-200); font: inherit; font-size: 14px; resize: vertical; margin-bottom: 10px; }
