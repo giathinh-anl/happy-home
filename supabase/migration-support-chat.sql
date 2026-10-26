@@ -1,4 +1,6 @@
 -- ============================================================
+-- !! CẢNH BÁO: tệp này tạo các hàm tenant_* CŨ nhận số điện thoại. Chỉ chạy nó TRƯỚC supabase/migration-tenant-auth.sql.
+-- !! Chạy lại SAU migration-tenant-auth.sql sẽ mở lại lỗ hổng cũ (ai biết số điện thoại là xem được dữ liệu khách).
 -- Happy Home — Khách nhắn thẳng cho nhân viên trực
 --
 -- VÌ SAO CẦN?

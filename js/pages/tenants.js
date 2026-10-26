@@ -11,6 +11,8 @@
     { key: 'docs',     label: 'Khách đã nộp giấy tờ', tone: 'success', test: t => t.cccdFront && t.cccdBack },
     { key: 'nodocs',   label: 'Khách chưa nộp giấy tờ', tone: 'danger', test: t => !(t.cccdFront && t.cccdBack) },
     // Phòng có điểm thanh toán hạng "Cần nhắc": chủ trọ lọc ra để nhắc trước
+    // Khách chưa được cấp mã thì chưa vào được app khách thuê: lọc ra để cấp
+    { key: 'nocode',   label: 'Chưa có mã vào app',   tone: 'warning', test: t => !t.appCodeSetAt },
     { key: 'cannhac',  label: 'Hay trả trễ',          tone: 'danger', test: t => t.roomCode && S.paymentScore(t.buildingId, t.roomCode).hang === 'can-nhac' },
   ];
 
@@ -33,7 +35,8 @@
         <span class="avatar" style="width:32px;height:32px;flex:0 0 32px;font-size:12px">${U.initials(t.fullName)}</span>
         <div><b>${t.fullName}</b><div class="muted text-xs mono">${t.roomCode}</div>
           <div class="tn-badges">${t.isRep ? '<span class="tn-tag rep">Đại diện hợp đồng</span>' : ''}
-            <span class="tn-tag warn">${t.ttlock ? 'Đã kết nối' : 'Chưa kết nối'}</span></div></div></div></td>
+            <span class="tn-tag warn">${t.ttlock ? 'Đã kết nối' : 'Chưa kết nối'}</span>
+            <span class="tn-tag ${t.appCodeSetAt ? 'rep' : 'warn'}" title="Mã để khách vào app khách thuê">${t.appCodeSetAt ? 'Đã có mã vào app' : 'Chưa có mã vào app'}</span></div></div></div></td>
       <td><span class="tn-ttlock ${t.ttlock ? 'on' : ''}">${t.ttlock ? 'Đã kết nối TTLock' : 'Chưa kết nối TTLock'}</span></td>
       <td class="mono b">${t.phone}</td>
       <td class="mono">${t.dob}</td>
@@ -101,6 +104,7 @@
           <div class="page-actions">
             <button class="btn btn-outline" id="tnTamtru">${raw(HH.icon('clock', 16))} Hết tạm trú/Visa
               ${raw(noTamtru ? `<span class="cnt-badge">${noTamtru}</span>` : '')}</button>
+            ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnAccess">${HH.icon('lock', 16)} Mã vào app</button>` : '')}
             <button class="btn btn-outline" id="tnExport">${raw(HH.icon('sheet', 16))} Xuất Excel</button>
             <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Thêm khách thuê</button>
           </div>
@@ -124,6 +128,7 @@
       const wirePg = () => { const g = ctx._g; if (g && g.pg) g.pg.attach(document, () => { HH.router.render(); }); };
       wirePg();
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/tenants/new`);
+      const acc = document.getElementById('tnAccess'); if (acc) acc.onclick = () => HH.tenantAccess.bulkDialog(ctx);
       document.getElementById('tnExport').onclick = () => {
         U.downloadCSV(`khach-thue-${ctx.bid}.csv`,
           ['Phòng', 'Họ tên', 'Đại diện', 'SĐT', 'Ngày sinh', 'Giới tính', 'Nghề nghiệp', 'Địa chỉ', 'Số CCCD', 'Ngày cấp', 'Nơi cấp', 'Biển số xe', 'TTLock', 'Tạm trú'],
@@ -158,6 +163,7 @@
       UI.openMenu(b, [
         { icon: HH.ic('eye', 16), label: 'Xem hồ sơ', onClick: () => showTenant(t) },
         { icon: HH.ic('car', 16), label: `Quản lý xe (${S.vehiclesOf(t).length})`, onClick: () => vehicleDialog(t) },
+        ...(S.isOwner() ? [{ icon: HH.ic('lock', 16), label: 'Mã vào app khách', onClick: () => HH.tenantAccess.dialog(ctx, t) }] : []),
         { icon: HH.ic('lock', 16), label: t.ttlock ? 'Ngắt kết nối khóa' : 'Kết nối khóa TTLock', onClick: () => { t.ttlock = !t.ttlock; S.persist(); UI.toast(t.ttlock ? 'Đã kết nối khóa' : 'Đã ngắt kết nối', { type: 'ok' }); HH.router.render(); } },
         { icon: HH.ic('copy', 16), label: t.tamtru ? 'Đã đăng ký tạm trú' : 'Đánh dấu đã đăng ký tạm trú', onClick: () => { t.tamtru = !t.tamtru; S.persist(); UI.toast(t.tamtru ? 'Đã đánh dấu đăng ký tạm trú' : 'Đã bỏ đánh dấu', { type: 'ok' }); HH.router.render(); } },
       ]);

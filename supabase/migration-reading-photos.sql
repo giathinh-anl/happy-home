@@ -1,4 +1,6 @@
 -- ============================================================
+-- !! CẢNH BÁO: tệp này tạo các hàm tenant_* CŨ nhận số điện thoại. Chỉ chạy nó TRƯỚC supabase/migration-tenant-auth.sql.
+-- !! Chạy lại SAU migration-tenant-auth.sql sẽ mở lại lỗ hổng cũ (ai biết số điện thoại là xem được dữ liệu khách).
 -- Happy Home — Khách gửi chỉ số điện KÈM ẢNH đồng hồ
 -- Chạy trong: Supabase → SQL Editor → New query → Run (1 lần).
 -- Không ảnh hưởng dữ liệu đang có.

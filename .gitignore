@@ -18,6 +18,9 @@ tmp/
 # TUYỆT ĐỐI không đưa "service_role key" vào đây.
 tenant-app/js/config.js
 
+# Môi trường Python để thử SQL (tests/db)
+.venv-db/
+
 # Bản gộp 1 tệp để chia sẻ (sinh lại bằng: python build-demo.py)
 demo/
 

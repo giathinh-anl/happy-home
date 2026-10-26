@@ -17,7 +17,7 @@ CSS = ['tokens.css', 'base.css', 'layout.css', 'components.css', 'pages.css', 'p
 JS = [
     'js/utils.js', 'js/scoring.js', 'js/reminders.js', 'js/validate.js', 'js/split.js', 'js/icons.js', 'js/art.js', 'js/motion.js', 'js/charts.js', 'js/promo.js',
     'js/backend.js', 'js/store.js', 'js/components.js',
-    'js/pages/auth-dashboard.js', 'js/pages/rooms.js', 'js/pages/tenants.js',
+    'js/pages/auth-dashboard.js', 'js/pages/rooms.js', 'js/pages/tenants.js', 'js/pages/tenant-access.js',
     'js/pages/contracts.js', 'js/pages/billing.js', 'js/pages/misc.js',
     'js/pages/support.js', 'js/pages/reminders.js', 'js/pages/more.js',
     'js/nlu.js', 'js/gemini.js', 'js/ai.js', 'js/assistant.js',

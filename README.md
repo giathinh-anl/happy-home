@@ -37,12 +37,28 @@ Ai tải mã về từ trước ngày 26/09/2026 thì `git pull` (hoặc tải l
 Vào không được thì đọc đúng dòng báo lỗi:
 
 - *“Chưa kết nối máy chủ: thiếu tệp js/config.js”* — bản mã cũ, `git pull` lại.
-- *“Số điện thoại chưa được đăng ký với chủ nhà”* — SĐT đó chưa có trong danh sách
-  khách thuê. Vào trang chủ trọ thêm khách kèm SĐT trước, hoặc nhập SĐT của một
-  khách đã có sẵn.
-- *“App khách thuê chưa được kích hoạt”* — chủ dự án cần chạy
-  `supabase/migration-tenant-app.sql` trong Supabase → SQL Editor.
+- *“Số điện thoại hoặc mã chưa đúng”* — khách chưa được cấp mã vào app, hoặc nhập sai.
+  Chủ trọ vào **Khách thuê → Mã vào app** để cấp (xem mục *Đăng nhập app khách thuê* bên dưới).
+  Số lạ và mã sai cố ý báo y hệt nhau.
+- *“Nhập sai nhiều lần nên số này tạm bị khóa”* — sai 5 lần liên tiếp thì khóa 15 phút;
+  chủ trọ cấp lại mã là mở khóa ngay.
+- *“Hệ thống chưa được cập nhật để dùng mã vào app”* — chủ dự án cần chạy
+  `supabase/migration-tenant-auth.sql` trong Supabase → SQL Editor.
 - *“Không kết nối được máy chủ”* — sai URL/khóa trong `config.js`, hoặc mất mạng.
+
+## Đăng nhập app khách thuê
+
+Trước đây app khách thuê chỉ cần số điện thoại: ai biết một số là đọc được cả hồ sơ khách (CCCD, ngày sinh, hóa đơn, bạn cùng phòng) và gửi thay khách, còn OTP chỉ là mã cố định kiểm tra ngay trong trình duyệt. Giờ đăng nhập được kiểm ở **máy chủ**:
+
+1. **Chủ trọ cấp mã.** Trang Khách thuê: nút *Mã vào app* cấp hàng loạt cho cả tòa (danh sách chép / tải Excel / in), hoặc menu ⋯ của từng khách. Mã 6 số ngẫu nhiên, hiện **một lần duy nhất**; máy chủ chỉ lưu bản băm (bcrypt) nên chủ trọ cũng không xem lại được. Quên thì cấp mã mới. Chỉ **chủ** cấp được, nhân viên thì không.
+2. **Khách nhập số điện thoại + mã.** Hàm `tenant_login` kiểm ở máy chủ, đúng thì trả một token ngẫu nhiên (hiệu lực 30 ngày, lưu băm sha256). Mọi hàm `tenant_*` khác nhận token thay cho số điện thoại; các hàm cũ nhận số điện thoại đã bị **xóa**. Dữ liệu của khách chỉ được tải *sau* khi vào được (trước đây tải ngay khi nhập số).
+3. **Chống đoán mã.** Sai 5 lần liên tiếp thì khóa số đó 15 phút (kể cả mã đúng cũng bị từ chối trong lúc khóa). Số lạ và mã sai báo y hệt nhau nên không dò được số nào có trong hệ thống.
+4. **Thu hồi.** Cấp mã mới, hoặc *Thu hồi quyền vào app* (khách đã trả phòng, mất điện thoại), sẽ đăng xuất khách khỏi mọi thiết bị. Khách tự đăng xuất thì phiên bị xóa trên máy chủ.
+5. Nhiều chủ trọ có thể trùng số điện thoại của khách; mã quyết định đúng người nên không lẫn dữ liệu giữa hai chủ trọ.
+
+**Thứ tự triển khai** (làm liền nhau, vì giữa hai bước khách chưa vào được app): (a) đưa bản web và app khách mới lên (đã có trên GitHub Pages); (b) chạy `supabase/migration-tenant-auth.sql` trong Supabase → SQL Editor; (c) vào Khách thuê → *Mã vào app* → cấp mã cho cả tòa rồi gửi cho từng khách. Khách hiện có chưa có mã nên chưa vào được app cho tới bước (c).
+
+Giới hạn: mã 6 số được bảo vệ bằng khóa 15 phút sau 5 lần sai, không có SMS xác thực số điện thoại (cần nhà cung cấp SMS, chưa làm). Mã tới tay khách qua kênh chủ trọ tự chọn (Zalo, tin nhắn, nói trực tiếp).
 
 ## Đăng nhập (bản demo)
 
@@ -219,6 +235,7 @@ js/
     auth-dashboard.js # đăng nhập, tổng quan, tòa nhà, nhật ký
     rooms.js          # phòng (sơ đồ/bảng), tạo hàng loạt, đổi trạng thái
     tenants.js        # khách thuê + đọc ảnh CCCD + điểm thanh toán
+    tenant-access.js  # chủ trọ cấp / thu hồi mã vào app khách thuê
     support.js        # hỏi đáp khách thuê (nhân viên trả lời tin khách nhắn)
     contracts.js      # hợp đồng, lập mới 5 bước, thanh lý
     billing.js        # chỉ số, hóa đơn, chi tiết, thanh toán
@@ -240,7 +257,17 @@ node tests/validate.test.js
 node tests/split.test.js
 ```
 
-Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) và chia hóa đơn (27 ca); cả bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho bốn bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) và chia hóa đơn (27 ca); cả bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+
+**Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
+
+```bash
+python -m venv .venv-db
+.venv-db/Scripts/pip install pgserver "psycopg[binary]"
+.venv-db/Scripts/python tests/db/tenant-auth.test.py
+```
+
+Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).
 
 ## Lưu dữ liệu & thao tác thật
 
@@ -250,7 +277,7 @@ Không cần cài gì thêm. Hiện có kiểm thử cho luật điểm thanh to
 
 ## Còn là mô phỏng (chưa nối máy chủ thật)
 
-- **Mã xác thực (OTP) của app khách thuê** là mã cố định, chưa nối dịch vụ SMS.
+- **SMS OTP cho app khách thuê**: chưa có. Đăng nhập dùng mã vào app do chủ trọ cấp (xem mục *Đăng nhập app khách thuê*).
 - Dữ liệu chỉ nằm **trên trình duyệt này**; chưa đồng bộ nhiều thiết bị / nhiều người dùng (cần backend + database).
 - **Khóa thông minh** là màn hình mô phỏng, chưa nối khóa thật. Ba trang **Báo cáo, Sổ kế toán, Nhân sự & phân quyền** vẫn là trang giữ chỗ.
 

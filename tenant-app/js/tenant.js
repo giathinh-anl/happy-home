@@ -12,7 +12,6 @@
   const TODAY = new Date();
   const CUR_PERIOD = TODAY.getFullYear() + '-' + String(TODAY.getMonth() + 1).padStart(2, '0');
   const CUR_PERIOD_LABEL = 'T' + (TODAY.getMonth() + 1) + '/' + TODAY.getFullYear();
-  const DEMO_OTP = '123456';
   // Tài khoản nhận tiền. bin = mã ngân hàng theo chuẩn NAPAS (MB Bank = 970422,
   // Vietcombank 970436, Techcombank 970407, ACB 970416, BIDV 970418, VietinBank 970415).
   // Đổi ở đây (hoặc đặt HH_CONFIG.bank trong js/config.js) là mã VietQR đổi theo.
@@ -35,6 +34,7 @@
   // HH_CONFIG.bank thì KHÔNG hiện số mẫu và mã QR: khách chuyển vào số bịa là mất tiền thật.
   const BANK_OK = !!(window.HH_CONFIG && HH_CONFIG.bank && HH_CONFIG.bank.account) || !enabled;
   const PHONE_KEY = 'hh_tenant_phone';
+  const TOKEN_KEY = 'hh_tenant_token';     // token phiên do máy chủ cấp sau khi nhập đúng mã vào app
   // Logo dùng chung với web quản trị (thư mục assets ở gốc dự án)
   const LOGO = '../assets/logo-mark.svg', LOGO_3D = '../assets/logo-3d.webp';
   const logoImg = (w) => `<img src="${LOGO}" alt="" width="${w}" height="${Math.round(w * 0.865)}">`;
@@ -59,7 +59,7 @@
   }
 
   /* ---------- trạng thái ---------- */
-  const state = { phone: null, pendingPhone: null, data: null, otpTries: 0, repair: { cat: null, time: 'Bất kỳ', photos: [] } };
+  const state = { phone: null, token: null, notice: null, pendingPhone: null, data: null, repair: { cat: null, time: 'Bất kỳ', photos: [] } };
 
   /* Ảnh chụp từ điện thoại rất nặng, nén lại trước khi gửi lên máy chủ */
   function compressImg(file, maxSize, quality) {
@@ -91,24 +91,39 @@
   /* ---------- gọi RPC ---------- */
   function rpcMissing(err) { const s = ((err && err.message) || '').toLowerCase(); return s.includes('could not find the function') || s.includes('does not exist') || (err && (err.code === '42883' || err.code === 'PGRST202')); }
 
-  async function loadData(phone) {
+  /* Mọi hàm của khách nhận TOKEN (do tenant_login cấp), không còn nhận số điện thoại.
+     Máy chủ trả null khi token sai hoặc hết hạn: coi là phiên đã mất, đưa về màn đăng nhập. */
+  async function loadData() {
     if (!enabled) throw new Error('NO_CONFIG');
-    const { data, error } = await client.rpc('tenant_data', { p_phone: phone });
+    const { data, error } = await client.rpc('tenant_data', { p_token: state.token });
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
-    return data; // null nếu không tìm thấy SĐT
+    if (data == null) { sessionLost(); throw new Error('SESSION'); }
+    return data;
   }
   async function rpc(fn, args) {
-    const { data, error } = await client.rpc(fn, args);
+    const { data, error } = await client.rpc(fn, Object.assign({ p_token: state.token }, args));
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
+    if (data == null) { sessionLost(); throw new Error('SESSION'); }
     return data;
   }
-  /* Các hàm ghi dữ liệu trả về null khi máy chủ KHÔNG tìm thấy số điện thoại
-     -> không có gì được tạo. Trước đây app vẫn báo "đã gửi" nên khách tưởng
-     xong mà chủ nhà chẳng thấy gì. Giờ coi null là lỗi. */
-  async function rpcNeed(fn, args) {
-    const data = await rpc(fn, args);
-    if (data === null || data === undefined) throw new Error('PHONE_NOT_FOUND');
-    return data;
+  // Giữ tên cũ cho các chỗ gọi: rpc() đã coi null là lỗi phiên
+  const rpcNeed = rpc;
+
+  function sessionLost(msg) {
+    stopStaffPoll();
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    state.token = null; state.phone = null; state.pendingPhone = null;
+    state.notice = msg || 'Phiên đăng nhập đã hết hạn. Vui lòng nhập lại số điện thoại và mã vào app.';
+    // chậm một nhịp: chỗ đã gọi hàm có thể còn vẽ lại màn hình sau khi bắt lỗi, đừng để nó đè lên màn đăng nhập
+    setTimeout(() => { state.data = null; go('#/login'); }, 30);
+  }
+  async function doLogout() {
+    const tok = state.token, chatK = chatKey();
+    stopStaffPoll();
+    try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatK); } catch (e) {}
+    state.token = null; state.phone = null; state.data = null;
+    go('#/login');
+    if (tok && enabled) { try { await client.rpc('tenant_logout', { p_token: tok }); } catch (e) { /* phiên tự hết hạn sau 30 ngày */ } }
   }
 
   /* ---------- điều hướng ---------- */
@@ -237,7 +252,7 @@
         <div class="t-field"><label>Số điện thoại</label>
           <div class="t-phone"><span class="cc">+84</span><input id="phone" type="tel" inputmode="numeric" placeholder="0912 345 678" autocomplete="tel"></div>
         </div>
-        <button class="t-btn" id="sendOtp">Gửi mã xác thực</button>
+        <button class="t-btn" id="sendOtp">Tiếp tục</button>
         ${enabled ? '' : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
       </div>
       <div class="tl-side">
@@ -248,26 +263,20 @@
     </div>`;
     HH.promo.mount(el('tapp'));
     el('phone').addEventListener('keydown', e => { if (e.key === 'Enter') el('sendOtp').click(); });
-    el('sendOtp').onclick = async () => {
+    // giữ lời báo (phiên hết hạn...) qua các lần vẽ lại, chỉ xóa khi khách bấm Tiếp tục
+    if (state.notice) el('loginErr').innerHTML = errBox(state.notice);
+    el('sendOtp').onclick = () => {
+      state.notice = null;
       const phone = (el('phone').value || '').replace(/\s/g, '').replace(/^\+?84/, '0');
       el('loginErr').innerHTML = '';
       if (!/^0\d{9}$/.test(phone)) { el('loginErr').innerHTML = errBox('Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0).'); return; }
-      const btn = el('sendOtp'); btn.classList.add('loading'); btn.disabled = true;
-      try {
-        const data = await loadData(phone);
-        if (!data) { el('loginErr').innerHTML = errBox('Số điện thoại chưa được đăng ký với chủ nhà.'); return; }
-        state.pendingPhone = phone; state.data = data; state.otpTries = 0;
-        go('#/otp');
-      } catch (e) {
-        if (e.message === 'NO_CONFIG') {        // lời nhắc đã hiện sẵn bên dưới, chỉ làm nó nháy lên cho dễ thấy
-          const box = document.querySelector('#cfgWarn .t-err');
-          if (box && box.animate) box.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
-          return;
-        }
-        el('loginErr').innerHTML = errBox(e.message === 'NOT_ACTIVATED'
-          ? 'App khách thuê chưa được kích hoạt (cần chạy SQL migration-tenant-app.sql).'
-          : e.message === 'NO_CONFIG' ? NO_CONFIG_MSG : 'Không kết nối được máy chủ. Thử lại sau.');
-      } finally { btn.classList.remove('loading'); btn.disabled = false; }
+      if (!enabled) {        // lời nhắc đã hiện sẵn bên dưới, chỉ làm nó nháy lên cho dễ thấy
+        const box = document.querySelector('#cfgWarn .t-err');
+        if (box && box.animate) box.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
+        return;
+      }
+      // Chưa hỏi máy chủ gì ở bước này: số có trong hệ thống hay không chỉ lộ ra khi nhập đúng mã
+      state.pendingPhone = phone; go('#/otp');
     };
   }
   const errBox = (m) => `<div class="t-err"><span>${HH.ic('alert', 16)}</span><div>${esc(m)}</div></div>`;
@@ -275,15 +284,18 @@
   const NO_CONFIG_MSG = 'Chưa kết nối máy chủ: thiếu tệp js/config.js (tệp này không có trên GitHub). '
     + 'Chép js/config.js từ máy chính vào thư mục js của dự án rồi tải lại trang.';
 
-  /* ---------- màn hình: OTP ---------- */
+  /* ---------- màn hình: MÃ VÀO APP ----------
+     Mã 6 số do chủ nhà cấp cho từng khách (web quản trị → Khách thuê → Mã vào app).
+     Máy chủ kiểm mã (hàm tenant_login): đúng thì trả token dùng cho mọi lần gọi sau,
+     sai 5 lần thì khóa số đó 15 phút. Dữ liệu của khách chỉ được tải SAU khi đã vào được. */
   function screenOtp() {
     const masked = state.pendingPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1 *** $2');
     // hep: màn này không xếp 2 cột, giữ kiểu thẻ hẹp nằm giữa trên máy tính
     el('tapp').innerHTML = `<div class="t-login hep">
       <div class="t-login-art short" aria-hidden="true">${HH.scene()}</div>
       <div class="logo"><div class="mark">${logoImg(46)}</div></div>
-      <h1 style="font-size:22px">Nhập mã xác thực</h1>
-      <p class="lead">Mã gồm 6 chữ số đã gửi tới<br><b>${masked}</b></p>
+      <h1 style="font-size:22px">Nhập mã vào app</h1>
+      <p class="lead">Mã gồm 6 chữ số do chủ nhà cấp cho số<br><b>${masked}</b></p>
       <div id="otpErr"></div>
       <div class="otp-boxes" id="otpBoxes">
         ${/* Mỗi ô PHẢI có name/id riêng. Sáu ô giống hệt nhau và đều không tên
@@ -296,8 +308,8 @@
           data-lpignore="true" data-1p-ignore data-form-type="other"
           aria-label="Chữ số thứ ${i + 1}">`).join('')}
       </div>
-      <div class="otp-resend" id="resend">Gửi lại mã sau <b id="cd">60</b> giây</div>
-      <button class="t-btn" id="verify">Xác nhận</button>
+      <button class="t-btn" id="verify">Vào app</button>
+      <div class="otp-resend">Chưa có mã? Nhờ chủ nhà cấp mã vào app cho bạn.</div>
       <button class="t-btn ghost" id="changePhone">← Đổi số điện thoại</button>
     </div>`;
     const boxes = Array.from(document.querySelectorAll('#otpBoxes input'));
@@ -325,29 +337,47 @@
         if (t.length === 6) doVerify(); else if (boxes[t.length]) boxes[t.length].focus();
       });
     });
-    // đếm ngược
-    let cd = 60; const cdEl = el('cd'); const timer = setInterval(() => {
-      cd--; if (cdEl) cdEl.textContent = cd;
-      if (cd <= 0) { clearInterval(timer); el('resend').innerHTML = '<a href="#" id="resendLink">Gửi lại mã</a>'; const r = el('resendLink'); if (r) r.onclick = (e) => { e.preventDefault(); screenOtp(); }; }
-    }, 1000);
     el('verify').onclick = doVerify;
     el('changePhone').onclick = () => { state.pendingPhone = null; state.data = null; go('#/login'); };
 
-    function doVerify() {
+    let busy = false;
+    async function doVerify() {
+      if (busy) return;
       const code = getCode();
       if (code.length < 6) { el('otpErr').innerHTML = errBox('Vui lòng nhập đủ 6 số.'); return; }
-      if (code !== DEMO_OTP) {
-        state.otpTries++;
-        if (state.otpTries >= 3) { el('otpErr').innerHTML = errBox('Sai quá 3 lần. Vui lòng thử lại sau 5 phút.'); boxes.forEach(b => b.disabled = true); el('verify').disabled = true; return; }
-        el('otpErr').innerHTML = errBox(`Mã không đúng. Còn ${3 - state.otpTries} lần thử.`);
-        boxes.forEach(b => b.value = ''); boxes[0].focus();
-        return;
+      const btn = el('verify'), err = el('otpErr');
+      busy = true; btn.classList.add('loading'); btn.disabled = true; err.innerHTML = '';
+      let khoa = false;
+      try {
+        const { data, error } = await client.rpc('tenant_login', { p_phone: state.pendingPhone, p_code: code });
+        if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
+        if (data && data.token) {
+          state.token = data.token; state.phone = state.pendingPhone; state.notice = null;
+          try { localStorage.setItem(TOKEN_KEY, state.token); localStorage.setItem(PHONE_KEY, state.phone); } catch (e) {}
+          state.data = await loadData();
+          go('#/home');
+          return;
+        }
+        if (data && data.error === 'locked') {
+          const phut = Math.max(1, Math.ceil((data.retryAfterSec || 900) / 60));
+          err.innerHTML = errBox(`Nhập sai nhiều lần nên số này tạm bị khóa. Thử lại sau ${phut} phút, hoặc nhờ chủ nhà cấp lại mã.`);
+          boxes.forEach(b => { b.value = ''; b.disabled = true; }); khoa = true;
+          return;
+        }
+        // số lạ và mã sai cùng một lời báo: không tiết lộ số nào có trong hệ thống
+        err.innerHTML = errBox('Số điện thoại hoặc mã chưa đúng. Kiểm tra lại mã chủ nhà đã cấp.');
+        boxes.forEach(b => { b.value = ''; }); boxes[0].focus();
+      } catch (e) {
+        if (e.message === 'SESSION') return;                         // sessionLost() đã đưa về màn đăng nhập
+        state.token = null; state.phone = null;
+        err.innerHTML = errBox(e.message === 'NOT_ACTIVATED'
+          ? 'Hệ thống chưa được cập nhật để dùng mã vào app (chủ nhà cần chạy SQL migration-tenant-auth.sql).'
+          : 'Không kết nối được máy chủ. Thử lại sau.');
+      } finally {
+        busy = false;
+        if (!khoa && btn.isConnected) { btn.classList.remove('loading'); btn.disabled = false; }
+        else if (khoa) btn.classList.remove('loading');
       }
-      // đúng
-      clearInterval(timer);
-      state.phone = state.pendingPhone;
-      try { localStorage.setItem(PHONE_KEY, state.phone); } catch (e) {}
-      go('#/home');
     }
   }
 
@@ -382,13 +412,11 @@
     const fb = el('chatFab'); if (fb) fb.onclick = () => go('#/chat');
     wireTabs();   // thanh bên dùng chung data-tab
     const slo = el('sideLogout');
-    if (slo) slo.onclick = () => { if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
-      try { localStorage.removeItem(PHONE_KEY); } catch (e) {}
-      state.phone = null; state.data = null; go('#/login'); };
+    if (slo) slo.onclick = () => { if (!confirm('Đăng xuất khỏi ứng dụng?')) return; doLogout(); };
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
     const rl = el('reload'); if (rl) rl.onclick = async () => {
       rl.innerHTML = String(HH.ic('clock', 16)); rl.disabled = true;
-      try { state.data = await loadData(state.phone); toast('Đã cập nhật'); } catch (e) { toast('Không tải được'); }
+      try { state.data = await loadData(); toast('Đã cập nhật'); } catch (e) { toast('Không tải được'); }
       render();
     };
     if (opts.tab) wireTabs();
@@ -681,7 +709,7 @@
       e.currentTarget.classList.add('loading');
       const note = el('pfNote').value.trim();
       try {
-        await rpcNeed('tenant_submit_payment_claim', { p_phone: state.phone, p_invoice_id: c.invoiceId,
+        await rpcNeed('tenant_submit_payment_claim', { p_invoice_id: c.invoiceId,
           p_amount: amount, p_note: note, p_photo: c.photo });
         state.claim = null;
         toast('Đã gửi xác nhận cho chủ nhà');
@@ -690,11 +718,11 @@
       } catch (err) {
         // Máy chủ chưa có hàm mới -> vẫn báo cho chủ nhà theo cách cũ
         try {
-          await rpcNeed('tenant_notify_paid', { p_phone: state.phone, p_invoice_id: c.invoiceId });
+          await rpcNeed('tenant_notify_paid', { p_invoice_id: c.invoiceId });
           state.claim = null; toast('Đã báo chủ nhà, nhưng chưa gửi được ảnh chứng từ'); go('#/home');
         } catch (e2) {
-          toast(e2.message === 'PHONE_NOT_FOUND'
-            ? 'Chưa gửi được: máy chủ không nhận ra số điện thoại này.'
+          toast(e2.message === 'SESSION'
+            ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.'
             : e2.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm báo chuyển khoản (chủ nhà cần chạy SQL).'
             : 'Không gửi được, thử lại');
           e.currentTarget.classList.remove('loading');
@@ -740,19 +768,19 @@
       try {
         // Gửi kèm ảnh; máy chủ chưa cập nhật hàm (chưa chạy migration) thì gửi không ảnh
         try {
-          await rpcNeed('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title, p_photos: r.photos });
+          await rpcNeed('tenant_create_incident', { p_category: r.cat, p_title: title, p_photos: r.photos });
         } catch (e1) {
           if (e1.message !== 'NOT_ACTIVATED') throw e1;      // lỗi khác thì báo thật, đừng gửi lại
-          await rpcNeed('tenant_create_incident', { p_phone: state.phone, p_category: r.cat, p_title: title });
+          await rpcNeed('tenant_create_incident', { p_category: r.cat, p_title: title });
           matAnh = r.photos.length > 0;
         }
-        state.data = await loadData(state.phone); // tải lại để có yêu cầu mới
+        state.data = await loadData(); // tải lại để có yêu cầu mới
         state.repair = { cat: null, time: 'Bất kỳ', photos: [] };
         toast(matAnh ? 'Đã gửi yêu cầu, nhưng máy chủ chưa nhận được ảnh' : 'Đã gửi yêu cầu sửa chữa');
         go('#/track');
       } catch (err) {
-        toast(err.message === 'PHONE_NOT_FOUND'
-          ? 'Chưa gửi được: máy chủ không nhận ra số điện thoại này. Báo chủ nhà kiểm tra lại hồ sơ khách thuê.'
+        toast(err.message === 'SESSION'
+          ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.'
           : err.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm tenant_create_incident (chủ nhà cần chạy SQL).'
           : 'Không gửi được, thử lại');
         e.currentTarget.classList.remove('loading');
@@ -810,18 +838,18 @@
       try {
         // Gửi kèm ảnh; máy chủ chưa cập nhật hàm thì gửi số không ảnh
         try {
-          await rpcNeed('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null, p_photos: rd.photos });
+          await rpcNeed('tenant_submit_reading', { p_period: CUR_PERIOD, p_elec: elec, p_water: null, p_photos: rd.photos });
         } catch (e1) {
           if (e1.message !== 'NOT_ACTIVATED') throw e1;      // lỗi khác thì báo thật, đừng gửi lại
-          await rpcNeed('tenant_submit_reading', { p_phone: state.phone, p_period: CUR_PERIOD, p_elec: elec, p_water: null });
+          await rpcNeed('tenant_submit_reading', { p_period: CUR_PERIOD, p_elec: elec, p_water: null });
           matAnhRd = rd.photos.length > 0;
         }
-        state.data = await loadData(state.phone);
+        state.data = await loadData();
         toast(matAnhRd ? 'Đã gửi chỉ số, nhưng máy chủ chưa nhận được ảnh' : 'Đã gửi chỉ số, chờ chủ trọ duyệt');
         go('#/home');
       } catch (err) {
-        toast(err.message === 'PHONE_NOT_FOUND'
-          ? 'Chưa gửi được: máy chủ không nhận ra số điện thoại này. Báo chủ nhà kiểm tra lại hồ sơ khách thuê.'
+        toast(err.message === 'SESSION'
+          ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.'
           : err.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm gửi chỉ số (chủ nhà cần chạy SQL).'
           : 'Không gửi được, thử lại');
         e.currentTarget.classList.remove('loading');
@@ -974,12 +1002,12 @@
       if (note.length > 300) { toast('Lời nhắn tối đa 300 ký tự'); return; }
       rnUi.busy = true; send.disabled = true; send.textContent = 'Đang gửi...';
       try {
-        const res = await rpcNeed('tenant_request_renewal', { p_phone: state.phone, p_months: rnUi.months, p_note: note || null });
+        const res = await rpcNeed('tenant_request_renewal', { p_months: rnUi.months, p_note: note || null });
         if (res && res.error) {
           toast({ too_early: 'Còn hơn 90 ngày mới đến hạn, chưa xin gia hạn được', not_rep: 'Chỉ người đại diện hợp đồng xin gia hạn được',
             no_contract: 'Không thấy hợp đồng đang hiệu lực', bad_months: 'Số tháng chưa hợp lệ' }[res.error] || 'Chưa gửi được, thử lại giúp em');
         } else {
-          try { state.data = await loadData(state.phone); } catch (e) { /* giữ dữ liệu cũ */ }
+          try { state.data = await loadData(); } catch (e) { /* giữ dữ liệu cũ */ }
           if (!state.data.renewal || state.data.renewal.status !== 'pending') {
             state.data.renewal = { id: res.id, status: 'pending', months: res.months, createdAt: new Date().toISOString() };
           }
@@ -987,7 +1015,7 @@
         }
       } catch (e) {
         toast(e.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm xin gia hạn (chủ nhà cần chạy SQL).'
-          : e.message === 'PHONE_NOT_FOUND' ? 'Không tìm thấy số điện thoại này trên hệ thống' : 'Chưa gửi được, anh/chị thử lại giúp em');
+          : e.message === 'SESSION' ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại' : 'Chưa gửi được, anh/chị thử lại giúp em');
       }
       rnUi.busy = false;
       screenContract();
@@ -1077,8 +1105,7 @@
     el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     el('logoutBtn').onclick = () => {
       if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
-      try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem('hh_tchat_' + state.phone); } catch (e) {}
-      state.phone = null; state.data = null; go('#/login');
+      doLogout();
     };
   }
 
@@ -1628,8 +1655,7 @@
     // có lời đáp mới chưa, rồi mới chờ theo nhịp.
     if (chat.handed) { startStaffPoll(); pullStaffReplies(); }
     const slo2 = el('sideLogout');
-    if (slo2) slo2.onclick = () => { stopStaffPoll(); try { localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatKey()); } catch (e) {}
-      state.phone = null; state.data = null; go('#/login'); };
+    if (slo2) slo2.onclick = () => doLogout();
     el('back').onclick = () => { stopStaffPoll(); go('#/home'); };
     el('chatNew').onclick = () => {
       chat.msgs = []; chat.ctx.clear();
@@ -1665,7 +1691,7 @@
     if (chat.handed) {
       chat.busy = false;
       try {
-        await rpcNeed('tenant_send_message', { p_phone: state.phone, p_body: text });
+        await rpcNeed('tenant_send_message', { p_body: text });
       } catch (e) {
         pushMsg('bot', 'Em gửi chưa được ạ, anh/chị nhắn lại giúp em.',
           [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }]);
@@ -1712,7 +1738,7 @@
     if (!text) return;
     pushMsg('bot', 'Em đang chuyển cho nhân viên trực...'); screenChat();
     try {
-      await rpcNeed('tenant_send_message', { p_phone: state.phone, p_body: text });
+      await rpcNeed('tenant_send_message', { p_body: text });
       chat.msgs.pop();
       chat.handed = true;
       pushMsg('bot', `Em đã <b>chuyển cho nhân viên trực</b> ✓<br>`
@@ -1748,7 +1774,7 @@
     if (!document.getElementById('chatBody')) { stopStaffPoll(); return; }   // đã rời màn chat
     let r;
     try {
-      r = await rpc('tenant_messages', { p_phone: state.phone, p_after: chat.lastPull || null });
+      r = await rpc('tenant_messages', { p_after: chat.lastPull || null });
     } catch (e) { return; }                       // mạng chập chờn: bỏ qua lượt này
     if (!r) return;
     chat.lastPull = r.now || chat.lastPull;
@@ -1765,8 +1791,8 @@
   async function doCreateIncident(data) {
     pushMsg('bot', 'Em đang gửi yêu cầu...'); screenChat();
     try {
-      await rpc('tenant_create_incident', { p_phone: state.phone, p_category: data.cat, p_title: data.title });
-      state.data = await loadData(state.phone);
+      await rpc('tenant_create_incident', { p_category: data.cat, p_title: data.title });
+      state.data = await loadData();
       chat.msgs.pop();
       pushMsg('bot', `Đã gửi yêu cầu <b>${esc(data.cat)}</b> tới chủ nhà ✓<br>Anh/chị theo dõi tiến độ trong mục Yêu cầu sửa chữa nhé.`,
         [{ label: 'Theo dõi yêu cầu', go: '#/track', solid: true }]);
@@ -1787,12 +1813,17 @@
 
   /* ---------- khởi động ---------- */
   async function boot() {
-    let saved = null; try { saved = localStorage.getItem(PHONE_KEY); } catch (e) {}
-    if (saved && enabled) {
-      state.phone = saved;
+    let tok = null, ph = null; try { tok = localStorage.getItem(TOKEN_KEY); ph = localStorage.getItem(PHONE_KEY); } catch (e) {}
+    if (tok && ph && enabled) {
+      state.token = tok; state.phone = ph;
       render(); // hiện loading
-      try { state.data = await loadData(saved); } catch (e) { state.data = null; }
-      if (!state.data) { state.phone = null; try { localStorage.removeItem(PHONE_KEY); } catch (e) {} }
+      try { state.data = await loadData(); }
+      catch (e) {
+        if (e.message === 'SESSION') return;          // sessionLost() đã dọn và đưa về màn đăng nhập
+        // mạng chập chờn: giữ phiên đã lưu cho lần mở sau, chỉ tạm hiện màn đăng nhập
+        state.token = null; state.phone = null; state.data = null;
+        state.notice = 'Không kết nối được máy chủ. Mở lại app khi có mạng.';
+      }
       render();
     } else {
       render();
