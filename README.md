@@ -46,6 +46,21 @@ Vào không được thì đọc đúng dòng báo lỗi:
   `supabase/migration-tenant-auth.sql` trong Supabase → SQL Editor.
 - *“Không kết nối được máy chủ”* — sai URL/khóa trong `config.js`, hoặc mất mạng.
 
+## Chốt sổ tháng
+
+Trang Hóa đơn → **Chốt sổ tháng** thay cho "Sinh hóa đơn" cũ. Mở ra là **xem trước toàn bộ phòng đang thuê** rồi mới tạo hóa đơn:
+
+| Tình trạng | Ý nghĩa | Chọn sẵn? |
+|---|---|---|
+| Sẵn sàng | đủ chỉ số, tiêu thụ bình thường | có |
+| Nên xem lại | điện cao gấp hơn 3 lần mức thường của phòng, hoặc bằng 0 | có, kèm ghi chú |
+| Thiếu chỉ số / Chỉ số giảm | chưa ghi, hoặc nhỏ hơn kỳ trước mà chưa xử lý quay vòng / thay đồng hồ | **bị chặn** |
+| Đã có hóa đơn / Ngoài kỳ | đã chốt rồi, hoặc hợp đồng chưa bắt đầu / đã hết trước kỳ | bỏ qua |
+
+Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạo thì ra các hóa đơn **nháp** gom thành một **đợt** (khách chưa thấy gì). Từ đó: **Phát hành cả đợt** (khách xem được trong app), hoặc **Hoàn tác đợt**: nháp bị xóa hẳn, hóa đơn đã phát hành mà chưa thu thì bị hủy, hóa đơn đã có thu tiền được **giữ nguyên** và báo rõ. Chốt sổ lại được cho các phòng đã hoàn tác. Các đợt hiện ở đầu trang Hóa đơn. Mã phân loại ở `js/closing.js` (thuần, có kiểm thử); cần chạy `supabase/migration-invoice-batches.sql` để danh sách đợt còn sau khi tải lại trang.
+
+Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
+
 ## Đăng nhập app khách thuê
 
 Trước đây app khách thuê chỉ cần số điện thoại: ai biết một số là đọc được cả hồ sơ khách (CCCD, ngày sinh, hóa đơn, bạn cùng phòng) và gửi thay khách, còn OTP chỉ là mã cố định kiểm tra ngay trong trình duyệt. Giờ đăng nhập được kiểm ở **máy chủ**:
@@ -221,6 +236,7 @@ js/
   reminders.js        # mức nhắc nợ, phí trễ hạn, soạn tin (không đụng DOM, có kiểm thử)
   validate.js         # luật kiểm tra dữ liệu nhập: tiền, ngày, sđt, CCCD, biển số (không đụng DOM, có kiểm thử)
   split.js            # chia hóa đơn cho người ở, dùng chung với app khách (không đụng DOM, có kiểm thử)
+  closing.js          # phân loại phòng khi chốt sổ tháng (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -246,6 +262,7 @@ tests/
   reminders.test.js   # kiểm thử nhắc nợ + phí: node tests/reminders.test.js
   validate.test.js    # kiểm thử luật nhập liệu: node tests/validate.test.js
   split.test.js       # kiểm thử chia hóa đơn: node tests/split.test.js
+  closing.test.js     # kiểm thử phân loại chốt sổ: node tests/closing.test.js
 ```
 
 ## Kiểm thử
@@ -255,9 +272,10 @@ node tests/scoring.test.js
 node tests/reminders.test.js
 node tests/validate.test.js
 node tests/split.test.js
+node tests/closing.test.js
 ```
 
-Không cần cài gì thêm cho bốn bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) và chia hóa đơn (27 ca); cả bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca); cả năm đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 

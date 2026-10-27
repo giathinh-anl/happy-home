@@ -69,7 +69,7 @@ def load(name, strip_ext=False):
 print("Nạp lược đồ và các migration")
 for f in ["stubs.sql", "schema.sql", "migration-tenant-app.sql", "migration-tenant-app-v2.sql", "migration-claims-photos.sql",
           "migration-reading-photos.sql", "migration-support-chat.sql", "migration-staff-vehicles.sql",
-          "migration-renewal.sql", "migration-late-fee.sql"]:
+          "migration-renewal.sql", "migration-late-fee.sql", "migration-invoice-batches.sql"]:
     load(f)
 load("migration-tenant-auth.sql", strip_ext=True)
 print("  ok   toàn bộ tệp nạp không lỗi")
@@ -91,6 +91,10 @@ for o, tag, nm in ((A, "a", "Rep A"), (B, "b", "Rep B")):
                  "values (%s, 'INV-' || %s, 'b1', 'P101', '2026-10', 3000000, 0, 'issued', '[]'::jsonb)", (o, tag))
 conn.execute("insert into public.tenants(owner_id, id, building_id, room_code, full_name, phone, is_rep) "
              "values (%s, 'tn-a2', 'b1', 'P101', 'Bạn cùng phòng A', '0921222817', false)", (A,))
+# hóa đơn NHÁP của A (chủ trọ chưa duyệt) và hóa đơn đã hủy: khách không được thấy
+conn.execute("insert into public.invoices(owner_id, id, building_id, room_code, period, total, paid, status, lines) "
+             "values (%s, 'INV-a-draft', 'b1', 'P101', '2026-11', 3100000, 0, 'draft', '[]'::jsonb), "
+             "(%s, 'INV-a-huy', 'b1', 'P101', '2026-09', 3000000, 0, 'cancelled', '[]'::jsonb)", (A, A))
 
 anon = lambda: role("anon")
 owner = lambda o: role("authenticated", o)
@@ -171,9 +175,9 @@ test("đúng số + đúng mã: nhận token 48 ký tự", t_login)
 def t_collision():
     anon(); d = one("select public.tenant_data(%s)", (tok["a1"],))
     expect(d["tenant"]["fullName"] == "Rep A", "lấy nhầm chủ trọ")
-    expect([i["id"] for i in d["invoices"]] == ["INV-a"], d["invoices"])
+    expect([i["id"] for i in d["invoices"]] == ["INV-a"], f"khách thấy hóa đơn nháp/đã hủy: {[i['id'] for i in d['invoices']]}")
     expect("renewal" in d and "roommates" in d and d["roommates"][0]["fullName"] == "Bạn cùng phòng A", "thiếu khóa")
-test("trùng số điện thoại giữa hai chủ trọ: mã quyết định đúng người, chỉ thấy hóa đơn của mình", t_collision)
+test("trùng số điện thoại giữa hai chủ trọ: mã quyết định đúng người, chỉ thấy hóa đơn của mình, không thấy nháp / đã hủy", t_collision)
 test("số có +84 và khoảng trắng cũng đăng nhập được", lambda: expect("token" in login("+84 921 111 700", codes["a1"])))
 def t_login2():
     r = login("0921222817", codes["a2"]); expect("token" in r, r); tok["a2"] = r["token"]

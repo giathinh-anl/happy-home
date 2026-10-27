@@ -331,7 +331,8 @@ begin
                 ) order by i.period desc)
                 from public.invoices i
                 where i.owner_id = v_t.owner_id and i.building_id = v_t.building_id and i.room_code = v_t.room_code
-                  and i.status <> 'cancelled'), '[]'::jsonb),
+                  -- hóa đơn NHÁP chưa được chủ trọ duyệt nên khách không được thấy
+                  and i.status not in ('cancelled', 'draft')), '[]'::jsonb),
     'incidents', coalesce((select jsonb_agg(jsonb_build_object(
                   'id', x.id, 'category', x.category, 'title', x.title, 'status', x.status, 'createdAt', x.created_at
                 ) order by x.created_at desc)

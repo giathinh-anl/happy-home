@@ -267,7 +267,7 @@
         selectable: true, initialFilter: initStatus,
         filterFn: (r, f) => r.status === f,
         toolbarLeft: statusFilter,
-        toolbarRight: `<button class="btn btn-outline" id="genInv">Sinh hóa đơn</button><button class="btn btn-success" id="invExport">${HH.ic('sheet', 16)} Xuất Excel</button>`,
+        toolbarRight: `<button class="btn btn-outline" id="genInv">Chốt sổ tháng</button><button class="btn btn-success" id="invExport">${HH.ic('sheet', 16)} Xuất Excel</button>`,
         bulkActions: [
           { label: 'Phát hành', primary: true, onClick: (ids, clear) => issueFlow(ctx, ids, clear) },
           { label: 'Xuất Excel', onClick: (ids) => exportInvoices(ctx, list.filter(i => ids.includes(i.id))) },
@@ -299,11 +299,11 @@
 
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Hóa đơn</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div></div>
-        <div class="page-actions"><button class="btn btn-primary" data-primary-new id="genInv2">+ Sinh hóa đơn</button></div>
+        <div class="page-actions"><button class="btn btn-primary" data-primary-new id="genInv2">${raw(HH.ic('receipt', 16))} Chốt sổ tháng</button></div>
       </div>
       <div id="periodSel" style="margin-bottom:16px"></div>
       ${raw(cards)}
-      <div style="margin-top:16px">${raw(draftBanner)}${raw(collectBanner)}</div>
+      <div style="margin-top:16px">${raw(batchPanel(ctx, period))}${raw(draftBanner)}${raw(collectBanner)}</div>
       <div>${raw(dt.render())}</div>`;
     },
     mount(ctx) {
@@ -317,6 +317,8 @@
       document.getElementById('genInv2').onclick = gen;
       const ie = document.getElementById('invExport');
       if (ie) ie.onclick = () => exportInvoices(ctx, S.invoicesOf(ctx.bid, S.period()));
+      document.querySelectorAll('[data-bissue]').forEach(b => b.onclick = () => issueBatchFlow(ctx, b.dataset.bissue));
+      document.querySelectorAll('[data-bundo]').forEach(b => b.onclick = () => undoBatchDialog(ctx, b.dataset.bundo));
       const ia = document.getElementById('issueAll');
       if (ia) ia.onclick = () => {
         const ids = S.invoicesOf(ctx.bid, S.period()).filter(i => i.status === 'draft').map(i => i.id);
@@ -384,35 +386,115 @@
     return items;
   }
 
+  /* ================= CHỐT SỔ THÁNG ================= */
+  const CS_TONE = { 'san-sang': 'success', 'bat-thuong': 'warning', 'thieu-chi-so': 'danger', 'chi-so-giam': 'danger', 'da-co': 'neutral', 'ngoai-ky': 'neutral' };
+  const CS_THU_TU = { 'thieu-chi-so': 0, 'chi-so-giam': 1, 'bat-thuong': 2, 'san-sang': 3, 'da-co': 4, 'ngoai-ky': 5 };
+
   function generateFlow(ctx) {
     const period = S.period();
-    const contracts = S.contractsOf(ctx.bid).filter(c => c.status === 'active' || c.status === 'terminating');
-    const hasInv = (c) => S.invoicesOf(ctx.bid, period).some(i => i.contractId === c.id);
-    const pending = contracts.filter(c => !hasInv(c));
-    const withReading = pending.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, period); return rd && rd.elecCurr != null; });
-    const missing = pending.filter(c => { const rd = S.reading(ctx.bid, c.roomCode, period); return !(rd && rd.elecCurr != null); });
-    const already = contracts.length - pending.length;
-    UI.modal({ title: `Sinh hóa đơn kỳ ${S.periodLabel(period)}`, bodyHtml: h`
-      <p class="muted" style="margin-bottom:12px">Có <b>${contracts.length}</b> hợp đồng đang hiệu lực${raw(already ? ` · <b>${already}</b> phòng đã có hóa đơn kỳ này` : '')}.</p>
-      <div class="alert alert-success" style="margin-bottom:10px"><span class="ic">✓</span><div><b>${withReading.length}</b> phòng đủ chỉ số, sẽ được sinh hóa đơn</div></div>
-      ${raw(missing.length ? `<div class="alert alert-warning"><span class="ic">${HH.ic('alert', 16)}</span><div><b>${missing.length}</b> phòng thiếu chỉ số: ${missing.map(c => c.roomCode).join(', ')}<br>
-        <span class="text-sm">Các phòng thiếu chỉ số sẽ được bỏ qua. Bạn có thể bổ sung và sinh lại sau.</span></div></div>` : '')}
-      ${raw(withReading.length === 0 ? `<div class="alert alert-info"><span class="ic">${HH.ic('info', 16)}</span><div>Không có phòng nào để sinh. Hãy ghi chỉ số trước.</div></div>` : '')}`,
-      footHtml: `${missing.length ? `<button class="btn btn-outline" id="toReadings">Bổ sung chỉ số</button>` : '<span></span>'}<span class="spacer"></span><button class="btn btn-primary" data-go ${withReading.length === 0 ? 'disabled' : ''}>Sinh ${withReading.length} hóa đơn</button>`,
+    const rows = S.closingPreview(ctx.bid, period).sort((a, b) => (CS_THU_TU[a.trangThai] - CS_THU_TU[b.trangThai]) || a.roomCode.localeCompare(b.roomCode));
+    const sum = HH.closing.tom(rows);
+    const chip = (k, label, n, tone) => n ? `<span class="badge s-${tone}">${n} ${label}</span>` : '';
+    const trs = rows.map(r => `<tr data-cid="${U.esc(r.contractId)}">
+      <td data-label="Phòng" class="dt-title"><label class="check"><input type="checkbox" data-cs="${U.esc(r.contractId)}" ${r.chon ? 'checked' : ''} ${r.chan ? 'disabled' : ''}> <b>${U.esc(r.roomCode)}</b></label></td>
+      <td data-label="Khách">${U.esc(r.tenantName || '')}</td>
+      <td data-label="Điện dùng" class="num mono">${r.tieuThu == null ? '-' : U.number(r.tieuThu) + ' kWh'}</td>
+      <td data-label="Dự kiến" class="num mono">${r.duKien == null ? '-' : U.currency(r.duKien)}</td>
+      <td data-label="Tình trạng"><span class="badge s-${CS_TONE[r.trangThai]}">${HH.closing.NHAN[r.trangThai]}</span>${r.ghiChu ? `<div class="muted text-xs" style="margin-top:3px">${U.esc(r.ghiChu)}</div>` : ''}</td></tr>`).join('');
+
+    const body = h`
+      <p class="muted" style="margin-bottom:10px">Xem trước toàn bộ phòng đang thuê rồi mới tạo hóa đơn nháp. Chưa gửi gì cho khách cho tới khi bạn bấm <b>Phát hành</b>,
+        và cả đợt hoàn tác được nếu sai.</p>
+      <div class="row-gap-2 wrap" style="margin-bottom:12px">
+        ${raw(chip('ss', 'sẵn sàng', sum['san-sang'], 'success'))}${raw(chip('bt', 'nên xem lại', sum['bat-thuong'], 'warning'))}
+        ${raw(chip('tc', 'thiếu chỉ số', sum['thieu-chi-so'], 'danger'))}${raw(chip('cg', 'chỉ số giảm', sum['chi-so-giam'], 'danger'))}
+        ${raw(chip('dc', 'đã có hóa đơn', sum['da-co'], 'neutral'))}${raw(chip('nk', 'ngoài kỳ', sum['ngoai-ky'], 'neutral'))}
+      </div>
+      ${raw(sum.chan ? `<div class="alert alert-warning" style="margin-bottom:10px"><span class="ic">${HH.ic('alert', 16)}</span>
+        <div><b>${sum.chan}</b> phòng bị chặn vì thiếu hoặc sai chỉ số điện. Bổ sung rồi mở lại Chốt sổ, các phòng còn lại vẫn chốt được ngay.</div></div>` : '')}
+      ${raw(rows.length ? `<div class="dt-wrap"><div class="dt-scroll" style="max-height:340px;overflow:auto"><table class="dt dt-cards">
+        <thead><tr><th>Phòng</th><th>Khách</th><th class="num">Điện dùng</th><th class="num">Dự kiến</th><th>Tình trạng</th></tr></thead>
+        <tbody>${trs}</tbody></table></div></div>` : '<div class="alert alert-info"><span class="ic">' + HH.ic('info', 16) + '</span><div>Tòa này chưa có hợp đồng đang hiệu lực.</div></div>')}
+      <div id="csFoot" class="muted text-sm" style="margin-top:10px"></div>`;
+
+    UI.modal({ title: `Chốt sổ ${S.periodLabel(period)} · ${ctx.building.name}`, size: 'xwide', bodyHtml: body,
+      footHtml: `${sum['thieu-chi-so'] ? '<button class="btn btn-outline" id="toReadings">Bổ sung chỉ số</button>' : '<button class="btn btn-outline" data-close>Đóng</button>'}
+        <span class="spacer"></span><button class="btn btn-primary" id="csGo">Tạo hóa đơn nháp</button>`,
       onMount(el, close) {
         const tr = el.querySelector('#toReadings'); if (tr) tr.onclick = () => { close(); HH.router.go(`/b/${ctx.bid}/readings`); };
-        el.querySelector('[data-go]').onclick = () => {
-          const res = S.generateInvoices(ctx.bid, period);
-          close();
-          UI.toast(res.created.length ? `Đã sinh ${res.created.length} hóa đơn nháp. Hãy rà soát rồi phát hành.` : 'Không có hóa đơn nào được sinh', { type: 'ok' });
-          HH.router.render();
+        const boxes = Array.from(el.querySelectorAll('[data-cs]')), go = el.querySelector('#csGo'), foot = el.querySelector('#csFoot');
+        const chonDuoc = () => boxes.filter(b => b.checked).map(b => b.dataset.cs);
+        const cap = () => {
+          const ids = chonDuoc(), tong = rows.filter(r => ids.includes(r.contractId)).reduce((s, r) => s + (r.duKien || 0), 0);
+          go.disabled = !ids.length; go.textContent = ids.length ? `Tạo ${ids.length} hóa đơn nháp` : 'Chưa chọn phòng nào';
+          foot.innerHTML = ids.length ? `Đã chọn <b>${ids.length}</b> phòng · tổng dự kiến <b class="mono">${U.currency(tong)}</b>` : '';
+        };
+        boxes.forEach(b => b.onchange = cap); cap();
+        go.onclick = () => {
+          const ids = chonDuoc(); if (!ids.length) return;
+          go.classList.add('loading'); go.disabled = true;
+          const res = S.createBatch(ctx.bid, period, ids);
+          if (!res) { UI.toast('Không tạo được hóa đơn nào (có thể phòng vừa được chốt ở nơi khác)', { type: 'warning' }); close(); HH.router.render(); return; }
+          HH.router.render();                      // danh sách phía sau cập nhật ngay
+          closingDone(ctx, el, close, res.batch);
         };
       },
     });
   }
 
-  function issueFlow(ctx, ids, clear) {
-    const steps = ['Đang phát hành hóa đơn...', 'Đang sinh mã thanh toán...', 'Đang gửi thông báo tới khách thuê...'];
+  // Bước 2 của chốt sổ: đã có hóa đơn nháp, hỏi có phát hành luôn không
+  function closingDone(ctx, el, close, batch) {
+    el.querySelector('.dialog-body').innerHTML = h`
+      <div class="alert alert-success" style="margin-bottom:14px"><span class="ic">✓</span>
+        <div>Đã tạo <b>${batch.invoiceCount}</b> hóa đơn nháp, tổng <b class="mono">${U.currency(batch.totalAmount)}</b>.</div></div>
+      <p class="muted">Hóa đơn nháp <b>chưa gửi cho khách</b> (khách chưa thấy trong app). Bạn có thể rà soát từng hóa đơn trước, hoặc phát hành cả đợt ngay.
+        Sai thì <b>Hoàn tác đợt</b> để xóa nháp và làm lại.</p>`;
+    const foot = el.querySelector('.dialog-foot');
+    foot.innerHTML = `<button class="btn btn-outline" id="csUndo">Hoàn tác đợt này</button><span class="spacer"></span>
+      <button class="btn btn-outline" id="csLater">Để rà soát trước</button><button class="btn btn-primary" id="csIssue">${HH.ic('send', 16)} Phát hành ${batch.invoiceCount} hóa đơn</button>`;
+    foot.querySelector('#csLater').onclick = close;
+    foot.querySelector('#csIssue').onclick = () => { close(); issueBatchFlow(ctx, batch.id); };
+    foot.querySelector('#csUndo').onclick = () => { close(); undoBatchDialog(ctx, batch.id); };
+  }
+
+  function issueBatchFlow(ctx, batchId) {
+    const ids = S.invoicesOfBatch(batchId).filter(i => i.status === 'draft').map(i => i.id);
+    if (!ids.length) { UI.toast('Đợt này không còn hóa đơn nháp để phát hành', { type: 'warning' }); return; }
+    issueFlow(ctx, ids, null, () => S.issueBatch(batchId));
+  }
+
+  function undoBatchDialog(ctx, batchId) {
+    const b = S.invoiceBatches.find(x => x.id === batchId); if (!b) return;
+    const inv = S.invoicesOfBatch(batchId);
+    const daThu = inv.filter(i => (i.paid || 0) > 0).length, daPh = inv.filter(i => i.status !== 'draft' && i.status !== 'cancelled' && !(i.paid > 0)).length;
+    UI.dangerDialog({
+      title: `Hoàn tác đợt chốt sổ ${S.periodLabel(b.period)}`,
+      description: `Đợt có <b>${inv.length}</b> hóa đơn (${U.currency(b.totalAmount)}).`,
+      consequences: [`Hóa đơn nháp bị xóa hẳn`, daPh ? `${daPh} hóa đơn đã phát hành mà chưa thu tiền sẽ bị hủy, khách không còn thấy` : 'Không có hóa đơn đã phát hành nào bị hủy',
+        daThu ? `${daThu} hóa đơn đã có thu tiền được GIỮ NGUYÊN` : 'Không có hóa đơn nào đã thu tiền', 'Chốt sổ lại được cho các phòng đó', 'Thao tác được ghi vào nhật ký'],
+      confirmLabel: 'Hoàn tác đợt', reasonLabel: 'Lý do hoàn tác',
+      onConfirm: (reason) => {
+        const r = S.undoBatch(batchId, reason);
+        if (!r.ok) { UI.toast(r.reason, { type: 'error' }); return; }
+        UI.toast(`Đã hoàn tác: xóa ${r.xoa} nháp, hủy ${r.huy} hóa đơn${r.giu.length ? `, giữ ${r.giu.length} hóa đơn đã có thu tiền` : ''}`, { type: 'ok', sticky: !!r.giu.length });
+        HH.router.render();
+      },
+    });
+  }
+
+  const BATCH_ST = { draft: ['Nháp, chưa phát hành', 'warning'], issued: ['Đã phát hành', 'success'], undone: ['Đã hoàn tác', 'neutral'], partial: ['Hoàn tác một phần', 'warning'] };
+  function batchPanel(ctx, period) {
+    const list = S.batchesOf(ctx.bid, period); if (!list.length) return '';
+    return `<div class="reminder-box" style="margin-bottom:16px"><div class="rem-head"><span>${HH.ic('receipt', 16)}</span><b>Các đợt chốt sổ ${S.periodLabel(period)}</b></div>
+      ${list.map(b => { const st = BATCH_ST[b.status] || BATCH_ST.draft, ds = S.invoicesOfBatch(b.id).filter(i => i.status === 'draft').length;
+        return `<div class="rem-line"><div class="grow"><b>${b.invoiceCount} hóa đơn · ${U.currency(b.totalAmount)}</b>
+          <div class="muted text-xs">${U.fmtDate(b.createdAt)} ${new Date(b.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} · ${U.esc(b.createdBy || '')} · <span class="badge s-${st[1]}">${st[0]}</span></div></div>
+          ${ds ? `<button class="btn btn-sm btn-primary" data-bissue="${U.esc(b.id)}">Phát hành ${ds}</button>` : ''}
+          ${b.status !== 'undone' ? `<button class="btn btn-sm btn-outline" data-bundo="${U.esc(b.id)}">Hoàn tác đợt</button>` : ''}</div>`; }).join('')}</div>`;
+  }
+
+  function issueFlow(ctx, ids, clear, doIssue) {
+    const steps = ['Đang phát hành hóa đơn...', 'Đang cập nhật công nợ...', 'Đang lưu...'];
     const m = UI.modal({ title: 'Phát hành hóa đơn', dismissable: false,
       bodyHtml: `<div class="progress-track" style="margin-bottom:12px"><div class="progress-fill" id="issueProg" style="width:5%"></div></div>
         <p class="muted" id="issueStep">${steps[0]}</p>`,
@@ -421,8 +503,8 @@
     const timer = setInterval(() => {
       s++; prog.style.width = Math.min(100, 5 + s * 33) + '%';
       if (s < steps.length) label.textContent = steps[s];
-      if (s >= 3) { clearInterval(timer); S.issueInvoices(ids);
-        setTimeout(() => { m.close(); clear && clear(); UI.toast(`Đã phát hành ${ids.length} hóa đơn`, { type: 'ok' }); HH.router.render(); }, 300); }
+      if (s >= 3) { clearInterval(timer); (doIssue || (() => S.issueInvoices(ids)))();
+        setTimeout(() => { m.close(); clear && clear(); UI.toast(`Đã phát hành ${ids.length} hóa đơn. Khách xem được trong app khách thuê.`, { type: 'ok' }); HH.router.render(); }, 300); }
     }, 550);
   }
 

@@ -50,6 +50,7 @@ HH.store = (function () {
   const staff = [];
   const claims = [];
   const renewals = [];        // khách xin gia hạn hợp đồng (chờ chủ trọ chấp nhận hoặc từ chối)
+  const invoiceBatches = [];  // mỗi lần "Chốt sổ tháng": gom hóa đơn của một đợt để phát hành / hoàn tác cả đợt
   const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
   const supportMsgs = [];     // khách nhắn cho nhân viên trực và lời nhân viên trả lời
@@ -254,7 +255,7 @@ HH.store = (function () {
 
   /* ---------- Lưu bền dữ liệu ---------- */
   const DATA_KEY = 'hh_data_v2';
-  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, renewals, bankTx, auditLog, supportMsgs };
+  const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, renewals, invoiceBatches, bankTx, auditLog, supportMsgs };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
 
   let syncTimer = null;
@@ -334,10 +335,13 @@ HH.store = (function () {
     if (water) lines.push({ label: 'Tiền nước', amount: occ * water.unit, meta: `${occ} người × ${U.number(water.unit)} ₫/người` });
     flats.forEach(f => lines.push({ label: f.name, amount: f.unit, meta: 'Cố định theo tháng' }));
     const total = lines.reduce((s, l) => s + l.amount, 0);
-    const num = String(invoices.filter(i => i.period === period).length + 1).padStart(3, '0');
+    // Số thứ tự kế tiếp = số lớn nhất đang có + 1 (không dùng "đếm số hóa đơn"): xóa nháp / hoàn tác đợt làm số đếm
+    // tụt xuống, đếm cũ sẽ sinh ra mã trùng một hóa đơn đã có, và phát hành / thu tiền sẽ rơi nhầm vào hóa đơn kia.
+    const pre = `HD-${period.slice(2, 4)}${String(m).padStart(2, '0')}-`;
+    const num = String(invoices.reduce((mx, i) => (i.id && i.id.startsWith(pre) ? Math.max(mx, parseInt(i.id.slice(pre.length), 10) || 0) : mx), 0) + 1).padStart(3, '0');
     const rep = roomTenants.find(t => t.isRep) || roomTenants[0] || {};
     return {
-      id: `HD-${period.slice(2, 4)}${String(m).padStart(2, '0')}-${num}`,
+      id: pre + num,
       buildingId: bid, roomCode: contract.roomCode, contractId: contract.id, tenantId: rep.id || contract.tenantId,
       tenantName: contract.tenantName, period,
       periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(), dueDate: dueDate.toISOString(),
@@ -496,6 +500,7 @@ HH.store = (function () {
     /* ---------- Khách xin gia hạn hợp đồng ----------
        Khách gửi từ app khách thuê (hàm tenant_request_renewal), chủ trọ chấp nhận thì hợp đồng gia hạn thật. */
     renewals,
+    invoiceBatches,
     renewalsOf: (bid, status) => renewals.filter(r => r.buildingId === bid && (!status || r.status === status)),
     pendingRenewalCount: (bid) => renewals.filter(r => r.status === 'pending' && (!bid || r.buildingId === bid)).length,
     decideRenewal(id, approve, reply, newRent) {
@@ -1022,7 +1027,7 @@ HH.store = (function () {
     // Xóa tòa nhà + toàn bộ dữ liệu liên quan
     async removeBuilding(id) {
       const b = buildings.find(x => x.id === id); if (!b) return;
-      const scoped = [rooms, tenants, contracts, services, readings, invoices, assets, incidents, transactions, renewals];
+      const scoped = [rooms, tenants, contracts, services, readings, invoices, assets, incidents, transactions, renewals, invoiceBatches];
       scoped.forEach(arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i].buildingId === id) arr.splice(i, 1); });
       for (let i = payments.length - 1; i >= 0; i--) if (payments[i].buildingId === id) payments.splice(i, 1);
       const bi = buildings.findIndex(x => x.id === id); if (bi >= 0) buildings.splice(bi, 1);
@@ -1053,19 +1058,84 @@ HH.store = (function () {
     },
 
     // ----- Sinh hóa đơn thật cho kỳ đang chọn -----
-    generateInvoices(bid, period) {
+    // opts.only: tập mã hợp đồng được phép sinh (chốt sổ cho chọn từng phòng); opts.batchId: gắn vào đợt chốt sổ.
+    // Hóa đơn đã hủy không chặn việc sinh lại (hủy = coi như chưa có).
+    generateInvoices(bid, period, opts) {
+      const o = opts || {};
       const svcs = services.filter(s => s.buildingId === bid);
       const cs = contracts.filter(c => c.buildingId === bid && (c.status === 'active' || c.status === 'terminating'));
       const created = [], skipped = [];
       cs.forEach(c => {
-        if (invoices.find(i => i.buildingId === bid && i.contractId === c.id && i.period === period)) return;
+        if (o.only && !o.only.has(c.id)) return;
+        if (invoices.find(i => i.buildingId === bid && i.contractId === c.id && i.period === period && i.status !== 'cancelled')) return;
         const rd = readings.find(r => r.buildingId === bid && r.roomCode === c.roomCode && r.period === period);
         if (!rd || rd.elecCurr == null) { skipped.push(c.roomCode); return; }
         const inv = runtimeInvoice(bid, c, rd, period, svcs);
+        if (o.batchId) inv.batchId = o.batchId;
         invoices.push(inv); created.push(inv); // đẩy ngay để mã HĐ kế tiếp tăng đúng
       });
-      if (created.length) { api.log('invoice.generate', `Sinh ${created.length} hóa đơn kỳ ${api.periodLabel(period)}`); persist(); }
+      if (created.length && !o.batchId) { api.log('invoice.generate', `Sinh ${created.length} hóa đơn kỳ ${api.periodLabel(period)}`); persist(); }
       return { created, skipped };
+    },
+
+    /* ---------- CHỐT SỔ THÁNG ---------- */
+    // Xem trước: từng hợp đồng đang hiệu lực được phân loại (js/closing.js) kèm số tiền dự kiến
+    closingPreview(bid, period) {
+      const svcs = services.filter(s => s.buildingId === bid);
+      const cs = contracts.filter(c => c.buildingId === bid && (c.status === 'active' || c.status === 'terminating'));
+      const ds = cs.map(c => {
+        const rd = readings.find(r => r.buildingId === bid && r.roomCode === c.roomCode && r.period === period);
+        return { contractId: c.id, roomCode: c.roomCode, tenantName: c.tenantName, start: c.start, end: c.end,
+          daCoHoaDon: invoices.some(i => i.buildingId === bid && i.contractId === c.id && i.period === period && i.status !== 'cancelled'),
+          chiSo: rd ? { elecPrev: rd.elecPrev, elecCurr: rd.elecCurr, elecExtra: rd.elecExtra, elecAvg: rd.elecAvg } : null };
+      });
+      return HH.closing.phanLoai(ds, HH.closing.kyThang(period)).map(r => {
+        if (r.chan) return r;
+        const c = cs.find(x => x.id === r.contractId), rd = readings.find(x => x.buildingId === bid && x.roomCode === c.roomCode && x.period === period);
+        return Object.assign(r, { duKien: runtimeInvoice(bid, c, rd, period, svcs).total });
+      });
+    },
+    // Tạo các hóa đơn NHÁP của những phòng được chọn thành một đợt. Chưa gửi gì cho khách.
+    createBatch(bid, period, contractIds) {
+      const id = U.uid('bt');
+      const res = api.generateInvoices(bid, period, { only: new Set(contractIds), batchId: id });
+      if (!res.created.length) return null;
+      const b = { id, buildingId: bid, period, createdAt: new Date().toISOString(), createdBy: prefs.userName,
+        invoiceCount: res.created.length, totalAmount: res.created.reduce((s, i) => s + i.total, 0), status: 'draft' };
+      invoiceBatches.push(b);
+      api.log('invoice.batch', `Chốt sổ ${api.periodLabel(period)}: tạo ${b.invoiceCount} hóa đơn nháp (${U.currency(b.totalAmount)})`);
+      persist();
+      return { batch: b, created: res.created };
+    },
+    batchesOf: (bid, period) => invoiceBatches.filter(b => b.buildingId === bid && (!period || b.period === period))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+    invoicesOfBatch: (id) => invoices.filter(i => i.batchId === id),
+    // Phát hành mọi hóa đơn còn nháp của đợt
+    issueBatch(id) {
+      const b = invoiceBatches.find(x => x.id === id); if (!b || b.status === 'undone') return 0;
+      const ids = invoices.filter(i => i.batchId === id && i.status === 'draft').map(i => i.id);
+      const n = ids.length ? api.issueInvoices(ids) : 0;
+      b.status = 'issued'; b.issuedAt = new Date().toISOString();
+      persist();
+      return n;
+    },
+    // Hoàn tác cả đợt: nháp thì xóa hẳn, đã phát hành mà chưa thu đồng nào thì hủy, đã có tiền thu thì GIỮ LẠI và báo.
+    undoBatch(id, reason) {
+      const b = invoiceBatches.find(x => x.id === id);
+      if (!b || b.status === 'undone') return { ok: false, reason: 'Đợt này đã được hoàn tác rồi' };
+      let xoa = 0, huy = 0; const giu = [];
+      invoices.filter(i => i.batchId === id).forEach(inv => {
+        if ((inv.paid || 0) > 0 || payments.some(p => p.invoiceId === inv.id)) { giu.push(inv.id); return; }
+        if (inv.status === 'draft') {
+          const k = invoices.indexOf(inv); if (k >= 0) invoices.splice(k, 1);
+          if (usingBackend()) HH.backend.deleteOne('invoices', inv.id);
+          xoa++;
+        } else if (inv.status !== 'cancelled') { inv.status = 'cancelled'; huy++; }
+      });
+      b.status = giu.length ? 'partial' : 'undone'; b.undoneAt = new Date().toISOString();
+      api.log('invoice.batch.undo', `Hoàn tác đợt chốt sổ ${api.periodLabel(b.period)}: xóa ${xoa} nháp, hủy ${huy} hóa đơn${giu.length ? `, giữ ${giu.length} hóa đơn đã có thu tiền` : ''}`, reason);
+      persist();
+      return { ok: true, xoa, huy, giu };
     },
     transactionsOf: (bid) => transactions.filter(t => t.buildingId === bid),
     addTransaction(t) { transactions.push(t); persist(); return t; },
