@@ -5,6 +5,7 @@ HH.router = (function () {
   const routes = [
     // Tầng công ty
     { pat: '/login', page: 'login', bare: true },
+    { pat: '/offline', page: 'offlineReadings', bare: true },      // chỉ có khi mở ngoại tuyến từ ảnh chụp (js/offline.js)
     { pat: '/dashboard', page: 'dashboard' },
     { pat: '/buildings', page: 'buildings' },
     { pat: '/reports', page: 'stub', meta: { title: 'Báo cáo', owner: true } },
@@ -82,6 +83,13 @@ HH.router = (function () {
     HH.ui.closeMenus();
     let path = current();
     const m = match(path);
+
+    // Mở ngoại tuyến (không vào được máy chủ): chỉ có đúng trang ghi chỉ số, mọi đường dẫn khác đều về đó
+    if (HH.offline.mode) {
+      if (!m || m.route.page !== 'offlineReadings') { location.hash = '/offline'; return; }
+      HH.app.renderBare(m.route.page, m.params, m.route); return;
+    }
+    if (m && m.route.page === 'offlineReadings') { location.hash = '/'; return; }    // có mạng lại rồi thì rời trang này
 
     // Chưa đăng nhập -> ép về login
     if (!HH.store.prefs.auth && (!m || m.route.page !== 'login')) { location.hash = '/login'; return; }

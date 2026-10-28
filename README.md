@@ -70,6 +70,20 @@ Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đ�
 - **Quyền riêng tư:** nhận dạng giọng nói do trình duyệt làm, âm thanh được gửi tới dịch vụ của hãng trình duyệt (Google với Chrome, Apple với Safari). Happy Home không ghi âm hay lưu âm thanh; hộp thoại có ghi chú này cho người dùng thấy.
 - 87 ca kiểm thử `tests/voice.test.js` (số bằng chữ, nhiều cách đọc, các câu sai, đánh giá chỉ số, micro giả), thử phá 47 chỗ đều bị bắt. Khi thử phát hiện một lỗi thật: từ nối như "là" từng bị bỏ qua giữa hai cụm số bằng chữ nên có thể ghép "phòng một không một là một nghìn hai trăm" thành số sai; nay từ nối ngắt cụm số, chỉ tiếng ậm ừ mới được bỏ qua.
 
+## Cài như ứng dụng + ghi chỉ số khi mất mạng
+
+Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trước đây đang ghi chỉ số mà mất mạng thì lần lưu lỗi mà không ai biết, tải lại trang là mất sạch số vừa ghi.
+
+- **Cài lên màn hình chính** (Chrome / Edge / Android: *Cài ứng dụng* hoặc *Thêm vào màn hình chính*; iPhone: *Chia sẻ → Thêm vào MH chính*): `manifest.webmanifest` + `sw.js` (service worker) + biểu tượng `assets/icon-192.png`, `icon-512.png`. Mở như một app riêng, không có thanh địa chỉ.
+- **Mở được khi không có mạng:** `sw.js` lưu trang và các tệp của nó, ưu tiên mạng (có mạng luôn là bản mới nhất, không cần nhớ xóa bộ nhớ đệm), mạng đứt hoặc chậm quá 5 giây thì lấy bản đã lưu. Không lưu lệnh gọi Supabase, app khách thuê và trang khách tự khai.
+- **Số ghi lúc chưa gửi được không mất:** mỗi lần lưu, những chỉ số máy chủ chưa nhận được ghi ngay vào một hàng đợi trong máy (`localStorage`). Mạng chập chờn thì có thanh nhỏ "N chỉ số chưa gửi được" kèm nút *Thử lại*, app tự thử lại thưa dần. Tải lại trang hay đóng app cũng không mất.
+- **Mở app khi hoàn toàn không có mạng:** vào trang riêng *Ghi chỉ số điện* làm cho điện thoại (ô số to, từng phòng một thẻ). Danh sách phòng lấy từ ảnh chụp lần mở app trước, chỉ có tên tòa, mã phòng, tên khách và chỉ số vài kỳ gần nhất (không CCCD, số điện thoại, ngày sinh, địa chỉ, hóa đơn, ảnh); xóa khi đăng xuất. Chỉ trang này chạy ngoại tuyến, các trang khác cần mạng. Số gõ chữ, hoặc nhỏ hơn kỳ trước thì từ chối ngay và nói rõ lý do (xử lý quay vòng / thay đồng hồ làm khi có mạng). Nhân viên chỉ vào được nếu có quyền *Ghi chỉ số*.
+- **Có mạng lại thì đối chiếu, không bao giờ ghi đè âm thầm:** máy chủ chưa đổi kể từ lúc ghi thì áp dụng; máy chủ đã có số khác (khách tự gửi, nhân viên khác ghi) thì hiện hộp thoại *Chỉ số cần bạn xem lại*, mặc định *Giữ số trên máy chủ*, chủ trọ chọn từng phòng. Chưa quyết thì còn nguyên cho lần sau. Số bằng đúng số máy chủ thì bỏ qua êm.
+- **Đăng xuất khi còn chỉ số chưa gửi:** app thử gửi nốt; vẫn không được thì hỏi, vì đăng xuất là bỏ chúng.
+- **Sửa lỗi kèm theo:** hàm lưu ngay (`flush`) trước đây luôn báo thành công kể cả khi máy chủ từ chối; nay báo đúng.
+- Chỉ bảo vệ **chỉ số điện** (số mới và phần bù quay vòng). Sửa phòng, khách, hóa đơn... lúc mất mạng vẫn cần mạng như cũ.
+- 63 ca kiểm thử `tests/offline.test.js` (chữ ký chỉ số, hàng đợi, đối chiếu, ảnh chụp không lộ dữ liệu riêng, bộ nhớ hỏng/đầy), thử phá 60 chỗ đều bị bắt. Thử như người dùng thật cả ở Chrome thật: tắt hẳn máy chủ web, app vẫn mở từ bộ nhớ đệm, ghi số, bật lại thì số lên máy chủ. Khi thử phát hiện: ảnh chụp cũ hơn lần gửi thành công gần nhất làm phòng đã ghi hiện trống (nay làm mới sau mỗi lần gửi thành công), chữ "Đã có mạng" gây hiểu nhầm khi mạng chập chờn (nay thử nối máy chủ thật trước khi tải lại), thanh trạng thái bị nút trợ lý đè.
+
 ## Khách tự khai thông tin qua link / mã QR
 
 Trang **Khách thuê → Mời khách khai** (chỉ chủ trọ): chọn phòng (phòng trống xếp lên trước) và thời hạn (24 giờ, 3 ngày, 7 ngày) rồi bấm *Tạo link*. Ra một **đường link kèm mã QR** để chép, chia sẻ qua Zalo / tin nhắn hoặc tải mã QR về in. Khách mở link trên điện thoại, **chụp CCCD hai mặt và tự điền thông tin** (khoảng 3 phút, không cài gì, không cần tài khoản). Hồ sơ về trang *Khách thuê* và mục *Hôm nay cần làm gì* chờ chủ trọ duyệt.
@@ -302,6 +316,8 @@ Trạng thái trợ lý (đang chạy tầng nào, còn bao nhiêu lượt) xem 
 
 ```
 index.html            # nạp toàn bộ CSS/JS
+sw.js                 # service worker: mở được khi mất mạng, ưu tiên mạng (xem mục "Cài như ứng dụng")
+manifest.webmanifest  # khai báo để cài lên màn hình chính, biểu tượng ở assets/icon-*.png
 css/
   tokens.css          # biến thiết kế (màu, chữ, khoảng cách) — §1.2–1.4
   base.css            # reset + tiện ích
@@ -320,6 +336,8 @@ js/
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
   voice.js            # hiểu câu nói tiếng Việt thành phòng + chỉ số, nghe bằng micro (phần hiểu không đụng DOM, có kiểm thử)
+  offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
+  offline-ui.js       # đăng ký service worker, thanh trạng thái mạng, hộp thoại chỉ số xung đột, mở ngoại tuyến
   onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
   vendor/qrcode.js    # thư viện tạo mã QR (MIT), tạo ngay trên máy
   icons.js            # bộ icon SVG dùng chung
@@ -353,6 +371,7 @@ tests/
   progress.test.js    # kiểm thử tiến độ sự cố: node tests/progress.test.js
   onboarding.test.js  # kiểm thử khách tự khai: node tests/onboarding.test.js
   voice.test.js       # kiểm thử giọng nói: node tests/voice.test.js
+  offline.test.js     # kiểm thử ghi chỉ số ngoại tuyến: node tests/offline.test.js
 ```
 
 ## Kiểm thử
@@ -368,9 +387,10 @@ node tests/dates.test.js
 node tests/progress.test.js
 node tests/onboarding.test.js
 node tests/voice.test.js
+node tests/offline.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca); cả mười đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca); cả mười một đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 

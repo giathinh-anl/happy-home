@@ -309,7 +309,7 @@ HH.app = (function () {
   function wireShell(params) {
     document.querySelectorAll('#lzApp [data-act]').forEach(b => b.onclick = () => {
       const a = b.dataset.act;
-      if (a === 'logout') { S.logout(); HH.router.go('/login'); }
+      if (a === 'logout') dangXuat();
       else if (a === 'account') openUserMenu(b);
     });
     ['bCard', 'bCardM'].forEach(id => {
@@ -336,6 +336,7 @@ HH.app = (function () {
       if (manual) HH.ui.toast('Bản demo không có máy chủ để tải lại', { type: 'warning' });
       return;
     }
+    if (HH.offline.mode) return;             // đang mở ngoại tuyến: không có gì để tải, trang riêng tự lo việc gửi
     if (pulling || (!manual && Date.now() - lastPull < 60000)) return;
     pulling = true;
     if (btn) btn.classList.add('spin');
@@ -386,7 +387,7 @@ HH.app = (function () {
   }
   function userMenuTail() {
     // Nhân viên không được xóa/khôi phục toàn bộ dữ liệu
-    if (!S.isOwner()) return [{ icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } }];
+    if (!S.isOwner()) return [{ icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => dangXuat() }];
     return [
       { icon: ic('refresh', 16), label: 'Khôi phục dữ liệu mẫu', onClick: () => {
         HH.ui.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
@@ -394,8 +395,30 @@ HH.app = (function () {
           onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });
       } },
       { sep: true },
-      { icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => { S.logout(); HH.router.go('/login'); } },
+      { icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => dangXuat() },
     ];
+  }
+
+  /* Đăng xuất. Còn chỉ số chưa gửi được lên máy chủ thì thử gửi nốt; vẫn không được thì hỏi, vì đăng xuất là bỏ chúng. */
+  async function dangXuat() {
+    const co = () => { const p = S.unsentReadings(); return p.cho + p.xungDot; };
+    if (S.usingBackend() && co()) {
+      if (!HH.offline.mode) await S.flush();
+      const con = co();
+      if (con) {
+        const bo = await new Promise((xong) => HH.ui.modal({
+          title: 'Còn chỉ số chưa gửi lên máy chủ',
+          bodyHtml: `<p>Có <b>${con}</b> chỉ số bạn ghi mà chưa gửi được lên máy chủ. Đăng xuất bây giờ thì những chỉ số này <b>mất</b>.</p><p class="muted" style="margin-top:8px">Nên ở lại, đợi có mạng rồi hãy đăng xuất.</p>`,
+          footHtml: '<button class="btn btn-primary" data-close>Ở lại</button><span class="spacer"></span><button class="btn btn-outline" id="dxBo">Đăng xuất, bỏ chúng</button>',
+          onMount(el, close) { el.querySelector('#dxBo').onclick = () => { xong(true); close(); }; },   // xong(true) trước: close() gọi onClose, mà onClose báo "ở lại"
+          onClose() { xong(false); },
+        }));
+        if (!bo) return;
+      }
+      S.dropPending();
+    }
+    HH.offline.mode = false;
+    S.logout(); HH.router.go('/login');
   }
   function switchRole(role) {
     S.login(role);
@@ -471,13 +494,17 @@ HH.app = (function () {
 
   async function boot() {
     document.addEventListener('keydown', shortcuts);
+    HH.offlineUI.dangKy();       // service worker: mở được app khi không có mạng, cài được lên màn hình chính
     if (S.usingBackend()) {
       HH.backend.init();
+      let khongVao = false;      // không nối được máy chủ (khác với "chưa đăng nhập")
       try {
         const session = await HH.backend.getSession();
-        if (session) await S.onSignedIn(session.user);
-        else S.prefs.auth = false;
-      } catch (e) { console.error('Khởi tạo backend lỗi:', e); S.prefs.auth = false; }
+        if (session && navigator.onLine === false && HH.offlineUI.thuMoNgoaiTuyen()) { /* mất mạng hẳn: vào thẳng trang ngoại tuyến, đỡ chờ tải thử */ }
+        else if (session) khongVao = (await S.onSignedIn(session.user)) === 'error';
+        else { S.prefs.auth = false; khongVao = navigator.onLine === false; }
+      } catch (e) { console.error('Khởi tạo backend lỗi:', e); S.prefs.auth = false; khongVao = true; }
+      if (!S.prefs.auth && !HH.offline.mode && khongVao) HH.offlineUI.thuMoNgoaiTuyen();
     }
     HH.ui.watchTables();         // bảng viết tay cũng thành thẻ trên điện thoại (xem components.js)
     HH.router.start();

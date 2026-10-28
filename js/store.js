@@ -260,14 +260,80 @@ HH.store = (function () {
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
   const pendingClaimCountOf = (bid) => claims.filter(c => c.status === 'pending' && c.buildingId === bid).length;
 
-  let syncTimer = null;
+  /* ---------- Chỉ số chưa gửi được lên máy chủ (mất mạng / mạng yếu), xem js/offline.js ----------
+     Lần đẩy lên lỗi thì trước đây âm thầm bỏ qua, tải lại trang là mất những chỉ số vừa ghi. Nay mỗi lần lưu đều ghi hàng đợi
+     bền vào máy; mở lại / có mạng lại thì đối chiếu với máy chủ rồi mới áp dụng (xem ganHangDoi). */
+  let goc = {};            // { khóa: chữ ký } chỉ số mà máy chủ đã có (nạp từ máy chủ, hoặc vừa gửi thành công)
+  let gocNap = false;      // đã biết máy chủ có gì chưa; chưa biết thì không dựng hàng đợi (kẻo coi mọi chỉ số là chưa gửi)
+  let chuNgoaiTuyen = null;                      // tài khoản của ảnh chụp khi mở ngoại tuyến
+  let soCho = 0, soXungDot = 0;                  // số chỉ số đang chờ gửi / chờ chủ trọ quyết
+  const chuHangDoi = () => chuNgoaiTuyen || (HH.backend && HH.backend.currentUserId && HH.backend.currentUserId()) || null;
+  const chuKyCa = (arr) => { const m = {}; arr.forEach(r => { m[HH.offline.khoa(r)] = HH.offline.chuKy(r); }); return m; };
+  function layGoc(arr) { goc = chuKyCa(arr); gocNap = true; }
+  function hangDoiCua(owner) {
+    const d = HH.offline.docHangDoi();
+    return d && (!d.owner || !owner || d.owner === owner) ? d : null;       // của tài khoản khác thì không đụng tới
+  }
+  // Tính lại hàng đợi từ bộ nhớ và ghi xuống máy NGAY (không chờ đẩy lên máy chủ, vì chính lần đẩy có thể thất bại)
+  function capNhatHangDoi() {
+    if (!usingBackend() || !gocNap || !HH.offline) return;
+    const owner = chuHangDoi();
+    const moi = HH.offline.tinhHangDoi({ readings, goc, doc: hangDoiCua(owner), owner, at: new Date().toISOString() });
+    HH.offline.luuHangDoi(moi);
+    soCho = moi.items.length; soXungDot = moi.xungDot.length;
+    if (HH.offlineUI) HH.offlineUI.capNhat();
+  }
+  function luuAnhChup(data) {
+    if (!usingBackend() || !HH.offline) return;
+    HH.offline.luuAnh(HH.offline.anhChup(data, { owner: chuHangDoi(), role: prefs.role, permissions: prefs.permissions, userName: prefs.userName }));
+  }
+  /* Sau khi nạp dữ liệu từ máy chủ: đối chiếu hàng đợi rồi đưa lại vào bộ nhớ những chỉ số đã ghi lúc chưa gửi được.
+     Máy chủ chưa đổi kể từ lúc ghi -> áp dụng; có người đổi / số đáng ngờ -> để chủ trọ quyết, không ghi đè.
+     Trả { apDung, canXem, boQua } hoặc null nếu không có gì. Gọi SAU replaceAll. */
+  function ganHangDoi(serverReadings) {
+    const Of = HH.offline; if (!Of) return null;
+    const owner = chuHangDoi(), doc = hangDoiCua(owner);
+    if (!doc) { soCho = 0; soXungDot = 0; return null; }
+    const theoKhoa = {}; serverReadings.forEach(r => { theoKhoa[Of.khoa(r)] = r; });
+    const cuaMinh = doc.items.concat(doc.xungDot.map(x => x.item));
+    // phòng / tòa đã bị xóa trong lúc chưa gửi thì bỏ, đừng tạo lại chỉ số mồ côi
+    const conPhong = (it) => rooms.some(r => r.buildingId === it.buildingId && r.code === it.roomCode);
+    const items = cuaMinh.filter(conPhong), boQua = cuaMinh.length - items.length;
+    const kq = Of.hopNhat(theoKhoa, items);
+    kq.apDung.forEach(it => Of.apDungVao(readings, it, () => U.uid('rd')));
+    Of.luuHangDoi({ owner, items: kq.apDung, xungDot: kq.canXem });
+    capNhatHangDoi();
+    if (kq.apDung.length) persist();
+    return (kq.apDung.length || kq.canXem.length || boQua) ? { apDung: kq.apDung.length, canXem: kq.canXem.length, boQua } : null;
+  }
+
+  let syncTimer = null, thuLaiTimer = null, thuLaiLan = 0;
   function persist() {
-    if (usingBackend()) { clearTimeout(syncTimer); syncTimer = setTimeout(syncAll, 350); return; }
+    if (usingBackend()) {
+      capNhatHangDoi();
+      if (HH.offline && HH.offline.mode) return;     // ngoại tuyến: chỉ giữ hàng đợi trong máy, không đẩy gì lên máy chủ
+      clearTimeout(syncTimer); syncTimer = setTimeout(syncAll, 350); return;
+    }
     try { localStorage.setItem(DATA_KEY, JSON.stringify(groups)); } catch (e) {}
   }
+  // Đẩy mọi thay đổi lên máy chủ. Trả { ok } (ok=false nếu có bảng nào lưu lỗi); lỗi thì tự thử lại, thưa dần (tối đa 8 lần).
   async function syncAll() {
-    if (!usingBackend()) return;
-    for (const k of Object.keys(groups)) { await HH.backend.saveMany(k, groups[k]); }
+    if (!usingBackend() || (HH.offline && HH.offline.mode)) return { ok: true };
+    let loi = null;
+    for (const k of Object.keys(groups)) {
+      // chữ ký chỉ số đúng lúc gửi: saveMany đọc dữ liệu ngay đầu hàm, nên số gõ thêm trong lúc chờ không bị tính nhầm là đã gửi
+      const daGui = k === 'readings' ? chuKyCa(readings) : null;
+      const r = await HH.backend.saveMany(k, groups[k]);
+      if (r && r.error) { loi = loi || r.error; continue; }
+      if (daGui) { goc = daGui; gocNap = true; }
+    }
+    capNhatHangDoi();
+    if (!loi) luuAnhChup({ buildings, rooms, readings });      // máy chủ vừa khớp hoàn toàn: làm mới ảnh chụp ngoại tuyến (kẻo lần sau mở lên thiếu số vừa ghi)
+    clearTimeout(thuLaiTimer);
+    if (loi && thuLaiLan < 8) { thuLaiTimer = setTimeout(syncAll, Math.min(15000 * Math.pow(2, thuLaiLan), 120000)); thuLaiLan++; }
+    else if (!loi) thuLaiLan = 0;
+    if (HH.offlineUI) HH.offlineUI.baoGui(!loi);
+    return loi ? { ok: false, message: loi.message || 'Không gửi được lên máy chủ' } : { ok: true };
   }
   function replaceAll(data) {
     Object.keys(groups).forEach(k => { groups[k].length = 0; (data[k] || []).forEach(x => groups[k].push(x)); });
@@ -389,7 +455,9 @@ HH.store = (function () {
     login(role) { prefs.auth = true; prefs.role = role || 'owner';
       prefs.permissions = role === 'staff' ? DEFAULT_STAFF_PERMS.slice() : null;
       prefs.userName = role === 'staff' ? 'Trần Thị Vận Hành' : 'Nguyễn Văn A'; savePrefs(); },
-    logout() { prefs.auth = false; savePrefs(); if (usingBackend()) HH.backend.signOut(); },
+    // Đăng xuất: xóa ảnh chụp ngoại tuyến (có tên khách) khỏi máy. Hàng đợi chưa gửi được app.js hỏi trước, đồng ý bỏ thì mới xóa (dropPending).
+    logout() { prefs.auth = false; savePrefs(); gocNap = false; if (HH.offline) HH.offline.xoaAnh(); if (usingBackend()) HH.backend.signOut(); if (HH.offlineUI) HH.offlineUI.capNhat(); },
+    dropPending() { if (HH.offline) HH.offline.luuHangDoi(null); soCho = 0; soXungDot = 0; if (HH.offlineUI) HH.offlineUI.capNhat(); },
     isOwner() { return prefs.role === 'owner'; },
 
     /* ---------- Nhân viên & quyền ---------- */
@@ -441,10 +509,13 @@ HH.store = (function () {
       if (res.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
       const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
       prefs.auth = true; savePrefs();
+      layGoc(res.data.readings || []); luuAnhChup(res.data);      // ảnh chụp để mở được trang ghi chỉ số khi lần sau mất mạng
       // Nhân viên không tạo dữ liệu mẫu — chỉ dùng dữ liệu của chủ trọ
       if (total === 0 && st) { replaceAll(res.data); return 'loaded'; }
       if (total === 0) { api.refreshExpiryFlags(); await syncAll(); return 'seeded'; }  // tài khoản mới: đẩy dữ liệu mẫu
       replaceAll(res.data);
+      const gan = ganHangDoi(res.data.readings || []);          // chỉ số đã ghi lúc chưa gửi được
+      if (gan && HH.offlineUI) HH.offlineUI.sauKhiGan(gan);
       // cập nhật cờ sắp hết hạn & trạng thái quá hạn theo ngày hiện tại
       const c1 = api.refreshExpiryFlags(), c2 = api.refreshInvoiceStatus();
       if (c1 || c2) persist();
@@ -464,8 +535,9 @@ HH.store = (function () {
        thay vì bấm Lưu xong không thấy gì rồi tưởng trang bị treo. */
     async flush() {
       if (!usingBackend()) return { ok: true, demo: true };
+      if (HH.offline && HH.offline.mode) return { ok: false, message: 'Đang ngoại tuyến, chưa gửi được' };
       clearTimeout(syncTimer); syncTimer = null;
-      try { await syncAll(); return { ok: true }; }
+      try { return await syncAll(); }
       catch (e) { return { ok: false, message: e && e.message }; }
     },
 
@@ -478,13 +550,48 @@ HH.store = (function () {
         invoices.length, payments.length, tenants.length, invoices.reduce((s, i) => s + (i.total || 0), 0), invites.filter(i => i.status === 'submitted').length,
         incidents.map(x => x.status).join(''), claims.map(x => x.status).join(''),
         renewals.length, renewals.map(x => x.status).join('')]);
+      if (HH.offline && HH.offline.mode) return { ok: false, reason: 'offline' };
       const before = stamp();
       const res = await HH.backend.loadAll();
       if (res.error) return { ok: false, reason: 'error' };
+      capNhatHangDoi();      // chụp lại số vừa gõ trong lúc chờ tải (và số chưa gửi được) trước khi dữ liệu mới thay vào
+      layGoc(res.data.readings || []); luuAnhChup(res.data);
       replaceAll(res.data);
+      const gan = ganHangDoi(res.data.readings || []);
+      if (gan && HH.offlineUI) HH.offlineUI.sauKhiGan(gan);
       await api.loadInvites();
       api.refreshExpiryFlags(); api.refreshInvoiceStatus();
-      return { ok: true, changed: before !== stamp() };
+      return { ok: true, changed: before !== stamp() || !!gan };
+    },
+
+    /* ---------- Ngoại tuyến ---------- */
+    unsentReadings: () => ({ cho: soCho, xungDot: soXungDot }),
+    // Danh sách mục chưa quyết (xung đột / số đáng ngờ) và cách quyết từng mục
+    unresolvedReadings() { const d = HH.offline && HH.offline.docHangDoi(); return d ? d.xungDot.slice() : []; },
+    resolveReading(khoa, dungSoCuaToi) {
+      const d = HH.offline.docHangDoi(); if (!d) return false;
+      const i = d.xungDot.findIndex(x => x.item.khoa === khoa); if (i < 0) return false;
+      const x = d.xungDot[i]; d.xungDot.splice(i, 1);
+      HH.offline.luuHangDoi(d);
+      if (dungSoCuaToi) {
+        // chủ trọ tự chọn số của mình thay số khách gửi / số có sẵn: coi như đã duyệt (không còn nhãn "khách tự ghi, chờ duyệt")
+        const rd = HH.offline.apDungVao(readings, x.item, () => U.uid('rd'));
+        rd.source = 'staff'; rd.approved = true;
+        persist();
+      } else capNhatHangDoi();
+      return true;
+    },
+    /* Mở ngoại tuyến từ ảnh chụp (app.js gọi khi không vào được máy chủ). Chỉ có tòa nhà, phòng và chỉ số vài kỳ gần nhất:
+       nên chỉ trang ghi chỉ số chạy được. Chỉ số đã ghi trước đó được đưa lại vào để người dùng thấy. */
+    enterOffline(anh) {
+      replaceAll({ buildings: anh.buildings, rooms: anh.rooms, readings: anh.readings });
+      layGoc(readings);
+      chuNgoaiTuyen = anh.owner || null;
+      prefs.role = anh.role || 'owner'; prefs.permissions = anh.permissions || null; prefs.userName = anh.userName || prefs.userName;   // chỉ trong bộ nhớ, không savePrefs
+      HH.offline.mode = true;
+      const d = hangDoiCua(chuNgoaiTuyen);
+      if (d) d.items.forEach(it => HH.offline.apDungVao(readings, it, () => U.uid('rd')));
+      capNhatHangDoi();
     },
 
     buildings, services, assets, auditLog, incidents,
