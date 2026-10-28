@@ -230,6 +230,11 @@ img { max-width: 100%; display: block; }
 .noti-item:last-child { border-bottom: none; }
 .noti-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-500); margin-top: 6px; flex: 0 0 8px; }
 .noti-item .ntext { font-size: 14px; }
+.noti-item > div:nth-child(2) { flex: 1; min-width: 0; }
+.noti-item.tap { cursor: pointer; align-items: center; }
+.noti-item.tap:active { background: var(--neutral-100); }
+.noti-item .nchev { flex: 0 0 auto; color: var(--neutral-400); }
+.noti-item.tap .dot { margin-top: 0; }
 .noti-item .ntime { color: var(--neutral-400); font-size: 12px; margin-top: 2px; }
 
 /* Badge trạng thái */
@@ -826,3 +831,15 @@ body {
 .rn-chip.on { border-color: var(--teal-600, #12726F); background: var(--teal-50, #E3F2F0); color: var(--teal-700); }
 .rn-preview { font-size: 13.5px; color: var(--neutral-600); margin-bottom: 10px; }
 .rn-note { width: 100%; box-sizing: border-box; min-height: 64px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--neutral-200); font: inherit; font-size: 14px; resize: vertical; margin-bottom: 10px; }
+
+/* ===== Tiến độ sửa chữa (js/progress.js) ===== */
+.upd-hen { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 12px; border-radius: 12px; background: var(--info-bg, #e0f2fe); color: var(--ink, #0f172a); font-size: 14px; line-height: 1.4; }
+.upd-hen-ic { flex: 0 0 auto; margin-top: 1px; }
+.upd-sub { font-size: 13px; color: var(--neutral-600); margin-top: 2px; }
+.upd-sub a { color: var(--primary); font-weight: 700; text-decoration: none; }
+.upd-list { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--neutral-100); display: grid; gap: 12px; }
+.upd-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--neutral-500); }
+.upd-item { font-size: 14px; line-height: 1.4; }
+.upd-time { font-size: 12px; color: var(--neutral-500); margin-left: 4px; }
+.upd-note { margin-top: 4px; padding: 8px 10px; background: var(--neutral-100); border-radius: 10px; font-size: 13.5px; white-space: pre-wrap; }
+

@@ -434,9 +434,10 @@
       const open = all.filter(x => x.status === 'open').length;
       const doing = all.filter(x => x.status === 'processing').length;
       const done = all.filter(x => x.status === 'done').length;
+      const cost30 = S.repairCost(ctx.bid, new Date(Date.now() - 30 * 86400000), U.today());
       const dt = UI.DataTable({
         rows, rowId: x => x.id, searchKeys: ['roomCode', 'title', 'category'],
-        searchPlaceholder: 'Tìm phòng, sự cố...',
+        searchPlaceholder: 'Tìm phòng, sự cố...', onRowClick: x => incidentProgress(ctx, x),
         emptyTitle: 'Không có sự cố nào', emptyIcon: HH.ic('check', 16), emptyDesc: 'Tất cả phòng đang hoạt động bình thường.',
         emptyAction: { label: 'Tạo yêu cầu', onClick: () => incidentForm(ctx) },
         columns: [
@@ -447,20 +448,23 @@
               ${HH.icon('camera', 13)} ${x.photos.length} ảnh</button>` : ''}` },
           { key: 'createdAt', label: 'Ngày báo', sortable: true, render: x => `<span class="mono">${U.fmtDate(x.createdAt)}</span>` },
           { key: 'status', label: 'Trạng thái', render: x => { const s = INC_STATUS[x.status] || INC_STATUS.open;
-            return `<span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span>`; } },
+            const t = HH.progress.tinhTrang(x, U.today());
+            const sub = x.status === 'done'
+              ? (x.cost != null ? `Chi phí ${U.currency(x.cost)}${x.costPayer === 'khach' ? ' (khách chịu)' : ''}` : '')
+              : [x.assignee ? U.esc(x.assignee) : '', x.scheduledFor ? 'hẹn ' + U.fmtDate(x.scheduledFor) : '',
+                 t.quaLau ? `<b class="ip-late">mở ${t.soNgayMo} ngày</b>` : ''].filter(Boolean).join(' · ');
+            return `<span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span>${sub ? `<div class="muted text-xs" style="margin-top:3px">${sub}</div>` : ''}`; } },
         ],
         actions: x => {
-          const items = [];
-          if (x.status !== 'processing' && x.status !== 'done')
+          const items = [{ icon: HH.icon('list', 16), label: 'Tiến độ & cập nhật', onClick: () => incidentProgress(ctx, x) }];
+          if (x.status === 'open')
             items.push({ icon: HH.icon('wrench', 16), label: 'Bắt đầu xử lý', onClick: () => {
-              S.updateIncident(x.id, { status: 'processing' }); UI.toast('Đã chuyển sang đang xử lý', { type: 'ok' }); HH.router.render(); } });
+              const r = S.progressIncident(x.id, { loai: 'bat-dau' });
+              if (!r.ok) { UI.toast(r.loi, { type: 'error' }); return; }
+              UI.toast('Đã chuyển sang đang xử lý, khách thấy trong app', { type: 'ok' }); HH.router.render(); } });
           if (x.status !== 'done')
-            items.push({ icon: HH.icon('check', 16), label: 'Đánh dấu đã xong', onClick: () => {
-              S.updateIncident(x.id, { status: 'done', doneAt: new Date().toISOString() });
-              S.log('incident.done', `Hoàn tất sự cố ${x.roomCode}: ${x.title}`);
-              UI.toast('Đã đánh dấu xử lý xong', { type: 'ok' }); HH.router.render(); } });
-          else items.push({ icon: HH.icon('refresh', 16), label: 'Mở lại', onClick: () => {
-            S.updateIncident(x.id, { status: 'open' }); UI.toast('Đã mở lại yêu cầu', { type: 'ok' }); HH.router.render(); } });
+            items.push({ icon: HH.icon('check', 16), label: 'Đã sửa xong', onClick: () => incidentProgress(ctx, x, 'hoan-tat') });
+          else items.push({ icon: HH.icon('refresh', 16), label: 'Mở lại', onClick: () => incidentProgress(ctx, x, 'mo-lai') });
           if (x.photos && x.photos.length)
             items.push({ icon: HH.icon('camera', 16), label: `Xem ${x.photos.length} ảnh`, onClick: () => showIncPhotos(x) });
           if (S.isOwner()) items.push({ sep: true }, { icon: HH.icon('trash', 16), label: 'Xóa yêu cầu', danger: true,
@@ -478,10 +482,11 @@
             ${raw(incShowDone ? 'Đang xem cả đã xong' : `Hiện cả đã xong (${done})`)}</button>
           <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Tạo yêu cầu</button></div>
       </div>
-      <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);max-width:700px;margin-bottom:16px">
+      <div class="metric-grid" style="grid-template-columns:repeat(4,1fr);max-width:920px;margin-bottom:16px">
         ${raw(UI.metricCard({ label: 'Chờ xử lý', value: open, format: 'number', intent: open ? 'warning' : 'default' }))}
         ${raw(UI.metricCard({ label: 'Đang xử lý', value: doing, format: 'number' }))}
         ${raw(UI.metricCard({ label: 'Đã hoàn tất', value: done, format: 'number', intent: 'success' }))}
+        ${raw(UI.metricCard({ label: 'Chi phí sửa 30 ngày', value: cost30, format: 'currency', sub: 'chủ trọ chịu' }))}
       </div>
       ${raw(dt.render())}`;
     },
@@ -494,6 +499,105 @@
       });
     },
   };
+
+  /* ---------- Tiến độ một sự cố: xem các mốc và cập nhật ---------- */
+  const IP_VIEC = {
+    'ghi-chu': 'Ghi chú', 'hen-tho': 'Hẹn thợ', 'bat-dau': 'Bắt đầu xử lý', 'hoan-tat': 'Đã sửa xong', 'mo-lai': 'Mở lại',
+  };
+  const ipViecChoPhep = (st) => st === 'done' ? ['ghi-chu', 'mo-lai'] : st === 'processing' ? ['ghi-chu', 'hen-tho', 'hoan-tat'] : ['ghi-chu', 'hen-tho', 'bat-dau', 'hoan-tat'];
+  const ipGio = (at) => { const d = HH.dates.phanTich(at); return d ? `${U.fmtDate(d)} ${String(new Date(at).getHours()).padStart(2, '0')}:${String(new Date(at).getMinutes()).padStart(2, '0')}` : 'chưa rõ giờ'; };
+
+  function ipTimeline(x) {
+    return HH.progress.dongThoiGian(x).slice().reverse().map(e => {
+      const L = HH.progress.LOAI[e.loai] || { nhan: e.loai };
+      const ct = [e.tho ? 'Thợ: ' + U.esc(e.tho) + (e.thoSdt ? ' ' + U.esc(e.thoSdt) : '') : '', e.ngayHen ? 'Hẹn ngày ' + U.fmtDate(e.ngayHen) : '',
+        e.chiPhi != null ? 'Chi phí ' + U.currency(e.chiPhi) : ''].filter(Boolean).join(' · ');
+      return `<li class="ip-ev"><span class="ip-dot ${e.congKhai ? 'pub' : ''}"></span><div>
+        <div><b>${U.esc(L.nhan)}</b> <span class="muted text-xs">${e.at ? ipGio(e.at) : 'chưa rõ giờ'}${e.by && !e.suy ? ' · ' + U.esc(e.by) : ''}</span>
+          <span class="ip-tag ${e.congKhai ? 'pub' : ''}">${e.congKhai ? 'Khách thấy' : 'Nội bộ'}</span></div>
+        ${ct ? `<div class="muted text-xs">${ct}</div>` : ''}${e.ghiChu ? `<div class="ip-note">${U.esc(e.ghiChu)}</div>` : ''}</div></li>`;
+    }).join('');
+  }
+
+  function incidentProgress(ctx, x, preset) {
+    const choPhep = ipViecChoPhep(x.status);
+    const first = preset && choPhep.indexOf(preset) >= 0 ? preset : choPhep.find(v => v !== 'ghi-chu');
+    const s = INC_STATUS[x.status] || INC_STATUS.open;
+    UI.modal({
+      title: `Phòng ${x.roomCode}: ${x.category || 'Sự cố'}`, size: 'wide',
+      bodyHtml: `<div class="ip-head"><div><b>${U.esc(x.title || '')}</b><div class="muted text-xs">Báo ngày ${U.fmtDate(x.createdAt)}${x.assignee ? ' · Thợ ' + U.esc(x.assignee) + (x.assigneePhone ? ' ' + U.esc(x.assigneePhone) : '') : ''}${x.scheduledFor && x.status !== 'done' ? ' · Hẹn ' + U.fmtDate(x.scheduledFor) : ''}</div></div>
+          <span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span></div>
+        <div class="ip-cols">
+          <div><div class="ip-h">Tiến độ</div><ol class="ip-tl">${ipTimeline(x)}</ol></div>
+          <div><div class="ip-h">Cập nhật</div>
+            <div class="field"><label>Việc</label><select class="select" id="ipViec">${choPhep.map(v => `<option value="${v}" ${v === first ? 'selected' : ''}>${IP_VIEC[v]}</option>`).join('')}</select></div>
+            <div id="ipHen" hidden>
+              <div class="field"><label>Ngày hẹn *</label>
+                <div class="ip-quick"><input class="input" type="date" id="ipNgay" min="${U.dateKey(U.today())}">
+                  <button type="button" class="btn btn-sm btn-outline" data-ngay="0">Hôm nay</button><button type="button" class="btn btn-sm btn-outline" data-ngay="1">Ngày mai</button><button type="button" class="btn btn-sm btn-outline" data-ngay="2">Ngày kia</button></div></div>
+              <div class="grid-2"><div class="field"><label>Thợ</label><input class="input" id="ipTho" maxlength="80" value="${U.esc(x.assignee || '')}" placeholder="VD: Anh Hùng"></div>
+                <div class="field"><label>Số điện thoại thợ</label><input class="input mono" id="ipSdt" inputmode="tel" value="${U.esc(x.assigneePhone || '')}" placeholder="Không bắt buộc"></div></div></div>
+            <div id="ipXong" hidden>
+              <div class="grid-2"><div class="field"><label>Chi phí (₫)</label><input class="input mono" id="ipCost" inputmode="numeric" autocomplete="off" placeholder="VD: 350.000"></div>
+                <div class="field"><label>Ai chịu</label><select class="select" id="ipPayer"><option value="chu">Chủ trọ</option><option value="khach">Khách thuê</option></select></div></div></div>
+            <div class="field"><label id="ipNoteLbl">Ghi chú</label><textarea class="textarea" id="ipNote" rows="2" maxlength="500" placeholder="VD: Thợ báo cần thay van, chờ vật tư"></textarea></div>
+            <label class="rm-switch" style="margin-top:4px"><input type="checkbox" id="ipPub"><span><b>Cho khách thấy trong app</b><br><span class="muted text-xs" id="ipPubHint"></span></span></label>
+            <div class="ip-err" id="ipErr" role="alert" hidden></div>
+          </div></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Đóng</button>${(x.photos && x.photos.length) ? `<button class="btn btn-ghost" id="ipPhotos">${HH.icon('camera', 14)} ${x.photos.length} ảnh</button>` : ''}<span class="spacer"></span><button class="btn btn-primary" id="ipSave">Lưu cập nhật</button>`,
+      onMount(el, close) {
+        const $ = (sel) => el.querySelector(sel);
+        const sync = () => {
+          const v = $('#ipViec').value;
+          $('#ipHen').hidden = v !== 'hen-tho'; $('#ipXong').hidden = v !== 'hoan-tat';
+          $('#ipNoteLbl').textContent = v === 'ghi-chu' ? 'Ghi chú *' : 'Ghi chú (không bắt buộc)';
+          const congKhaiMacDinh = v !== 'ghi-chu';
+          $('#ipPub').checked = congKhaiMacDinh;
+          $('#ipPubHint').textContent = v === 'ghi-chu' ? 'Mặc định chỉ mình bạn thấy. Bật thì khách đọc được ghi chú này.'
+            : v === 'hen-tho' ? 'Khách sẽ thấy ngày hẹn, tên thợ, số điện thoại thợ và ghi chú (nếu có). Tắt thì chỉ mình bạn thấy.'
+            : v === 'hoan-tat' ? 'Khách thấy "Đã sửa xong" và ghi chú. Chi phí không bao giờ hiện cho khách.'
+            : 'Khách thấy mốc này và ghi chú kèm theo. Tắt thì chỉ mình bạn thấy (trạng thái chung vẫn hiện cho khách).';
+        };
+        $('#ipViec').onchange = sync; sync();
+        const ph = $('#ipPhotos'); if (ph) ph.onclick = () => { close(); showIncPhotos(x); };
+        // Lỗi hiện ngay trong hộp thoại, kèm đưa con trỏ tới ô cần sửa (thông báo ở góc màn hình dễ bị bỏ sót)
+        const loi = (msg, ten) => {
+          const box = $('#ipErr'); box.textContent = msg; box.hidden = false;
+          const f = ten && $(ten); if (f) { f.focus(); f.classList.add('invalid'); }
+        };
+        const xoaLoi = () => { $('#ipErr').hidden = true; el.querySelectorAll('.invalid').forEach(i => i.classList.remove('invalid')); };
+        el.addEventListener('input', xoaLoi); el.addEventListener('change', xoaLoi);
+        // ô tiền tự chèn dấu chấm ngăn cách khi gõ (350000 → 350.000) cho khỏi đếm nhầm số 0
+        const cost = $('#ipCost');
+        cost.addEventListener('input', () => { const d = cost.value.replace(/\D/g, '').slice(0, 10); cost.value = d ? Number(d).toLocaleString('vi-VN') : ''; });
+        el.querySelectorAll('[data-ngay]').forEach(b => b.onclick = () => {
+          const d = U.today(); d.setDate(d.getDate() + Number(b.dataset.ngay));
+          $('#ipNgay').value = U.dateKey(d); xoaLoi();
+        });
+        // chỗ đặt con trỏ khi sai, theo từng loại lỗi
+        const oLoi = { 'hen-tho': '#ipNgay', 'ghi-chu': '#ipNote', 'hoan-tat': '#ipCost' };
+        $('#ipSave').onclick = (e) => {
+          xoaLoi();
+          const v = $('#ipViec').value;
+          const sdt = HH.validate.chuanSdt($('#ipSdt').value);
+          if (v === 'hen-tho' && sdt && !/^0\d{9}$/.test(sdt)) { loi('Số điện thoại thợ chưa đúng: 10 số, bắt đầu bằng 0.', '#ipSdt'); return; }
+          const act = { loai: v, ghiChu: $('#ipNote').value };
+          act.congKhai = $('#ipPub').checked;
+          if (v === 'hen-tho') Object.assign(act, { ngayHen: $('#ipNgay').value, tho: $('#ipTho').value, thoSdt: sdt });
+          if (v === 'hoan-tat') {
+            const txt = $('#ipCost').value.trim(), c = txt ? U.parseNum(txt) : null;
+            if (txt && c == null) { loi('Chi phí phải là số tiền, ví dụ 350.000.', '#ipCost'); return; }
+            Object.assign(act, { chiPhi: c, nguoiChiu: $('#ipPayer').value });
+          }
+          const r = S.progressIncident(x.id, act);
+          if (!r.ok) { loi(r.loi, oLoi[v]); return; }
+          const khach = act.congKhai ? ', khách thấy trong app' : '';
+          close(); HH.router.render();
+          UI.toast({ 'hen-tho': 'Đã lưu lịch hẹn thợ' + khach, 'ghi-chu': 'Đã lưu ghi chú' + khach, 'bat-dau': 'Đã chuyển sang đang xử lý' + khach,
+            'hoan-tat': 'Đã đánh dấu sửa xong. Muốn xem lại, bấm "Hiện cả đã xong".', 'mo-lai': 'Đã mở lại sự cố' + khach }[v] || 'Đã lưu tiến độ', { type: 'ok' });
+        };
+      } });
+  }
 
   function showIncPhotos(x) {
     if (!x || !x.photos || !x.photos.length) return;
@@ -531,7 +635,8 @@
           setTimeout(() => {
             S.addIncident({ id: U.uid('sc'), buildingId: ctx.bid, roomCode: el.querySelector('#icRoom').value,
               category: el.querySelector('#icCat').value, title, status: 'open',
-              photos: [], createdAt: new Date().toISOString() });
+              photos: [], createdAt: new Date().toISOString(),
+              history: [HH.progress.suKien('tiep-nhan')] });
             S.log('incident.create', `Tạo yêu cầu sửa chữa ${title}`);
             close(); UI.toast('Đã tạo yêu cầu', { type: 'ok' }); HH.router.render();
           }, 300);

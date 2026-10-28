@@ -61,6 +61,20 @@ Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạ
 
 Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
 
+## Báo hỏng có theo dõi tiến độ
+
+Trang **Sự cố & sửa chữa** không còn chỉ là ba trạng thái. Bấm vào một sự cố (hoặc menu "⋯ → Tiến độ & cập nhật") để xem **dòng thời gian** và cập nhật:
+
+- **Hẹn thợ:** ngày hẹn (có nút *Hôm nay / Ngày mai / Ngày kia*), tên thợ, số điện thoại thợ. **Bắt đầu xử lý**, **Ghi chú**, **Đã sửa xong** (kèm chi phí và ai chịu, ô tiền tự chèn dấu chấm), **Mở lại**. Lỗi nhập hiện ngay trong hộp thoại, tô đỏ đúng ô cần sửa.
+- Mỗi cập nhật có ô **"Cho khách thấy trong app"**: tick thì khách đọc được mốc và ghi chú kèm theo; ghi chú mặc định là **nội bộ**. **Chi phí, ghi chú nội bộ và tên người thao tác không bao giờ gửi cho khách**: máy chủ lọc trong hàm `tenant_incident_updates` (có kiểm thử trên Postgres thật; thử phá 11 chỗ, bộ thử bắt 10, chỗ còn lại là quyền cấp thừa vì Supabase đã mặc định cấp).
+- Bảng sự cố hiện thợ, lịch hẹn, số ngày mở (đỏ khi quá 7 ngày) và chi phí khi đã xong; thẻ **Chi phí sửa 30 ngày** (phần chủ trọ chịu). "Hôm nay cần làm gì" có thêm mục *sự cố hẹn thợ hôm nay / ngày mai*.
+- **App khách thuê:** màn *Yêu cầu sửa chữa* hiện khung **"Thợ đến ngày mai"** kèm tên thợ và số bấm gọi được, ba bước có ngày thật của từng bước (trước đây cả ba bước đều hiện ngày báo), và danh sách *Cập nhật từ chủ nhà*. Thông báo ở trang chủ chạm vào là tới đúng màn chi tiết.
+- Sự cố cũ không có lịch sử vẫn xem được: dựng lại các mốc từ ngày báo, trạng thái và ngày hoàn tất.
+
+**Bật bằng cách:** chạy `supabase/migration-incident-tracking.sql` trong Supabase → SQL Editor (một lần, chạy lại an toàn). Chưa chạy thì web vẫn dùng được nhưng tiến độ chỉ nằm trong bộ nhớ trình duyệt và app khách chưa thấy tiến độ. Luật cập nhật ở `js/progress.js` (thuần, có kiểm thử).
+
+Khi thử giao diện, tôi thao tác bằng chuột và bàn phím như người dùng thật và sửa những chỗ vướng: thông báo lỗi bị nút "Trợ lý" che (nay thông báo nổi cao hơn nút và lỗi trong hộp thoại hiện ngay tại chỗ), nút "Trợ lý" che hộp thoại trên màn hình hẹp (nay tự ẩn khi mở hộp thoại), thông báo trên app khách không bấm được, và app khách ẩn nhầm các cập nhật công khai.
+
 ## Chạy ban đêm: tự ghi phí trễ hạn, tự báo nhắc nợ
 
 Trang **Nhắc nợ → Phí trễ hạn** có thêm mục *Tự động mỗi đêm (0 giờ 05)*, **mặc định tắt**, bật riêng cho từng tòa:
@@ -274,6 +288,7 @@ js/
   closing.js          # phân loại phòng khi chốt sổ tháng (không đụng DOM, có kiểm thử)
   today.js            # xếp thứ tự và hoãn việc "Hôm nay cần làm gì" (không đụng DOM, có kiểm thử)
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
+  progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -302,6 +317,7 @@ tests/
   closing.test.js     # kiểm thử phân loại chốt sổ: node tests/closing.test.js
   today.test.js       # kiểm thử việc hôm nay: node tests/today.test.js
   dates.test.js       # kiểm thử ngày lịch: node tests/dates.test.js
+  progress.test.js    # kiểm thử tiến độ sự cố: node tests/progress.test.js
 ```
 
 ## Kiểm thử
@@ -314,9 +330,10 @@ node tests/split.test.js
 node tests/closing.test.js
 node tests/today.test.js
 node tests/dates.test.js
+node tests/progress.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca); cả bảy đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca); cả tám đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -326,6 +343,7 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/tenant-auth.test.py
 .venv-db/Scripts/python tests/db/repair-dates.test.py
 .venv-db/Scripts/python tests/db/nightly.test.py
+.venv-db/Scripts/python tests/db/incident-tracking.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

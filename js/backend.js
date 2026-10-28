@@ -56,7 +56,7 @@ HH.backend = (function () {
   // 30/9: hạn đóng tiền, đầu kỳ hóa đơn lưu sớm một ngày. Nên ghi thẳng "năm-tháng-ngày" theo lịch địa phương (js/dates.js).
   const DATE_FIELDS = {
     rooms: ['contractEnd'], contracts: ['start', 'end'], invoices: ['periodStart', 'periodEnd', 'dueDate'],
-    payments: ['date'], transactions: ['date'], assets: ['buyDate'],
+    payments: ['date'], transactions: ['date'], assets: ['buyDate'], incidents: ['scheduledFor'],
   };
 
   // Cột do MÁY CHỦ ghi (supabase/migration-nightly.sql): trình duyệt đang mở lâu có bản cũ, gửi lại sẽ đè mất

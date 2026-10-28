@@ -99,8 +99,22 @@
     const { data, error } = await client.rpc('tenant_data', { p_token: state.token });
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
     if (data == null) { sessionLost(); throw new Error('SESSION'); }
-    data.notices = await loadNotices();
+    await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents)]);
     return data;
+  }
+  /* Tiến độ sửa chữa chủ nhà đã chọn cho khách thấy (supabase/migration-incident-tracking.sql). Chưa chạy migration hay lỗi
+     mạng thì vẫn hiện trạng thái chung của yêu cầu như trước. */
+  let noIncUpdates = false;
+  async function loadIncidentUpdates(incs) {
+    if (noIncUpdates || !incs || !incs.length) return;
+    try {
+      const r = await client.rpc('tenant_incident_updates', { p_token: state.token });
+      if (r.error) { if (rpcMissing(r.error)) noIncUpdates = true; return; }
+      const by = {};
+      // máy chủ chỉ gửi các sự kiện công khai và không kèm cờ congKhai: nhận được là công khai
+      (Array.isArray(r.data) ? r.data : []).forEach(u => { by[u.id] = (u.history || []).map(e => Object.assign({ congKhai: true, by: 'Chủ nhà' }, e)); });
+      incs.forEach(x => { if (by[x.id]) x.history = by[x.id]; });
+    } catch (e) { /* giữ trạng thái chung */ }
   }
   /* Thông báo nhắc hạn do máy chủ tự gửi ban đêm (supabase/migration-nightly.sql). Chưa chạy migration, mất mạng hay
      lỗi gì cũng chỉ là không có thông báo, không được làm hỏng trang chủ. Hàm chưa có thì thôi gọi lại cho đỡ tốn lượt. */
@@ -527,11 +541,15 @@
 
   function buildNotifications() {
     const d = state.data; const items = [];
-    (d.notices || []).slice(0, 3).forEach(n => items.push({ t: `<b>${esc(n.title)}</b><br>${esc(n.body)}`, time: fmtDate(n.createdAt) }));
+    // nav = chạm vào thì tới đúng màn chi tiết (khách thấy thông báo thì muốn xem tiếp ngay)
+    (d.notices || []).slice(0, 3).forEach(n => items.push({ t: `<b>${esc(n.title)}</b><br>${esc(n.body)}`, time: fmtDate(n.createdAt), nav: '#/invoices' }));
     const inv = (d.invoices || [])[0];
-    if (inv) items.push({ t: `Hóa đơn ${CUR_PERIOD_LABEL} ${badgeText(inv.status)}`, time: fmtDate(inv.periodStart || inv.dueDate) });
-    (d.incidents || []).slice(0, 2).forEach(x => items.push({ t: `Yêu cầu "${esc(x.title)}" · ${incStatusLabel(x.status)}`, time: fmtDate(x.createdAt) }));
-    return items.map(i => `<div class="noti-item"><span class="dot"></span><div><div class="ntext">${i.t}</div><div class="ntime">${i.time}</div></div></div>`).join('');
+    if (inv) items.push({ t: `Hóa đơn ${CUR_PERIOD_LABEL} ${badgeText(inv.status)}`, time: fmtDate(inv.periodStart || inv.dueDate), nav: '#/invoices' });
+    (d.incidents || []).slice(0, 2).forEach(x => {
+      const hen = HH.progress.lichHen(x);
+      items.push({ t: `Yêu cầu "${esc(x.title)}" · ${incStatusLabel(x.status)}${hen ? ` · thợ đến ${fmtDate(hen.ngayHen)}` : ''}`, time: fmtDate(x.createdAt), nav: '#/track' });
+    });
+    return items.map(i => `<div class="noti-item${i.nav ? ' tap' : ''}"${i.nav ? ` data-nav="${i.nav}" role="link" tabindex="0"` : ''}><span class="dot"></span><div><div class="ntext">${i.t}</div><div class="ntime">${i.time}</div></div>${i.nav ? `<span class="nchev">${HH.ic('chevron', 16)}</span>` : ''}</div>`).join('');
   }
   const badgeText = (s) => (INV_STATUS[s] || ['', ''])[0];
   const incStatusLabel = (s) => ({ open: 'Chờ xử lý', processing: 'Đang xử lý', done: 'Đã hoàn tất' }[s] || s);
@@ -811,18 +829,31 @@
   /* ---------- màn hình: THEO DÕI YÊU CẦU ---------- */
   function screenTrack() {
     const incs = state.data.incidents || [];
+    const P = HH.progress;
+    const gio = (at) => { const d = new Date(at); return isNaN(d) ? '' : `${fmtDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+    const telHref = (s) => 'tel:' + String(s || '').replace(/[^\d+]/g, '');
     const body = incs.length ? incs.map(x => {
-      const steps = [
-        { t: 'Đã tiếp nhận', done: true },
-        { t: 'Đang xử lý', done: x.status === 'processing' || x.status === 'done', active: x.status === 'processing' },
-        { t: 'Hoàn tất', done: x.status === 'done', active: false },
-      ];
+      const steps = P.buocTienDo(x);
+      // lịch hẹn thợ nổi bật nhất: khách cần biết ngày nào ở nhà, gọi ai
+      const hen = P.lichHen(x);
+      const dl = hen ? daysLeft(hen.ngayHen) : null;
+      const henHtml = hen ? `<div class="upd-hen"><span class="upd-hen-ic">${HH.ic('calendar', 18)}</span><div>
+          <div><b>Thợ đến ${dl === 0 ? 'hôm nay' : dl === 1 ? 'ngày mai' : 'ngày'} ${fmtDate(hen.ngayHen)}</b></div>
+          ${hen.tho || hen.thoSdt ? `<div class="upd-sub">${esc(hen.tho)}${hen.thoSdt ? ` · <a href="${esc(telHref(hen.thoSdt))}">${esc(hen.thoSdt)}</a>` : ''}</div>` : ''}</div></div>` : '';
+      // các cập nhật có nội dung (hẹn thợ, ghi chú, sửa xong...), mới nhất trước; mốc suy ra không có giờ thì bỏ
+      const ups = P.dongThoiGian(x).filter(e => e.congKhai && !e.suy && e.loai !== 'tiep-nhan' && (e.ghiChu || e.loai === 'hen-tho' || e.loai === 'hoan-tat' || e.loai === 'mo-lai')).reverse();
+      const upHtml = ups.length ? `<div class="upd-list"><div class="upd-h">Cập nhật từ chủ nhà</div>${ups.map(e => `<div class="upd-item">
+          <div><b>${esc((P.LOAI[e.loai] || { nhan: e.loai }).nhan)}</b> <span class="upd-time">${esc(gio(e.at))}</span></div>
+          ${e.loai === 'hen-tho' && e.ngayHen ? `<div class="upd-sub">Hẹn ngày ${fmtDate(e.ngayHen)}${e.tho ? ' · ' + esc(e.tho) : ''}</div>` : ''}
+          ${e.ghiChu ? `<div class="upd-note">${esc(e.ghiChu)}</div>` : ''}</div>`).join('')}</div>` : '';
       return `<div class="t-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px">
           <div style="font-weight:700">${esc(x.category)}: ${esc(x.title)}</div>
           <span class="t-badge ${x.status === 'done' ? 'success' : x.status === 'processing' ? 'info' : 'warning'}"><span class="d"></span>${incStatusLabel(x.status)}</span>
         </div>
-        <div class="timeline">${steps.map(s => `<div class="tl-item ${s.done ? 'done' : ''} ${s.active ? 'active' : ''}"><div class="tl-title">${s.t}</div><div class="tl-time">${s.done ? fmtDate(x.createdAt) : '-'}</div></div>`).join('')}</div>
+        ${henHtml}
+        <div class="timeline">${steps.map(s => `<div class="tl-item ${s.xong ? 'done' : ''} ${s.dangLam ? 'active' : ''}"><div class="tl-title">${s.nhan}</div><div class="tl-time">${s.at ? fmtDate(s.at) : (s.xong ? '' : '-')}</div></div>`).join('')}</div>
+        ${upHtml}
       </div>`;
     }).join('') : `<div class="t-empty"><div class="eic">${HH.pic('clipboard', 64)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
     shell('Yêu cầu sửa chữa', body + (incs.length ? `<button class="t-btn outline" id="newReq" style="margin-top:6px">${HH.ic('plus', 16)} Tạo yêu cầu mới</button>` : ''));

@@ -601,6 +601,12 @@ HH.store = (function () {
           if (sc.length) {
             const cu = Math.max(...sc.map(x => x.createdAt ? Math.max(0, U.daysBetween(x.createdAt, now)) : 0));
             add({ id: 'suco:' + bid, loai: 'suco', muc: cu > 7 ? 1 : 2, n: sc.length, tieuDe: `${sc.length} sự cố đang mở`, phuDe: cu > 0 ? `cũ nhất ${cu} ngày chưa xong` : 'mới báo hôm nay', href: `#/b/${bid}/incidents`, nhanNut: 'Xử lý' });
+            const hen = sc.filter(x => { const t = HH.progress.tinhTrang(x, now).ngayToiHen; return t === 0 || t === 1; });
+            if (hen.length) {
+              const homNay = hen.some(x => HH.progress.tinhTrang(x, now).ngayToiHen === 0);
+              add({ id: 'suco-hen:' + bid, loai: 'suco-hen', muc: homNay ? 2 : 3, n: hen.length, tieuDe: `${hen.length} sự cố hẹn thợ ${homNay ? 'hôm nay' : 'ngày mai'}`,
+                phuDe: hen.slice(0, 4).map(x => `${x.roomCode}${x.assignee ? ' (' + x.assignee + ')' : ''}`).join(', '), href: `#/b/${bid}/incidents`, nhanNut: 'Xem lịch' });
+            }
           }
         }
         if (api.can('readings')) {
@@ -1221,6 +1227,24 @@ HH.store = (function () {
       if (usingBackend()) HH.backend.deleteOne('transactions', id); } },
     paymentsAll: () => payments.slice(),
     addIncident(x) { incidents.push(x); persist(); return x; },
+    /* Cập nhật tiến độ một sự cố: bắt đầu xử lý, hẹn thợ, ghi chú, sửa xong (kèm chi phí), mở lại.
+       Luật nằm ở js/progress.js (thuần, có kiểm thử). Trả { ok, loi? }. */
+    progressIncident(id, act) {
+      const inc = incidents.find(x => x.id === id);
+      if (!inc) return { ok: false, loi: 'Không tìm thấy sự cố.' };
+      const r = HH.progress.capNhat(inc, Object.assign({ by: prefs.userName }, act), U.today());
+      if (!r.ok) return r;
+      Object.assign(inc, r.patch);
+      const L = HH.progress.LOAI[r.suKien.loai];
+      api.log('incident.' + r.suKien.loai, `${L ? L.nhan : r.suKien.loai}: phòng ${inc.roomCode}, ${inc.title}`
+        + (r.suKien.chiPhi != null ? `, chi phí ${U.currency(r.suKien.chiPhi)}` : ''), r.suKien.ghiChu || null);
+      persist();
+      return r;
+    },
+    // Chi phí sửa chữa đã hoàn tất của một tòa trong khoảng ngày (mặc định chủ trọ chịu)
+    repairCost(bid, tu, den, nguoiChiu) {
+      return HH.progress.tongChiPhi(incidents.filter(x => x.buildingId === bid), tu, den, nguoiChiu);
+    },
     addService(s) { services.push(s); persist(); return s; },
     updateService(id, patch) { const s = services.find(x => x.id === id); if (s) { Object.assign(s, patch); persist(); } return s; },
     removeService(id) { const i = services.findIndex(x => x.id === id); if (i >= 0) { const s = services[i]; services.splice(i, 1); persist(); api.log('service.remove', `Xóa dịch vụ ${s.name}`);

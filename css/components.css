@@ -335,7 +335,8 @@ table.dt .col-actions { width: 44px; text-align: right; }
 .consequence li::before { content: "•"; position: absolute; left: 4px; color: var(--neutral-400); }
 
 /* ---------- Toast ---------- */
-.toast-zone { position: fixed; right: var(--sp-6); bottom: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-2); z-index: 80; }
+/* bottom 88px: né nút "Trợ lý" (cao 48px, cách đáy 22px) nằm cùng góc, tránh che mất thông báo */
+.toast-zone { position: fixed; right: var(--sp-6); bottom: 88px; display: flex; flex-direction: column; gap: var(--sp-2); z-index: 80; }
 .toast {
   min-width: 260px; max-width: 380px; background: var(--teal-900); color: #EAF3F2;
   border-radius: var(--r-input); padding: 12px 14px; box-shadow: var(--shadow-dialog);
@@ -387,6 +388,8 @@ kbd {
 }
 .as-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(7,43,42,.34); }
 .as-fab.hide { opacity: 0; pointer-events: none; transform: scale(.9); }
+/* Đang mở hộp thoại thì nút nổi tự ẩn: trên màn hình hẹp nó che mất ô nhập và nút Lưu */
+body:has(.overlay) .as-fab { opacity: 0; pointer-events: none; transform: scale(.9); }
 /* Kéo được sang chỗ khác khi nút che mất nội dung */
 .as-fab { cursor: grab; }
 .as-fab.dragging {
