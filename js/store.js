@@ -50,6 +50,7 @@ HH.store = (function () {
   const staff = [];
   const claims = [];
   const renewals = [];        // khách xin gia hạn hợp đồng (chờ chủ trọ chấp nhận hoặc từ chối)
+  const invites = [];         // lời mời khách tự khai thông tin qua link / QR (chỉ đọc từ máy chủ, không đồng bộ ngược)
   const invoiceBatches = [];  // mỗi lần "Chốt sổ tháng": gom hóa đơn của một đợt để phát hành / hoàn tác cả đợt
   const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
@@ -453,6 +454,8 @@ HH.store = (function () {
         if (r.done.length) setTimeout(() => HH.ui && HH.ui.toast(
           `Tự động ghi thu ${r.done.length} giao dịch chuyển khoản mới`, { type: 'ok', sticky: true }), 900);
       } catch (e) { console.info('Đối soát tự động bỏ qua:', e && e.message); }
+      // lời mời khách tự khai: nạp ngầm, có hồ sơ chờ duyệt thì vẽ lại để "Hôm nay cần làm gì" hiện ra
+      api.loadInvites().then(r => { if (r.ok && invites.some(i => i.status === 'submitted') && HH.router) HH.router.render(); });
       return 'loaded';
     },
 
@@ -472,13 +475,14 @@ HH.store = (function () {
     async refreshFromServer() {
       if (!usingBackend()) return { ok: false, reason: 'demo' };
       const stamp = () => JSON.stringify([incidents.length, claims.length, readings.length,
-        invoices.length, payments.length, tenants.length, invoices.reduce((s, i) => s + (i.total || 0), 0),
+        invoices.length, payments.length, tenants.length, invoices.reduce((s, i) => s + (i.total || 0), 0), invites.filter(i => i.status === 'submitted').length,
         incidents.map(x => x.status).join(''), claims.map(x => x.status).join(''),
         renewals.length, renewals.map(x => x.status).join('')]);
       const before = stamp();
       const res = await HH.backend.loadAll();
       if (res.error) return { ok: false, reason: 'error' };
       replaceAll(res.data);
+      await api.loadInvites();
       api.refreshExpiryFlags(); api.refreshInvoiceStatus();
       return { ok: true, changed: before !== stamp() };
     },
@@ -623,6 +627,11 @@ HH.store = (function () {
           const nhap = invoices.filter(i => i.buildingId === bid && i.status === 'draft');
           if (nhap.length) add({ id: 'nhap:' + bid, loai: 'nhap', muc: 2, n: nhap.length, tien: nhap.reduce((s, i) => s + i.total, 0), tieuDe: `${nhap.length} hóa đơn nháp chờ phát hành`,
             phuDe: 'khách chưa thấy trong app', href: `#/b/${bid}/invoices?status=draft`, nhanNut: 'Rà soát' });
+        }
+        if (api.can('tenants') && api.isOwner() && usingBackend()) {
+          const cho = invites.filter(i => i.buildingId === bid && i.status === 'submitted');
+          if (cho.length) add({ id: 'khaitin:' + bid, loai: 'khaitin', muc: 2, n: cho.length, tieuDe: `${cho.length} khách đã tự khai thông tin, chờ bạn duyệt`,
+            phuDe: cho.slice(0, 4).map(i => (i.data && i.data.fullName) || 'Khách').join(', ') + (cho.length > 4 ? '…' : ''), href: `#/b/${bid}/tenants?invites=1`, nhanNut: 'Xem và duyệt' });
         }
         if (api.isOwner() && usingBackend()) {
           const chua = tenants.filter(t => t.buildingId === bid && !t.appCodeSetAt && /^0\d{9}$/.test(HH.validate.chuanSdt(t.phone))).length;
@@ -1240,6 +1249,59 @@ HH.store = (function () {
         + (r.suKien.chiPhi != null ? `, chi phí ${U.currency(r.suKien.chiPhi)}` : ''), r.suKien.ghiChu || null);
       persist();
       return r;
+    },
+    /* ---------- KHÁCH TỰ KHAI THÔNG TIN QUA LINK / QR (supabase/migration-onboarding.sql) ----------
+       Lời mời nằm trên máy chủ; ở đây chỉ giữ bản đọc để hiện danh sách. Mọi thay đổi (tạo, thu hồi, duyệt) đi qua hàm máy chủ,
+       token chỉ hiện đúng một lần lúc tạo nên không bao giờ nằm trong bộ nhớ này sau đó. */
+    invitesOf: (bid) => invites.filter(i => i.buildingId === bid),
+    inviteById: (id) => invites.find(i => i.id === id),
+    pendingInvites: (bid) => invites.filter(i => i.buildingId === bid && i.status === 'submitted'),
+    async loadInvites() {
+      if (!usingBackend() || !api.isOwner()) return { ok: false, reason: 'demo' };
+      const c = HH.backend.client(); if (!c) return { ok: false, reason: 'demo' };
+      let r;
+      try {
+        r = await c.from('onboarding_invites')
+          .select('id,building_id,room_code,note,status,created_at,expires_at,submitted_at,submitted_data,decided_at,decision_note,tenant_id')
+          .order('created_at', { ascending: false }).limit(300);
+      } catch (e) { return { ok: false, reason: 'network' }; }
+      if (r.error) return { ok: false, reason: /42p01|pgrst205|does not exist|could not find the table/i.test(String(r.error.code) + ' ' + (r.error.message || '')) ? 'missing' : 'error' };
+      invites.length = 0;
+      (r.data || []).forEach(x => invites.push({ id: x.id, buildingId: x.building_id, roomCode: x.room_code, note: x.note, status: x.status,
+        createdAt: x.created_at, expiresAt: x.expires_at, submittedAt: x.submitted_at, data: x.submitted_data || null,
+        decidedAt: x.decided_at, decisionNote: x.decision_note, tenantId: x.tenant_id }));
+      return { ok: true };
+    },
+    // Gọi hàm máy chủ của lời mời. Trả { data } hoặc { loi: 'mã lỗi', message }
+    async inviteCall(name, args) {
+      if (!usingBackend()) return { loi: 'demo' };
+      let r;
+      try { r = await HH.backend.rpc(name, args); } catch (e) { return { loi: 'network' }; }
+      if (r.error) {
+        const m = (r.error.message || '').toLowerCase();
+        return { loi: (r.error.code === 'PGRST202' || r.error.code === '42883' || m.includes('could not find the function')) ? 'missing' : 'error', message: r.error.message };
+      }
+      if (r.data && r.data.error) return { loi: r.data.error };
+      return { data: r.data };
+    },
+    async createInvite(bid, room, hours, note) {
+      const r = await api.inviteCall('owner_create_invite', { p_building_id: bid, p_room_code: room || null, p_hours: hours, p_note: note || null });
+      if (r.data) await api.loadInvites();
+      return r;
+    },
+    async revokeInvite(id) { const r = await api.inviteCall('owner_revoke_invite', { p_id: id }); await api.loadInvites(); return r; },
+    async decideInvite(id, decision, note, tenantId) {
+      const r = await api.inviteCall('owner_decide_invite', { p_id: id, p_decision: decision, p_note: note || null, p_tenant_id: tenantId || null });
+      await api.loadInvites(); return r;
+    },
+    async deleteInviteDocs(id) { return api.inviteCall('owner_delete_invite_docs', { p_id: id }); },
+    // Ảnh CCCD hai mặt của một hồ sơ (tải riêng vì nặng): { front, back } hoặc null
+    async inviteDocs(id) {
+      const c = HH.backend && HH.backend.client && HH.backend.client(); if (!c) return null;
+      try {
+        const r = await c.from('onboarding_docs').select('front,back').eq('invite_id', id).maybeSingle();
+        return r.error ? null : (r.data || null);
+      } catch (e) { return null; }
     },
     // Chi phí sửa chữa đã hoàn tất của một tòa trong khoảng ngày (mặc định chủ trọ chịu)
     repairCost(bid, tu, den, nguoiChiu) {

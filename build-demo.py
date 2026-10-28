@@ -15,9 +15,9 @@ OUT = os.path.join(OUT_DIR, 'happy-home-demo.html')
 
 CSS = ['tokens.css', 'base.css', 'layout.css', 'components.css', 'pages.css', 'promo.css', 'mobile.css']
 JS = [
-    'js/dates.js', 'js/utils.js', 'js/scoring.js', 'js/reminders.js', 'js/validate.js', 'js/split.js', 'js/closing.js', 'js/today.js', 'js/progress.js', 'js/icons.js', 'js/art.js', 'js/motion.js', 'js/charts.js', 'js/promo.js',
+    'js/dates.js', 'js/utils.js', 'js/scoring.js', 'js/reminders.js', 'js/validate.js', 'js/onboarding.js', 'js/vendor/qrcode.js', 'js/split.js', 'js/closing.js', 'js/today.js', 'js/progress.js', 'js/icons.js', 'js/art.js', 'js/motion.js', 'js/charts.js', 'js/promo.js',
     'js/backend.js', 'js/store.js', 'js/components.js',
-    'js/pages/auth-dashboard.js', 'js/pages/rooms.js', 'js/pages/tenants.js', 'js/pages/tenant-access.js',
+    'js/pages/auth-dashboard.js', 'js/pages/rooms.js', 'js/pages/tenants.js', 'js/pages/tenant-access.js', 'js/pages/onboarding.js',
     'js/pages/contracts.js', 'js/pages/billing.js', 'js/pages/misc.js',
     'js/pages/support.js', 'js/pages/reminders.js', 'js/pages/more.js',
     'js/nlu.js', 'js/gemini.js', 'js/ai.js', 'js/assistant.js',

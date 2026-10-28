@@ -96,6 +96,7 @@
     render(ctx) {
       const total = S.tenantsOf(ctx.bid).length;
       const noTamtru = S.tenantsOf(ctx.bid).filter(t => !t.tamtru).length;
+      const cho = S.isOwner() ? S.pendingInvites(ctx.bid).length : 0;     // hồ sơ khách tự khai chờ duyệt
       const g = renderGroups(ctx); ctx._g = g;
       return h`
         <div class="page-head">
@@ -105,10 +106,14 @@
             <button class="btn btn-outline" id="tnTamtru">${raw(HH.icon('clock', 16))} Hết tạm trú/Visa
               ${raw(noTamtru ? `<span class="cnt-badge">${noTamtru}</span>` : '')}</button>
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnAccess">${HH.icon('lock', 16)} Mã vào app</button>` : '')}
+            ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnInvite">${HH.icon('send', 16)} Mời khách khai ${cho ? `<span class="cnt-badge">${cho}</span>` : ''}</button>` : '')}
             <button class="btn btn-outline" id="tnExport">${raw(HH.icon('sheet', 16))} Xuất Excel</button>
             <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Thêm khách thuê</button>
           </div>
         </div>
+        ${raw(cho ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
+          <div><b>${cho} khách đã tự khai thông tin</b>, chờ bạn xem và duyệt.
+          <button class="btn btn-sm btn-primary" id="tnInvList" style="margin-left:8px">Xem và duyệt</button></div></div>` : '')}
         <div class="between wrap" style="gap:12px;margin-bottom:16px">
           <div class="lz-chips" style="margin-bottom:0">${raw(HH.icon('filter', 16))}${raw(tnChips(ctx))}</div>
           <div class="dt-search" style="max-width:290px"><span class="ic">${raw(HH.icon('search', 16))}</span>
@@ -129,6 +134,13 @@
       wirePg();
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/tenants/new`);
       const acc = document.getElementById('tnAccess'); if (acc) acc.onclick = () => HH.tenantAccess.bulkDialog(ctx);
+      const inv = document.getElementById('tnInvite'); if (inv) inv.onclick = () => HH.onboardingUI.inviteDialog(ctx);
+      const invL = document.getElementById('tnInvList'); if (invL) invL.onclick = () => HH.onboardingUI.listDialog(ctx);
+      // đi từ "Hôm nay cần làm gì": mở thẳng danh sách hồ sơ chờ duyệt (một lần, rồi bỏ khỏi địa chỉ)
+      if (/[?&]invites=1/.test(HH.router.current() || '') && S.isOwner()) {
+        try { history.replaceState(null, '', location.href.split('?')[0].split('#')[0] + '#' + location.hash.slice(1).split('?')[0]); } catch (e) {}
+        setTimeout(() => HH.onboardingUI.listDialog(ctx), 60);
+      }
       document.getElementById('tnExport').onclick = () => {
         U.downloadCSV(`khach-thue-${ctx.bid}.csv`,
           ['Phòng', 'Họ tên', 'Đại diện', 'SĐT', 'Ngày sinh', 'Giới tính', 'Nghề nghiệp', 'Địa chỉ', 'Số CCCD', 'Ngày cấp', 'Nơi cấp', 'Biển số xe', 'TTLock', 'Tạm trú'],
@@ -264,6 +276,11 @@
 
   HH.pages.tenantNew = {
     render(ctx) {
+      invite = null;                     // mỗi lần vào trang là bắt đầu lại; chỉ đặt khi mở từ hồ sơ khách tự khai
+      if (inviteIdFromUrl()) return h`<div class="page-head">
+        <div><a class="back-link" href="#/b/${ctx.bid}/tenants">← Khách thuê</a>
+          <div class="page-title">Duyệt hồ sơ khách tự khai</div></div></div>
+        <div class="card card-pad" id="ocrCard"><div class="muted center" style="padding:24px">Đang mở hồ sơ và ảnh CCCD...</div></div>`;
       const aiOn = !!(G() && G().configured());
       return h`<div class="page-head">
         <div><a class="back-link" href="#/b/${ctx.bid}/tenants">← Khách thuê</a>
@@ -286,6 +303,8 @@
         </div>`;
     },
     mount(ctx) {
+      const invId = inviteIdFromUrl();
+      if (invId) { moHoSoKhaiLink(ctx, invId); return; }
       const file = document.getElementById('ocrFile');
       const cam = document.getElementById('ocrCam');
       const drop = document.getElementById('ocrDrop');
@@ -314,6 +333,7 @@
     },
   };
   let pasteHandler = null;
+  let invite = null;                     // hồ sơ khách tự khai đang duyệt: { inv, docs }; null khi thêm khách bình thường
 
   function blankData() {
     const d = {}; OCR_FIELDS.forEach(f => d[f.key] = { value: '', confidence: 1 }); return d;
@@ -558,6 +578,39 @@ QUY TẮC:
     return m ? decodeURIComponent(m[1]) : '';
   }
 
+  const inviteIdFromUrl = () => { const m = /[?&]invite=([^&]+)/.exec(HH.router.current() || ''); return m ? decodeURIComponent(m[1]) : ''; };
+
+  /** Phóng to ảnh CCCD để đối chiếu từng chữ (ảnh nhỏ trên biểu mẫu không đọc được số) */
+  function phongToAnh(src, tieuDe) {
+    UI.modal({ title: tieuDe, size: 'wide', bodyHtml: `<img src="${src}" alt="${U.esc(tieuDe)}" style="width:100%;display:block;border-radius:8px">`,
+      footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
+  }
+
+  /** Mở biểu mẫu thêm khách đã điền sẵn từ hồ sơ khách tự khai, kèm ảnh CCCD hai mặt để đối chiếu */
+  async function moHoSoKhaiLink(ctx, id) {
+    const card = document.getElementById('ocrCard');
+    const loi = (msg) => { card.innerHTML = `<div class="alert alert-warning"><span class="ic">${HH.ic('alert', 16)}</span><div>${U.esc(msg)}
+      <a href="#/b/${ctx.bid}/tenants" style="margin-left:8px">Về danh sách khách thuê</a></div></div>`; };
+    let inv = S.inviteById(id);
+    if (!inv) { await S.loadInvites(); inv = S.inviteById(id); }
+    if (!inv || inv.buildingId !== ctx.bid) { loi('Không tìm thấy hồ sơ này (có thể đã được xử lý ở nơi khác).'); return; }
+    if (inv.status !== 'submitted' || !inv.data) { loi('Hồ sơ này không còn ở trạng thái chờ duyệt.'); return; }
+    const docs = (await S.inviteDocs(id)) || {};
+    invite = { inv, docs };
+    const gui = inv.submittedAt ? U.fmtDate(inv.submittedAt) : '';
+    const warn = `Khách tự khai ngày ${gui} qua link. Thông tin do khách gõ nên có thể sai chính tả: hãy đối chiếu từng ô với ảnh CCCD (bấm vào ảnh để phóng to)`
+      + (docs.front || docs.back ? '.' : '. Ảnh CCCD không còn trên máy chủ nên không đối chiếu được.');
+    showForm(ctx, HH.onboarding.choBieuMau(inv.data), docs.front || null, warn, inv.data.cccdIssueDate || '');
+    // ô nằm ngoài danh sách đọc từ ảnh: số điện thoại, ảnh mặt sau
+    const ph = card.querySelector('[data-k="phone"]'); if (ph) ph.value = inv.data.phone || '';
+    anhSau = docs.back || null; veAnhSau();
+    const zoom = () => card.querySelectorAll('.ocr-img img').forEach(im => { im.style.cursor = 'zoom-in'; im.onclick = () => phongToAnh(im.src, 'Ảnh CCCD ' + ((im.closest('#backBox')) ? 'mặt sau' : 'mặt trước')); });
+    zoom();
+    const kiemLai = card.querySelector('#saveTenant'); if (kiemLai) kiemLai.textContent = 'Duyệt và lưu hồ sơ khách thuê';
+    // mọi ô vừa điền sẵn: kiểm luôn để lỗi (nếu có) hiện ngay, khỏi đợi bấm Lưu
+    kiemHet(card);
+  }
+
   function showForm(ctx, data, imgUrl, warn, issueDate) {
     const card = document.getElementById('ocrCard');
     const preRoom = roomFromUrl();
@@ -616,7 +669,7 @@ QUY TẮC:
       </div>
       <p class="muted text-xs" style="margin-top:14px">Ô có dấu <span style="color:var(--danger)">*</span> là bắt buộc.</p>
       <div class="between" style="margin-top:8px">
-        <a href="#/b/${ctx.bid}/tenants">Hủy</a>
+        <span><a href="#/b/${ctx.bid}/tenants">Hủy</a>${raw(invite ? ' <button class="btn btn-sm btn-ghost" id="rejectInv" style="margin-left:12px">Từ chối hồ sơ này</button>' : '')}</span>
         <button class="btn btn-primary" id="saveTenant">Lưu hồ sơ khách thuê</button>
       </div>`;
 
@@ -635,9 +688,12 @@ QUY TẮC:
     const idEl = card.querySelector('[data-k="idNumber"]'), phEl = card.querySelector('[data-k="phone"]');
     if (idEl && phEl) idEl.addEventListener('input', () => { if (phEl.closest('.field').querySelector('.err-msg')) kiemMot(phEl); });
 
-    if (existing) document.getElementById('reuseBtn').onclick = () => {
+    if (existing) document.getElementById('reuseBtn').onclick = async () => {
+      if (invite) { const r = await S.decideInvite(invite.inv.id, 'approved', 'Dùng lại hồ sơ khách đã có', existing.id); invite = null; if (r.loi) UI.toast('Đã dùng hồ sơ cũ nhưng chưa đánh dấu duyệt được: ' + HH.onboardingUI.loiText(r), { type: 'warning' }); }
       UI.toast(`Đã dùng lại hồ sơ ${existing.fullName}`, { type: 'ok' }); HH.router.go(`/b/${ctx.bid}/tenants`);
     };
+    const rj = document.getElementById('rejectInv');
+    if (rj && invite) rj.onclick = () => HH.onboardingUI.rejectInvite(invite.inv, () => { invite = null; HH.router.go(`/b/${ctx.bid}/tenants`); });
     document.getElementById('saveTenant').onclick = (e) => {
       const btn = e.currentTarget;
       const get = (k) => (card.querySelector(`[data-k="${k}"]`) || {}).value || '';
@@ -657,21 +713,29 @@ QUY TẮC:
         const room = get('roomCode').trim() || null;
         // Người đầu tiên của phòng là đại diện hợp đồng (app khách thuê đăng nhập theo số này)
         const isFirst = !!room && !S.tenantsOf(ctx.bid).some(t => t.roomCode === room);
-        S.addTenant({
+        const khaiLink = invite && invite.inv.data;           // dữ liệu khách tự khai (nếu đang duyệt hồ sơ khai qua link)
+        const tn = S.addTenant({
           id: U.uid('tn'), buildingId: ctx.bid, roomCode: room,
           fullName: get('fullName').trim(), idNumber: get('idNumber').replace(/\D/g, ''),
           dob: get('dateOfBirth').trim(), gender: /^nam$/i.test(get('gender').trim()) ? 'Nam' : 'Nữ',
           hometown: get('hometown').trim(),
-          phone: V.chuanSdt(get('phone')), occupation: get('occupation') || '',
+          phone: V.chuanSdt(get('phone')), occupation: get('occupation') || (khaiLink && khaiLink.occupation) || '',
           address: get('address').trim(),
           cccdIssueDate: get('cccdIssueDate').trim(), cccdIssuePlace: noiCap || 'Cục CSQLHC về TTXH',
-          cccdFront: !!imgUrl, cccdBack: !!anhSau, vehiclePlate: null,
+          cccdFront: !!imgUrl, cccdBack: !!anhSau, vehiclePlate: (khaiLink && khaiLink.vehiclePlate) || null,
           ttlock: false, tamtru: false, occupants: 1, isRep: isFirst,
         });
         // Phòng chưa ghi tên khách thì lấy tên người đầu tiên cho khớp danh sách phòng
         if (isFirst) { const rm = S.room(ctx.bid, room); if (rm && !rm.tenantName) S.updateRoom(ctx.bid, room, { tenantName: get('fullName').trim() }); }
         S.log('tenant.create', `Thêm khách thuê ${get('fullName')}${room ? ' vào phòng ' + room : ''}`);
         UI.toast(room ? `Đã thêm ${get('fullName')} vào phòng ${room}` : 'Đã lưu hồ sơ khách thuê', { type: 'ok' });
+        if (invite) {
+          // đánh dấu hồ sơ khai đã duyệt (kèm mã khách vừa tạo). Lỗi thì khách vẫn đã lưu, chỉ nhắc bấm lại ở danh sách
+          const inv0 = invite.inv; invite = null;
+          S.decideInvite(inv0.id, 'approved', null, tn.id).then(r => {
+            if (r.loi) UI.toast('Đã lưu khách nhưng chưa đánh dấu hồ sơ khai là đã duyệt: ' + HH.onboardingUI.loiText(r), { type: 'warning' });
+          });
+        }
         HH.router.go(room ? `/b/${ctx.bid}/tenants?room=${encodeURIComponent(room)}` : `/b/${ctx.bid}/tenants`);
       }, 500);
     };

@@ -61,6 +61,27 @@ Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạ
 
 Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
 
+## Khách tự khai thông tin qua link / mã QR
+
+Trang **Khách thuê → Mời khách khai** (chỉ chủ trọ): chọn phòng (phòng trống xếp lên trước) và thời hạn (24 giờ, 3 ngày, 7 ngày) rồi bấm *Tạo link*. Ra một **đường link kèm mã QR** để chép, chia sẻ qua Zalo / tin nhắn hoặc tải mã QR về in. Khách mở link trên điện thoại, **chụp CCCD hai mặt và tự điền thông tin** (khoảng 3 phút, không cài gì, không cần tài khoản). Hồ sơ về trang *Khách thuê* và mục *Hôm nay cần làm gì* chờ chủ trọ duyệt.
+
+**Duyệt** = mở lại đúng biểu mẫu *Thêm khách thuê* đã điền sẵn (kèm toàn bộ kiểm tra dữ liệu và tìm trùng CCCD / số điện thoại), ảnh CCCD hai mặt hiện bên cạnh, bấm vào để phóng to đối chiếu. Lưu là tạo khách thuê, gắn vào phòng, người đầu tiên của phòng là đại diện. Cũng có *Từ chối* (ghi lý do), *Thu hồi* link chưa dùng, *Xóa ảnh CCCD* khi không cần giữ.
+
+**Bảo mật** (CCCD là dữ liệu nhạy cảm), tất cả kiểm thử trên Postgres thật trong `tests/db/onboarding.test.py` (87 ca, thử phá 31 chỗ, bắt cả 31):
+
+- Token ngẫu nhiên 144 bit nằm sau dấu `#` của link nên không bao giờ gửi lên máy chủ web hay vào nhật ký truy cập; trang khách còn gỡ nó khỏi thanh địa chỉ. Máy chủ chỉ lưu **băm** của token: link hiện đúng một lần lúc tạo, chủ trọ cũng không xem lại được.
+- Hết hạn và **dùng đúng một lần**: gửi xong là link chết. Link sai, hết hạn, đã dùng, đã thu hồi đều trả cùng một câu "không hợp lệ", không dò ra được link nào còn sống.
+- Khách (không đăng nhập) không đọc được bảng nào, chỉ có hai hàm: xem tên phòng và tòa, và gửi hồ sơ. **Máy chủ kiểm tra lại mọi trường** (tên, số điện thoại, CCCD, ngày thật, giới tính, ký tự `<` `>`, ảnh phải là JPG / PNG / WebP và không quá lớn), chỉ nhận đúng các trường cần, bỏ trường lạ.
+- Ảnh CCCD nằm ở bảng riêng, chỉ chủ trọ của lời mời đọc được (RLS), không tải theo mỗi lần mở danh sách. Cột băm token không ai đọc được, kể cả chủ trọ.
+- Tự dọn mỗi đêm (`pg_cron`): ảnh của hồ sơ bị từ chối / thu hồi / hết hạn quá 30 ngày; dữ liệu khai của hồ sơ đã duyệt quá 30 ngày (hồ sơ khách đã nằm ở bảng khách thuê). Khách phải tick đồng ý cho chủ nhà dùng thông tin.
+- Mã QR tạo ngay trên máy bằng thư viện `js/vendor/qrcode.js` (qrcode-generator của Kazuhiko Arase, giấy phép MIT, nguyên bản không sửa), **không** đưa link cho dịch vụ QR bên ngoài.
+
+**Bật bằng cách:** chạy `supabase/migration-onboarding.sql` trong Supabase → SQL Editor (một lần, chạy lại an toàn). Trang khách ở `join/` (cùng chỗ với web quản trị), dùng chung `js/config.js`. Chưa chạy migration thì nút vẫn hiện nhưng báo rõ phải chạy tệp nào.
+
+Chưa có: tự đọc chữ trên ảnh CCCD (OCR) cho khách (khóa API của AI không được để lộ ra trang công khai, nên chủ trọ vẫn tự đối chiếu bằng mắt), một link chỉ cho một người (phòng ở nhiều người thì tạo mỗi người một link), gửi link thẳng qua Zalo / SMS (cần tài khoản dịch vụ ngoài, hiện chép tin nhắn mời hoặc dùng nút Chia sẻ trên điện thoại).
+
+Khi thử bằng thao tác thật tôi còn sửa: ô ngày sinh đổi từ bánh xe chọn ngày (phải vuốt về năm 1998 rất lâu) sang gõ số, tự chèn dấu `/`; danh sách lời mời tự nhảy tới tab còn việc khi dữ liệu mới về; biểu mẫu thêm khách không bị vẽ lại giữa chừng khi web tự đồng bộ (trước đây mất những gì vừa gõ).
+
 ## Báo hỏng có theo dõi tiến độ
 
 Trang **Sự cố & sửa chữa** không còn chỉ là ba trạng thái. Bấm vào một sự cố (hoặc menu "⋯ → Tiến độ & cập nhật") để xem **dòng thời gian** và cập nhật:
@@ -289,6 +310,8 @@ js/
   today.js            # xếp thứ tự và hoãn việc "Hôm nay cần làm gì" (không đụng DOM, có kiểm thử)
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
+  onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
+  vendor/qrcode.js    # thư viện tạo mã QR (MIT), tạo ngay trên máy
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -318,6 +341,7 @@ tests/
   today.test.js       # kiểm thử việc hôm nay: node tests/today.test.js
   dates.test.js       # kiểm thử ngày lịch: node tests/dates.test.js
   progress.test.js    # kiểm thử tiến độ sự cố: node tests/progress.test.js
+  onboarding.test.js  # kiểm thử khách tự khai: node tests/onboarding.test.js
 ```
 
 ## Kiểm thử
@@ -331,9 +355,10 @@ node tests/closing.test.js
 node tests/today.test.js
 node tests/dates.test.js
 node tests/progress.test.js
+node tests/onboarding.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca); cả tám đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca); cả chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -344,6 +369,7 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/repair-dates.test.py
 .venv-db/Scripts/python tests/db/nightly.test.py
 .venv-db/Scripts/python tests/db/incident-tracking.test.py
+.venv-db/Scripts/python tests/db/onboarding.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

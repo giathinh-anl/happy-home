@@ -1,0 +1,82 @@
+/* Trang khách tự khai thông tin (join/). Dành cho điện thoại: chữ 16px (iOS không tự phóng to ô nhập), nút cao 52px. */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--teal-50, #EEF5F4); color: var(--ink, #142120);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 16px; line-height: 1.5;
+}
+.jp { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(40px + env(safe-area-inset-bottom, 0px)); }
+
+.jp-head { display: flex; align-items: center; gap: 12px; padding: 8px 0 14px; }
+.jp-head img { width: 44px; height: 44px; border-radius: 12px; background: #fff; padding: 4px; }
+.jp-head b { font-size: 13px; letter-spacing: .02em; color: var(--teal-600, #0F5C5B); }
+.jp-hero { background: var(--teal-600, #0F5C5B); color: #fff; border-radius: 20px; padding: 20px 20px 22px; margin-bottom: 16px; }
+.jp-hero h1 { margin: 0 0 4px; font-size: 22px; line-height: 1.25; }
+.jp-hero .jp-place { opacity: .92; font-size: 15px; }
+.jp-hero .jp-meta { margin-top: 12px; padding: 10px 12px; background: rgba(255,255,255,.14); border-radius: 12px; font-size: 14px; }
+
+.jp-card { background: #fff; border-radius: 20px; padding: 18px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(7,43,42,.06); }
+.jp-card h2 { margin: 0 0 4px; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+.jp-step { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: var(--teal-600, #0F5C5B); color: #fff; font-size: 14px; font-weight: 800; display: grid; place-items: center; }
+.jp-sub { margin: 0 0 14px; color: var(--ink-2, #455654); font-size: 14px; }
+
+/* Ảnh CCCD */
+.jp-doc { border: 2px dashed var(--line-2, #C8D2CF); border-radius: 16px; padding: 14px; margin-bottom: 12px; background: var(--teal-50, #EEF5F4); }
+.jp-doc.has { border-style: solid; border-color: var(--teal-300, #7DB6B1); background: #fff; }
+.jp-doc.bad { border-color: var(--danger, #C0392B); }
+.jp-doc-t { font-weight: 700; margin-bottom: 2px; }
+.jp-doc-h { font-size: 13px; color: var(--ink-2, #455654); margin-bottom: 10px; }
+.jp-doc img { display: block; width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; background: #000; margin-bottom: 10px; }
+.jp-doc-act { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.jp-tip { margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--wood-50, #FBF4EC); color: var(--wood-700, #8C5627); font-size: 13.5px; }
+
+/* Nút */
+.jp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 20px;
+  border: 0; border-radius: 14px; font: inherit; font-weight: 700; font-size: 16px; cursor: pointer;
+  background: var(--teal-600, #0F5C5B); color: #fff; text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.jp-btn:active { transform: scale(.98); }
+.jp-btn.out { background: #fff; color: var(--teal-700, #0C4948); border: 1.5px solid var(--teal-300, #7DB6B1); }
+.jp-btn.block { width: 100%; }
+.jp-btn[disabled] { opacity: .6; cursor: default; }
+.jp-btn.link { min-height: 44px; background: none; color: var(--teal-600, #0F5C5B); padding: 0 6px; text-decoration: underline; }
+
+/* Ô nhập */
+.jp-f { margin-bottom: 14px; }
+.jp-f label, .jp-lab { display: block; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+.jp-f .jp-opt { font-weight: 500; color: var(--ink-3, #687876); font-size: 13px; }
+.jp-in {
+  width: 100%; min-height: 52px; padding: 12px 14px; font: inherit; font-size: 16px; color: inherit; background: #fff;
+  border: 1.5px solid var(--line-2, #C8D2CF); border-radius: 12px; appearance: none; -webkit-appearance: none;
+}
+.jp-in:focus { outline: 0; border-color: var(--teal-500, #1D6E6B); box-shadow: 0 0 0 3px var(--teal-100, #D6E9E7); }
+.jp-in.bad { border-color: var(--danger, #C0392B); }
+.jp-in::placeholder { color: var(--ink-3, #687876); }
+.jp-hint { margin-top: 4px; font-size: 13px; color: var(--ink-3, #687876); }
+.jp-err { margin-top: 5px; font-size: 14px; font-weight: 600; color: var(--danger, #C0392B); }
+.jp-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.jp-seg button {
+  min-height: 52px; border: 1.5px solid var(--line-2, #C8D2CF); border-radius: 12px; background: #fff; font: inherit; font-weight: 700; font-size: 16px; color: inherit; cursor: pointer;
+}
+.jp-seg button[aria-pressed="true"] { background: var(--teal-600, #0F5C5B); border-color: var(--teal-600, #0F5C5B); color: #fff; }
+.jp-seg.bad button { border-color: var(--danger, #C0392B); }
+
+.jp-consent { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--teal-50, #EEF5F4); font-size: 14.5px; cursor: pointer; }
+.jp-consent input { flex: 0 0 24px; width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--teal-600, #0F5C5B); }
+.jp-consent.bad { outline: 2px solid var(--danger, #C0392B); }
+.jp-note { margin: 12px 2px 0; font-size: 13px; color: var(--ink-3, #687876); text-align: center; }
+.jp-top-err { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--danger-bg, #FDECEA); color: var(--danger, #C0392B); font-weight: 600; font-size: 14.5px; }
+
+/* Màn kết thúc / lỗi */
+.jp-end { text-align: center; padding: 28px 20px; }
+.jp-end .jp-ic { width: 72px; height: 72px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; font-size: 36px; font-weight: 800; background: var(--teal-100, #D6E9E7); color: var(--teal-600, #0F5C5B); }
+.jp-end.bad .jp-ic { background: var(--wood-100, #F4E4D1); color: var(--wood-700, #8C5627); }
+.jp-end h1 { margin: 0 0 8px; font-size: 22px; }
+.jp-end p { margin: 0 0 10px; color: var(--ink-2, #455654); }
+.jp-end a { color: var(--teal-600, #0F5C5B); font-weight: 700; }
+
+.jp-load { text-align: center; padding: 80px 0; color: var(--ink-2, #455654); }
+.jp-spin { width: 34px; height: 34px; margin: 0 auto 12px; border: 3px solid var(--teal-100, #D6E9E7); border-top-color: var(--teal-600, #0F5C5B); border-radius: 50%; animation: jpspin .8s linear infinite; }
+@keyframes jpspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .jp-spin { animation: none; } .jp-btn:active { transform: none; } }

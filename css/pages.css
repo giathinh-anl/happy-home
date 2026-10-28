@@ -987,6 +987,19 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 .sp-empty .ic { opacity: .4; margin-bottom: 8px; }
 .sp-empty h4 { margin-bottom: 6px; }
 
+/* ---------- Khách tự khai qua link / QR (js/pages/onboarding.js) ---------- */
+.iv-seg { display: flex; gap: 8px; flex-wrap: wrap; }
+.iv-opt { cursor: pointer; }
+.iv-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.iv-opt span { display: inline-block; padding: 9px 16px; border: 1.5px solid var(--line-2, #C8D2CF); border-radius: 12px; font-weight: 600; background: #fff; }
+.iv-opt input:checked + span { background: var(--teal-600, #0F5C5B); border-color: var(--teal-600, #0F5C5B); color: #fff; }
+.iv-opt input:focus-visible + span { outline: 2px solid var(--teal-300, #7DB6B1); outline-offset: 2px; }
+.iv-res { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.iv-qr { flex: 0 0 200px; width: 200px; max-width: 100%; padding: 8px; background: #fff; border: 1px solid var(--line, #DEE5E3); border-radius: 14px; }
+.iv-qr svg { display: block; width: 100%; height: auto; }
+.iv-side { flex: 1 1 260px; min-width: 0; }
+.iv-lbl { font-weight: 700; margin-bottom: 6px; }
+
 /* ---------- Tiến độ sự cố (js/progress.js, trang Sự cố) ---------- */
 .ip-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
 .ip-cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; }

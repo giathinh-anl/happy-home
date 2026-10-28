@@ -343,7 +343,10 @@ HH.app = (function () {
       const r = await S.refreshFromServer();
       lastPull = Date.now();
       if (!r.ok) { if (manual) HH.ui.toast('Không tải được dữ liệu mới', { type: 'error' }); return; }
-      if (r.changed) { HH.router.render(); if (manual) HH.ui.toast('Đã cập nhật dữ liệu mới', { type: 'ok' }); }
+      // đang điền biểu mẫu thêm / duyệt khách thì KHÔNG vẽ lại trang: vẽ lại là mất những gì vừa gõ
+      const dangDien = /\/tenants\/new/.test(HH.router.current() || '');
+      if (r.changed && !dangDien) { HH.router.render(); if (manual) HH.ui.toast('Đã cập nhật dữ liệu mới', { type: 'ok' }); }
+      else if (r.changed && manual) HH.ui.toast('Có dữ liệu mới. Lưu xong biểu mẫu này rồi tải lại để thấy.', { type: 'info' });
       else if (manual) HH.ui.toast('Dữ liệu đã là mới nhất', { type: 'ok' });
     } finally {
       pulling = false;

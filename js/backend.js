@@ -240,6 +240,9 @@ HH.backend = (function () {
       const { error } = await client.from(KINDS[kind]).delete().eq('building_id', bid);
       if (error && !isMissingTable(error)) console.error('[delByBuilding ' + kind + ']', error.message);
     }
+    // lời mời khách tự khai của tòa này (ảnh CCCD đi theo qua khóa ngoại); chưa chạy migration-onboarding.sql thì bảng chưa có, bỏ qua
+    const iv = await client.from('onboarding_invites').delete().eq('building_id', bid);
+    if (iv.error && !isMissingTable(iv.error)) console.error('[delByBuilding invites]', iv.error.message);
     const { error } = await client.from('buildings').delete().eq('id', bid);
     if (error) console.error('[delByBuilding buildings]', error.message);
   }
