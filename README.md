@@ -233,6 +233,18 @@ Mỗi phòng có một **điểm thanh toán** hiện trên trang Khách thuê (
 
 Điểm = trung bình có trọng số × 100, hóa đơn mới nặng hơn (mỗi kỳ lùi về trước nhân 0,85) nên khách sửa được thói quen thì điểm lên lại. Hạng: ≥ 90 Xuất sắc · ≥ 75 Tốt · ≥ 50 Trung bình · còn lại Cần nhắc. Dưới 3 hóa đơn được chấm thì ghi **tạm tính**. Tính theo **hợp đồng đang hiệu lực** để điểm của khách cũ không dồn sang khách mới. Mã nằm ở `js/scoring.js`, rê chuột vào huy hiệu để xem lời giải thích từng phòng.
 
+## Điểm thưởng cho khách đóng tiền đúng hạn
+
+Khác với **điểm thanh toán** ở trên (thước đo để chủ trọ biết ai hay trễ), đây là chương trình **thưởng cho khách** để khuyến khích đóng đúng hạn, đỡ phải nhắc nợ. **Mặc định tắt**; bật ở *Khách thuê → Điểm thưởng* (chủ trọ).
+
+- **Luật (đọc là hiểu):** mỗi hóa đơn đóng đủ đúng hạn hoặc trước hạn được 10 điểm; đóng đúng hạn 3 tháng liền thưởng thêm 20 điểm (lặp lại ở 6, 9... tháng liền); đóng trễ hoặc quá hạn chưa trả đủ thì chuỗi về 0, điểm đã có vẫn giữ. Hóa đơn chưa tới hạn, hoặc đã trả đủ nhưng không có phiếu thu ghi ngày, thì chưa tính (không đoán). Mọi con số chỉnh được trong cài đặt (điểm mỗi hóa đơn, độ dài chuỗi, điểm thưởng chuỗi, tỉ lệ đổi, bậc đổi, tối đa % mỗi hóa đơn).
+- **Đổi điểm thành tiền giảm** vào MỘT hóa đơn chưa thu: mặc định 100 điểm = 100.000 ₫, theo bậc 100 điểm, tối đa 50% số còn phải thu của hóa đơn đó (không bao giờ giảm hết). Hóa đơn thêm một dòng "Thưởng đóng tiền đúng hạn (N điểm)" số âm nên khách thấy ngay trong app, phí trễ hạn tự tính trên số đã giảm, nhật ký ghi lại.
+- **Điểm không lưu riêng nên không bao giờ lệch:** tính lại từ hóa đơn + phiếu thu của hợp đồng đang hiệu lực (khách đổi thì điểm không dồn sang người sau), trừ điểm đã đổi (các dòng thưởng trên hóa đơn). Hủy hóa đơn đã giảm thì điểm tự trả lại. Chỉ tính hóa đơn có hạn từ **ngày bắt đầu** của chương trình (mặc định hôm nay), nên bật lên không tặng ngược điểm cho quá khứ; muốn tính cả quá khứ thì lùi ngày bắt đầu.
+- **Ở trang Khách thuê:** huy hiệu ✨ số điểm cạnh điểm thanh toán của từng phòng; bấm vào để xem sổ điểm (từng khoản cộng, tiến độ tới lần thưởng chuỗi kế), đổi điểm vào hóa đơn đang chờ thu (có xem trước số tiền giảm), và **soạn sẵn tin nhắn báo điểm** để sao chép gửi Zalo / SMS.
+- **Cần chạy một lần** `supabase/migration-rewards.sql` (thêm cột `buildings.reward_config`, chạy lại được, không đụng dữ liệu có sẵn). Chưa chạy thì chương trình vẫn dùng được nhưng cài đặt chỉ lưu tạm trong máy; hộp thoại cài đặt báo rõ.
+- Chưa có: khách xem điểm của mình trong app khách thuê (cần thêm vào hàm `tenant_data` phía máy chủ). Hiện chủ trọ báo bằng tin nhắn soạn sẵn; khoản giảm đã hiện trong hóa đơn của khách.
+- `js/rewards.js` thuần: 62 ca kiểm thử `tests/rewards.test.js` (cấu hình, chuỗi, thứ tự dữ liệu, ngày bắt đầu, đổi điểm, tin nhắn, ghép với `js/scoring.js` thật), thử phá 60 chỗ đều bị bắt. Khi viết kiểm thử phát hiện một lỗi thật: hóa đơn thiếu ngày hạn làm hàm tính điểm văng `Invalid time value`. Thử như người dùng thật: gõ sai cấu hình không lưu được, đổi sai bậc / vượt số dư bị chặn kèm lý do, đổi đúng thì hóa đơn giảm cả trên máy chủ.
+
 ## Nhắc nợ nhiều cấp + phí trễ hạn
 
 Trang **Nhắc nợ** (menu Thêm, hoặc nút trên trang Thanh toán & công nợ) gom các phòng sắp đến hạn hoặc đã quá hạn và soạn sẵn tin nhắc theo bốn mức, giọng văn nặng dần:
@@ -352,6 +364,7 @@ js/
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
   voice.js            # hiểu câu nói tiếng Việt thành phòng + chỉ số, nghe bằng micro (phần hiểu không đụng DOM, có kiểm thử)
+  rewards.js          # điểm thưởng đóng tiền đúng hạn: luật điểm, chuỗi, đổi điểm, tin nhắn (không đụng DOM, có kiểm thử)
   renewal.js          # gia hạn hợp đồng: tính hạn mới, lịch sử, nội dung phụ lục (không đụng DOM, có kiểm thử)
   offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
   offline-ui.js       # đăng ký service worker, thanh trạng thái mạng, hộp thoại chỉ số xung đột, mở ngoại tuyến
@@ -390,6 +403,7 @@ tests/
   voice.test.js       # kiểm thử giọng nói: node tests/voice.test.js
   offline.test.js     # kiểm thử ghi chỉ số ngoại tuyến: node tests/offline.test.js
   renewal.test.js     # kiểm thử gia hạn hợp đồng: node tests/renewal.test.js
+  rewards.test.js     # kiểm thử điểm thưởng: node tests/rewards.test.js
 ```
 
 ## Kiểm thử
@@ -407,9 +421,10 @@ node tests/onboarding.test.js
 node tests/voice.test.js
 node tests/offline.test.js
 node tests/renewal.test.js
+node tests/rewards.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca); cả mười hai đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca); cả mười ba đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 

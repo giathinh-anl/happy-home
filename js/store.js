@@ -799,6 +799,49 @@ HH.store = (function () {
       return HH.scoring.tinh(inv, (i) => payments.filter(p => p.invoiceId === i.id), U.today());
     },
 
+    /* ---------- Điểm thưởng đóng tiền đúng hạn (luật ở js/rewards.js) ----------
+       Điểm KHÔNG lưu riêng: tính lại từ hóa đơn + phiếu thu của hợp đồng đang hiệu lực, trừ điểm đã đổi (dòng 'reward' trên hóa đơn).
+       Cấu hình lưu theo tòa nhà (buildings.reward_config, supabase/migration-rewards.sql), mặc định tắt. */
+    rewardConfig(bid) { const b = buildings.find(x => x.id === bid); return HH.rewards.chuanHoa(b && b.rewardConfig); },
+    setRewardConfig(bid, cfg) {
+      const loi = HH.rewards.kiemCauHinh(cfg); if (loi) return { ok: false, loi };
+      const c = HH.rewards.chuanHoa(cfg), cu = api.rewardConfig(bid);
+      api.updateBuilding(bid, { rewardConfig: c });
+      api.log('reward.config', c.bat ? `${cu.bat ? 'Sửa' : 'Bật'} điểm thưởng đúng hạn: ${c.diemMoiHoaDon} điểm/hóa đơn, chuỗi ${c.chuoi} tháng +${c.thuongChuoi}, ${U.currency(c.tiLeDoi)}/điểm${c.tuNgay ? ', từ ' + U.fmtDate(c.tuNgay) : ''}` : 'Tắt điểm thưởng đúng hạn');
+      return { ok: true, cauHinh: c };
+    },
+    rewardOf(bid, code) {
+      const cfg = api.rewardConfig(bid);
+      const room = rooms.find(r => r.buildingId === bid && r.code === code);
+      const inv = room && room.contractId ? invoices.filter(i => i.contractId === room.contractId) : [];
+      const chiTiet = HH.scoring.tinh(inv, (i) => payments.filter(p => p.invoiceId === i.id), U.today()).chiTiet;
+      return Object.assign({ cauHinh: cfg }, HH.rewards.tinhDiem({ chiTiet, cauHinh: cfg, daDoi: HH.rewards.diemDaDoi(inv) }));
+    },
+    // Hóa đơn của hợp đồng đang hiệu lực mà còn đổi điểm vào được (chưa thu đủ, chưa hủy)
+    rewardTargets(bid, code) {
+      const room = rooms.find(r => r.buildingId === bid && r.code === code);
+      if (!room || !room.contractId) return [];
+      return invoices.filter(i => i.contractId === room.contractId && i.status !== 'cancelled' && i.status !== 'paid' && i.total - i.paid > 0)
+        .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+    },
+    /* Đổi điểm thành giảm giá vào một hóa đơn: thêm một dòng giảm (type 'reward', mang số điểm) và trừ vào tổng.
+       Trả { ok, diem, tien, tongMoi } hoặc { ok:false, loi }. */
+    redeemReward(bid, code, invoiceId, diem) {
+      const room = rooms.find(r => r.buildingId === bid && r.code === code);
+      const inv = invoices.find(i => i.id === invoiceId);
+      if (!room || !inv || inv.buildingId !== bid || inv.contractId !== room.contractId) return { ok: false, loi: 'Không tìm thấy hóa đơn của hợp đồng này' };
+      if (inv.status === 'cancelled' || inv.status === 'paid' || !(inv.total - inv.paid > 0)) return { ok: false, loi: 'Hóa đơn này đã thu đủ hoặc đã hủy' };
+      const rw = api.rewardOf(bid, code);
+      const r = HH.rewards.doiDiem({ soDu: rw.soDu, diem, cauHinh: rw.cauHinh, conPhaiThu: inv.total - inv.paid, fmt: { tien: U.currency } });
+      if (!r.ok) return r;
+      inv.lines = (Array.isArray(inv.lines) ? inv.lines : []).concat(r.dong);
+      inv.total = inv.total + r.dong.amount;                    // cộng dòng giảm (âm) vào tổng đang có, không tính lại từ các dòng
+      inv.edited = true; inv.editedAt = U.dateKey(); inv.editedBy = prefs.userName;
+      api.log('reward.redeem', `Đổi ${r.diem} điểm thưởng giảm ${U.currency(r.tien)} cho phòng ${code}, hóa đơn ${inv.id}`);
+      persist();
+      return { ok: true, diem: r.diem, tien: r.tien, tongMoi: inv.total };
+    },
+
     /* ---------- Tổng hợp dashboard (theo kỳ đang chọn) ---------- */
     dashboardSummary() {
       const per = api.period();

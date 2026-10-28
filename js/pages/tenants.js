@@ -75,7 +75,7 @@
       const grp = list.filter(t => (t.roomCode || '(chưa gắn phòng)') === rc);
       const chuaGan = rc.startsWith('(');
       return `<tr class="tenant-group-head"><td colspan="9">${U.esc(rc)} <span class="cnt">(${grp.length}) khách thuê</span>`
-        + `${chuaGan ? '' : ' ' + scoreBadge(ctx.bid, rc)}</td></tr>`
+        + `${chuaGan ? '' : ' ' + scoreBadge(ctx.bid, rc) + ' ' + HH.rewardsUI.badge(ctx.bid, rc)}</td></tr>`
         + grp.map(tenantRow).join('');
     }).join('');
     return { body, pg };
@@ -105,6 +105,7 @@
           <div class="page-actions">
             <button class="btn btn-outline" id="tnTamtru">${raw(HH.icon('clock', 16))} Hết tạm trú/Visa
               ${raw(noTamtru ? `<span class="cnt-badge">${noTamtru}</span>` : '')}</button>
+            ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnReward">${HH.icon('sparkles', 16)} Điểm thưởng</button>` : '')}
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnAccess">${HH.icon('lock', 16)} Mã vào app</button>` : '')}
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnInvite">${HH.icon('send', 16)} Mời khách khai ${cho ? `<span class="cnt-badge">${cho}</span>` : ''}</button>` : '')}
             <button class="btn btn-outline" id="tnExport">${raw(HH.icon('sheet', 16))} Xuất Excel</button>
@@ -133,6 +134,7 @@
       const wirePg = () => { const g = ctx._g; if (g && g.pg) g.pg.attach(document, () => { HH.router.render(); }); };
       wirePg();
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/tenants/new`);
+      const rwb = document.getElementById('tnReward'); if (rwb) rwb.onclick = () => HH.rewardsUI.settingsDialog(ctx);
       const acc = document.getElementById('tnAccess'); if (acc) acc.onclick = () => HH.tenantAccess.bulkDialog(ctx);
       const inv = document.getElementById('tnInvite'); if (inv) inv.onclick = () => HH.onboardingUI.inviteDialog(ctx);
       const invL = document.getElementById('tnInvList'); if (invL) invL.onclick = () => HH.onboardingUI.listDialog(ctx);
@@ -169,6 +171,7 @@
   };
 
   function wireRows(ctx) {
+    document.querySelectorAll('[data-reward]').forEach(b => b.onclick = (e) => { e.stopPropagation(); HH.rewardsUI.roomDialog(ctx, b.dataset.reward); });
     document.querySelectorAll('[data-tn]').forEach(b => b.onclick = (e) => {
       e.stopPropagation();
       const t = S.tenantById(b.dataset.tn);
