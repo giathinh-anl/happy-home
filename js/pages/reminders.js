@@ -202,7 +202,7 @@
       bodyHtml: `<p class="muted" style="margin-bottom:10px">Phí được thêm thành một dòng vào hóa đơn, tính đến hôm nay (${U.fmtDate(now)}). Khách thấy khoản này trong app và số tiền cần trả tăng <b>${U.currency(tong)}</b>.</p>
         <ul class="consequence">${li}</ul>
         <div class="alert alert-warning" style="margin-top:12px"><span class="ic">${HH.ic('alert', 16)}</span>
-          <div>Chỉ nên thu khi hợp đồng thuê đã ghi điều khoản phạt trễ hạn. Phí không tự tăng thêm theo ngày sau khi ghi; muốn cập nhật thì ghi lại.</div></div>`,
+          <div>Chỉ nên thu khi hợp đồng thuê đã ghi điều khoản phạt trễ hạn. Phí không tự tăng thêm theo ngày sau khi ghi; muốn cập nhật thì ghi lại.${S.nightlyPolicy(ctx.bid).phiTuDong ? ' Ghi tay là bạn tự quyết phí của hóa đơn này: lần chạy đêm sẽ không tự đổi nó nữa.' : ''}</div></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Quay lại</button><span class="spacer"></span><button class="btn btn-primary" id="rmGo">Ghi phí</button>`,
       onMount(el, close) {
         el.querySelector('#rmGo').onclick = () => {
@@ -215,10 +215,46 @@
     });
   }
 
+  /* ---------------- CHẠY NGAY (như lần chạy đêm) ---------------- */
+  const LOI_CHAY = {
+    missing: 'Máy chủ chưa có chức năng chạy ban đêm. Chạy supabase/migration-nightly.sql trong Supabase → SQL Editor một lần.',
+    demo: 'Bản demo không có máy chủ nên không chạy được.', auth: 'Cần đăng nhập tài khoản chủ trọ.',
+    network: 'Không kết nối được máy chủ. Thử lại sau.', flush: 'Chưa lưu được thay đổi đang chờ lên máy chủ. Thử lại sau.',
+  };
+  function runNightlyDialog(ctx, na) {
+    const lam = [na.phiTuDong ? 'ghi phí trễ hạn vào các hóa đơn còn nợ và đã quá hạn quá số ngày miễn phí' : '',
+      na.nhacTuDong ? 'gửi thông báo nhắc nợ vào app của khách có hóa đơn sắp đến hạn hoặc quá hạn' : '',
+      'cập nhật trạng thái quá hạn của hóa đơn theo ngày'].filter(Boolean);
+    UI.modal({
+      title: 'Chạy ngay như lần chạy đêm',
+      bodyHtml: `<p class="muted" style="margin-bottom:10px">Theo cài đặt đã lưu cho tòa này, máy chủ sẽ:</p>
+        <ul class="consequence">${lam.map(x => `<li>${U.esc(x)}</li>`).join('')}</ul>
+        <div class="alert alert-warning" style="margin-top:12px"><span class="ic">${HH.ic('alert', 16)}</span>
+          <div>Phí được ghi vào hóa đơn thật và khách thấy ngay. Chạy lại trong ngày không ghi trùng. Chỉ nên bật khi hợp đồng thuê đã ghi điều khoản phạt trễ hạn.</div></div>`,
+      footHtml: `<button class="btn btn-outline" data-close>Quay lại</button><span class="spacer"></span><button class="btn btn-primary" id="rnGo">Chạy ngay</button>`,
+      onMount(el, close) {
+        el.querySelector('#rnGo').onclick = async (e) => {
+          const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Đang chạy...';
+          const r = await S.runNightly(ctx.bid);
+          close();
+          if (!r.ok) { UI.toast(LOI_CHAY[r.reason] || ('Không chạy được: ' + (r.message || r.reason)), { type: 'error' }); return; }
+          const d = r.data || {};
+          const ds = [];
+          if (na.phiTuDong) ds.push(`ghi phí cho ${d.fees || 0} hóa đơn` + (d.fees ? ` (+${U.currency(d.feeAmount || 0)})` : ''));
+          if (na.nhacTuDong) ds.push(`gửi ${d.notices || 0} thông báo vào app khách`);
+          if (d.statuses) ds.push(`đổi trạng thái ${d.statuses} hóa đơn`);
+          UI.toast('Đã chạy: ' + (ds.length ? ds.join(', ') : 'không có gì cần xử lý') + '.', { type: 'ok' });
+          HH.router.render();
+        };
+      },
+    });
+  }
+
   /* ---------------- CHÍNH SÁCH PHÍ ---------------- */
   function policyDialog(ctx) {
     const p = S.lateFeePolicy(ctx.bid), owner = S.isOwner();
     const on = p.moiNgay > 0;
+    const na = S.nightlyPolicy(ctx.bid), online = !!(HH.backend && HH.backend.enabled), canAuto = owner && online;
     const body = h`
       <label class="rm-switch"><input type="checkbox" id="pfOn" ${raw(on ? 'checked' : '')} ${raw(owner ? '' : 'disabled')}>
         <span><b>Tính phí trễ hạn</b><br><span class="muted text-xs">Mặc định tắt. Chỉ thu khi hợp đồng thuê đã ghi điều khoản này.</span></span></label>
@@ -231,11 +267,20 @@
           <span class="hint">Tổng phí không quá 10% tiền hóa đơn</span></div>
       </div>
       <div class="rm-demo" id="pfDemo"></div>
-      <p class="muted text-xs" style="margin-top:10px">Phí chỉ là tạm tính trên trang Nhắc nợ cho đến khi bạn bấm “Ghi phí vào hóa đơn”.
+      <div class="rm-auto">
+        <h4>Tự động mỗi đêm (0 giờ 05)</h4>
+        <label class="rm-switch"><input type="checkbox" id="pfAutoFee" ${raw(na.phiTuDong && on ? 'checked' : '')} ${raw(canAuto && on ? '' : 'disabled')}>
+          <span><b>Tự ghi phí trễ hạn vào hóa đơn</b><br><span class="muted text-xs">Máy chủ tính lại mỗi đêm và ghi dòng “Phí trễ hạn” cho hóa đơn còn nợ, khách thấy trong app. Phí chỉ tăng, không tự giảm. Hóa đơn bạn đã tự ghi hoặc miễn phí bằng tay thì hệ thống không đụng lại.</span></span></label>
+        <label class="rm-switch"><input type="checkbox" id="pfAutoRemind" ${raw(na.nhacTuDong ? 'checked' : '')} ${raw(canAuto ? '' : 'disabled')}>
+          <span><b>Tự báo nhắc nợ vào app khách thuê</b><br><span class="muted text-xs">Khách thấy thông báo trong app khi sắp đến hạn, quá hạn 1 đến 3 ngày, 4 đến 7 ngày và từ 8 ngày. Không gửi Zalo hay SMS: bạn vẫn nhắc bằng tay ở trang này.</span></span></label>
+        ${raw(canAuto ? `<div class="rm-auto-last muted text-xs">Lần chạy gần nhất: ${U.esc(na.ghiChu || 'chưa chạy lần nào')}</div>`
+          : `<div class="rm-auto-last muted text-xs">${owner ? 'Cần nối máy chủ Supabase và chạy supabase/migration-nightly.sql để dùng mục này.' : 'Chỉ chủ trọ mới đổi được mục này.'}</div>`)}
+      </div>
+      <p class="muted text-xs" style="margin-top:10px">Chưa bật tự ghi thì phí chỉ là tạm tính trên trang Nhắc nợ cho đến khi bạn bấm “Ghi phí vào hóa đơn”.
         ${raw(owner ? '' : '<br><b>Chỉ chủ trọ mới đổi được mục này.</b>')}</p>`;
     UI.modal({
       title: 'Phí trễ hạn', bodyHtml: body,
-      footHtml: `<button class="btn btn-outline" data-close>${owner ? 'Hủy' : 'Đóng'}</button>${owner ? '<span class="spacer"></span><button class="btn btn-primary" id="pfSave">Lưu</button>' : ''}`,
+      footHtml: `<button class="btn btn-outline" data-close>${owner ? 'Hủy' : 'Đóng'}</button>${canAuto ? `<button class="btn btn-ghost" id="pfRun" ${na.phiTuDong || na.nhacTuDong ? '' : 'disabled'} title="Làm đúng việc của lần chạy đêm, theo cài đặt đã lưu">Chạy ngay</button>` : ''}${owner ? '<span class="spacer"></span><button class="btn btn-primary" id="pfSave">Lưu</button>' : ''}`,
       onMount(el, close) {
         const $ = (s) => el.querySelector(s);
         const demo = () => {
@@ -248,6 +293,13 @@
         };
         ['#pfOn', '#pfPer', '#pfGrace'].forEach(s => $(s).addEventListener('input', demo));
         demo();
+        // tự ghi phí chỉ có nghĩa khi đã bật tính phí
+        $('#pfOn').addEventListener('change', () => {
+          const af = $('#pfAutoFee'); if (!af || !canAuto) return;
+          af.disabled = !$('#pfOn').checked; if (af.disabled) af.checked = false;
+        });
+        const run = $('#pfRun');
+        if (run) run.onclick = () => { close(); runNightlyDialog(ctx, S.nightlyPolicy(ctx.bid)); };
         const save = $('#pfSave'); if (!save) return;
         save.onclick = () => {
           const bat = $('#pfOn').checked, per = U.parseNum($('#pfPer').value), gr = U.parseNum($('#pfGrace').value);
@@ -256,8 +308,15 @@
             if (!(gr >= 0 && gr <= 30)) { UI.toast('Số ngày miễn phí từ 0 đến 30', { type: 'error' }); return; }
           }
           S.setLateFeePolicy(ctx.bid, { moiNgay: bat ? per : 0, mienNgay: bat ? gr : p.mienNgay });
+          let auto = null;
+          if (canAuto) {
+            auto = S.setNightlyPolicy(ctx.bid, { phiTuDong: bat && $('#pfAutoFee').checked, nhacTuDong: $('#pfAutoRemind').checked });
+          }
           UI.toast(bat ? 'Đã bật phí trễ hạn' : 'Đã tắt phí trễ hạn', { type: 'ok' });
           close(); HH.router.render();
+          if (auto && (auto.lateFeeAuto || auto.autoRemind) && HH.backend.hasColumn) HH.backend.hasColumn('buildings', 'late_fee_auto').then(ok => {
+            if (!ok) UI.toast('Máy chủ chưa có chức năng chạy ban đêm. Chạy supabase/migration-nightly.sql trong Supabase → SQL Editor một lần, nếu không cài đặt sẽ mất khi tải lại trang.', { type: 'warning' });
+          });
           // Chưa chạy migration thì máy chủ bỏ cột này và cài đặt mất khi tải lại: nói thẳng
           if (HH.backend && HH.backend.hasColumn) HH.backend.hasColumn('buildings', 'late_fee_per_day').then(ok => {
             if (!ok) UI.toast('Máy chủ chưa có cột lưu mục này. Chạy supabase/migration-late-fee.sql, nếu không cài đặt sẽ mất khi tải lại trang.', { type: 'warning' });

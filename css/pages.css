@@ -1029,6 +1029,8 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 }
 .rm-switch { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
 .rm-switch input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 auto; }
+.rm-auto { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--neutral-100); display: grid; gap: 12px; }
+.rm-auto h4 { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-2); }
 .rm-demo { margin-top: 10px; padding: 10px 12px; background: var(--neutral-100); border-radius: var(--r-input); font-size: 13px; line-height: 1.5; }
 #rmText { line-height: 1.55; }
 .dialog-foot .rm-f-close { margin-right: auto; }

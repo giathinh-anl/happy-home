@@ -99,7 +99,19 @@
     const { data, error } = await client.rpc('tenant_data', { p_token: state.token });
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
     if (data == null) { sessionLost(); throw new Error('SESSION'); }
+    data.notices = await loadNotices();
     return data;
+  }
+  /* Thông báo nhắc hạn do máy chủ tự gửi ban đêm (supabase/migration-nightly.sql). Chưa chạy migration, mất mạng hay
+     lỗi gì cũng chỉ là không có thông báo, không được làm hỏng trang chủ. Hàm chưa có thì thôi gọi lại cho đỡ tốn lượt. */
+  let noNotices = false;
+  async function loadNotices() {
+    if (noNotices) return [];
+    try {
+      const r = await client.rpc('tenant_get_notices', { p_token: state.token });
+      if (r.error) { if (rpcMissing(r.error)) noNotices = true; return []; }
+      return Array.isArray(r.data) ? r.data : [];
+    } catch (e) { return []; }
   }
   async function rpc(fn, args) {
     const { data, error } = await client.rpc(fn, Object.assign({ p_token: state.token }, args));
@@ -515,6 +527,7 @@
 
   function buildNotifications() {
     const d = state.data; const items = [];
+    (d.notices || []).slice(0, 3).forEach(n => items.push({ t: `<b>${esc(n.title)}</b><br>${esc(n.body)}`, time: fmtDate(n.createdAt) }));
     const inv = (d.invoices || [])[0];
     if (inv) items.push({ t: `Hóa đơn ${CUR_PERIOD_LABEL} ${badgeText(inv.status)}`, time: fmtDate(inv.periodStart || inv.dueDate) });
     (d.incidents || []).slice(0, 2).forEach(x => items.push({ t: `Yêu cầu "${esc(x.title)}" · ${incStatusLabel(x.status)}`, time: fmtDate(x.createdAt) }));

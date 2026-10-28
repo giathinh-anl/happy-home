@@ -472,7 +472,7 @@ HH.store = (function () {
     async refreshFromServer() {
       if (!usingBackend()) return { ok: false, reason: 'demo' };
       const stamp = () => JSON.stringify([incidents.length, claims.length, readings.length,
-        invoices.length, payments.length, tenants.length,
+        invoices.length, payments.length, tenants.length, invoices.reduce((s, i) => s + (i.total || 0), 0),
         incidents.map(x => x.status).join(''), claims.map(x => x.status).join(''),
         renewals.length, renewals.map(x => x.status).join('')]);
       const before = stamp();
@@ -575,7 +575,7 @@ HH.store = (function () {
           if (sap.length) add({ id: 'saphan:' + bid, loai: 'saphan', muc: 3, n: sap.length, tien: sap.reduce((s, g) => s + g.tongCanTra, 0),
             tieuDe: `${sap.length} phòng sắp đến hạn đóng tiền`, phuDe: 'còn 0 đến 3 ngày', href: `#/b/${bid}/reminders?filter=sap-han`, nhanNut: 'Xem và nhắc' });
           const cs = api.lateFeePolicy(bid);
-          if (cs.moiNgay && api.isOwner()) {
+          if (cs.moiNgay && api.isOwner() && !api.nightlyPolicy(bid).phiTuDong) {
             const chua = gs.filter(g => g.phi > g.phiDaAp);
             if (chua.length) add({ id: 'phitre:' + bid, loai: 'phitre', muc: 3, n: chua.length, tien: chua.reduce((s, g) => s + g.phi - g.phiDaAp, 0),
               tieuDe: `${chua.length} phòng có phí trễ hạn chưa ghi vào hóa đơn`, href: `#/b/${bid}/reminders`, nhanNut: 'Xem phí' });
@@ -1254,6 +1254,38 @@ HH.store = (function () {
       api.updateBuilding(bid, { lateFeePerDay: c.moiNgay, lateGraceDays: c.mienNgay });
       return c;
     },
+    /* ---------- CHẠY BAN ĐÊM (supabase/migration-nightly.sql) ----------
+       Máy chủ tự ghi phí trễ hạn và gửi thông báo nhắc nợ vào app khách lúc 0 giờ 05 mỗi đêm, chỉ cho tòa nào
+       chủ trọ đã bật. Luật tính ở phía SQL, khớp js/reminders.js (có kiểm thử trên Postgres thật). */
+    nightlyPolicy(bid) {
+      const b = buildings.find(x => x.id === bid) || {};
+      return { phiTuDong: !!b.lateFeeAuto, nhacTuDong: !!b.autoRemind, lanChay: b.nightlyLastRun || null, ghiChu: b.nightlyLastNote || '' };
+    },
+    setNightlyPolicy(bid, p) {
+      const c = { lateFeeAuto: !!p.phiTuDong, autoRemind: !!p.nhacTuDong };
+      api.log('nightly.policy', 'Chạy ban đêm: ' + (c.lateFeeAuto ? 'tự ghi phí trễ hạn' : 'không tự ghi phí') + '; '
+        + (c.autoRemind ? 'tự báo nhắc nợ vào app khách' : 'không tự báo nhắc nợ'));
+      api.updateBuilding(bid, c);
+      return c;
+    },
+    /* Chạy ngay như lần chạy đêm (theo cài đặt ĐÃ LƯU). Đẩy thay đổi đang chờ lên trước để máy chủ tính trên dữ liệu
+       mới nhất, rồi tải lại để thấy phí vừa ghi. Trả { ok, data } hoặc { ok:false, reason, message }. */
+    async runNightly(bid) {
+      if (!usingBackend()) return { ok: false, reason: 'demo' };
+      const f = await api.flush();
+      if (!f.ok) return { ok: false, reason: 'flush', message: f.message };
+      let r;
+      try { r = await HH.backend.rpc('owner_run_nightly', { p_building_id: bid }); }
+      catch (e) { return { ok: false, reason: 'network' }; }
+      if (r.error) {
+        const m = (r.error.message || '').toLowerCase();
+        const missing = r.error.code === 'PGRST202' || r.error.code === '42883' || m.includes('could not find the function');
+        return { ok: false, reason: missing ? 'missing' : 'error', message: r.error.message };
+      }
+      if (r.data && r.data.error) return { ok: false, reason: r.data.error };
+      await api.refreshFromServer();
+      return { ok: true, data: r.data };
+    },
     // Các phòng đang vào diện nhắc nợ, đã tính sẵn mức và phí
     remindGroups(bid) {
       return HH.reminders.gomTheoPhong(invoices.filter(i => i.buildingId === bid), api.lateFeePolicy(bid), U.today());
@@ -1288,6 +1320,7 @@ HH.store = (function () {
       inv.paid = Math.min(inv.paid, inv.total);
       inv.status = inv.paid >= inv.total ? 'paid' : (api.isOverdue(inv) ? 'overdue' : (inv.paid > 0 ? 'partial' : 'issued'));
       inv.edited = true; inv.editedAt = new Date().toISOString(); inv.editedBy = prefs.userName;
+      inv.lateFeeLocked = true;           // chủ trọ đã tự quyết phí hóa đơn này: lần chạy đêm không đụng lại (kể cả khi miễn phí)
       api.log('invoice.latefee', fee ? `Ghi phí trễ hạn ${U.currency(fee)} vào ${invId}` : `Gỡ phí trễ hạn khỏi ${invId}`, note || null);
       persist();
       return inv;

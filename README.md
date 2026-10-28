@@ -61,6 +61,21 @@ Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạ
 
 Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
 
+## Chạy ban đêm: tự ghi phí trễ hạn, tự báo nhắc nợ
+
+Trang **Nhắc nợ → Phí trễ hạn** có thêm mục *Tự động mỗi đêm (0 giờ 05)*, **mặc định tắt**, bật riêng cho từng tòa:
+
+- **Tự ghi phí trễ hạn vào hóa đơn:** máy chủ tính lại mỗi đêm theo đúng luật ở `js/reminders.js` (miễn N ngày đầu, X ₫/ngày, trần 10% tiền gốc, không tính phí chồng phí) rồi ghi dòng "Phí trễ hạn" vào hóa đơn còn nợ. **Chỉ tăng, không bao giờ tự giảm.** Hóa đơn chủ trọ đã tự ghi hoặc miễn phí bằng tay thì được khóa (`late_fee_locked`): đêm sau hệ thống không ghi lại, nên miễn phí cho một khách là miễn thật.
+- **Tự báo nhắc nợ vào app khách thuê:** khách thấy thông báo ở trang chủ app khi sắp đến hạn (còn 0 đến 3 ngày), quá hạn 1 đến 3 ngày, 4 đến 7 ngày và từ 8 ngày (mức khẩn nhắc lại mỗi tuần). Mỗi hóa đơn mỗi mức chỉ một thông báo, chạy lại không gửi trùng. **Không gửi Zalo hay SMS** (cần tài khoản dịch vụ ngoài): chủ trọ vẫn nhắc bằng tay ở trang này.
+- Mỗi đêm còn đổi trạng thái hóa đơn còn nợ sang "Quá hạn" theo ngày, như web vẫn làm mỗi lần mở, để app khách không hiện trạng thái cũ.
+- Nút **Chạy ngay** làm đúng việc của lần chạy đêm theo cài đặt đã lưu (có hỏi lại trước khi chạy). Hộp thoại hiện *Lần chạy gần nhất* ghi rõ đã làm gì. Việc đã làm cũng ghi vào nhật ký hoạt động.
+
+**Bật bằng cách:** chạy `supabase/migration-nightly.sql` trong Supabase → SQL Editor (một lần, chạy lại an toàn). Giờ chạy tự động dùng **pg_cron**: nếu tệp báo chưa bật được, vào Database → Extensions bật `pg_cron` rồi chạy lại tệp. Chưa có pg_cron thì nút *Chạy ngay* vẫn dùng được. Ngày tính theo giờ Việt Nam (UTC+7).
+
+Hạn chế cần biết: web quản trị tự tải lại dữ liệu từ máy chủ mỗi 2 phút và khi quay lại tab, nên phí máy chủ ghi ban đêm hiện ra sau tối đa 2 phút; nếu chủ trọ để tab cũ rất lâu rồi sửa đúng hóa đơn đó thì bản cũ có thể đè mất dòng phí (đêm sau tự ghi lại).
+
+Luật tính nằm ở hai nơi (JS để xem trước, SQL để chạy đêm) nên có bộ thử riêng trên Postgres thật: `tests/db/nightly.test.py` (75 ca, lấy lại các ca của `tests/reminders.test.js`). Đã thử phá 27 chỗ của migration, bộ thử bắt được 25; hai chỗ còn lại là biến thể tương đương (thứ tự `case` và lớp quyền thừa vì RLS đã chặn).
+
 ## Ngày lưu đúng (không lệch một ngày)
 
 Ngày trong hóa đơn, hợp đồng, phiếu thu là **ngày lịch**, không phải một thời điểm. Bản cũ ghi nửa đêm 1/10 giờ Việt Nam thành chuỗi UTC `2026-09-30T17:00:00Z`; cột `date` của Postgres cắt lấy `30/9`, nên hạn đóng tiền và đầu kỳ hóa đơn bị lưu **sớm một ngày** (hạn 5 thành 4, đầu kỳ ngày cuối tháng trước). Phiếu thu ghi lúc 0 đến 7 giờ sáng cũng rơi về hôm trước. Đã sửa ở gốc:
@@ -310,6 +325,7 @@ python -m venv .venv-db
 .venv-db/Scripts/pip install pgserver "psycopg[binary]"
 .venv-db/Scripts/python tests/db/tenant-auth.test.py
 .venv-db/Scripts/python tests/db/repair-dates.test.py
+.venv-db/Scripts/python tests/db/nightly.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

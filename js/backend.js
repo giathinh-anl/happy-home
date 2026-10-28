@@ -59,12 +59,16 @@ HH.backend = (function () {
     payments: ['date'], transactions: ['date'], assets: ['buyDate'],
   };
 
+  // Cột do MÁY CHỦ ghi (supabase/migration-nightly.sql): trình duyệt đang mở lâu có bản cũ, gửi lại sẽ đè mất
+  const SERVER_FIELDS = { buildings: ['nightlyLastRun', 'nightlyLastNote'] };
+
   function jsToRow(kind, obj) {
     const alias = ALIAS[kind] || {};
     const dateKeys = DATE_FIELDS[kind] || [];
+    const serverKeys = SERVER_FIELDS[kind] || [];
     const row = { owner_id: ownerId, updated_at: new Date().toISOString() };
     Object.keys(obj).forEach((k) => {
-      if (k === 'ownerId' || k === 'updatedAt') return;
+      if (k === 'ownerId' || k === 'updatedAt' || serverKeys.indexOf(k) >= 0) return;
       let v = obj[k];
       if (v != null && v !== '' && dateKeys.indexOf(k) >= 0) v = HH.dates.chuoiNgay(v) || v;   // không đổi được thì để nguyên cho DB báo lỗi
       row[alias[k] || toSnake(k)] = v;
