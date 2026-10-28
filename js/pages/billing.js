@@ -315,6 +315,11 @@
       const gen = () => generateFlow(ctx);
       document.getElementById('genInv').onclick = gen;
       document.getElementById('genInv2').onclick = gen;
+      // đi từ "Hôm nay" bằng nút Chốt sổ: mở thẳng bước xem trước (một lần)
+      if (new URLSearchParams((location.hash.split('?')[1] || '')).get('act') === 'chotso') {
+        try { history.replaceState(null, '', location.href.split('?')[0].split('#')[0] + '#' + location.hash.slice(1).split('?')[0]); } catch (e) {}
+        setTimeout(gen, 50);
+      }
       const ie = document.getElementById('invExport');
       if (ie) ie.onclick = () => exportInvoices(ctx, S.invoicesOf(ctx.bid, S.period()));
       document.querySelectorAll('[data-bissue]').forEach(b => b.onclick = () => issueBatchFlow(ctx, b.dataset.bissue));

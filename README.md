@@ -61,6 +61,16 @@ Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạ
 
 Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
 
+## Hôm nay cần làm gì
+
+Trang Tổng quan có khối **Hôm nay cần làm gì**: việc của chủ trọ gom theo **từng tòa nhà** và theo **quyền** của người đang dùng (nhân viên chỉ thấy việc thuộc quyền mình), xếp theo mức gấp:
+
+- **Gấp (đỏ):** hợp đồng đã quá hạn hoặc còn dưới 7 ngày, phòng đã quá hạn từ 4 ngày trở lên cần nhắc nợ, sự cố mở quá 7 ngày.
+- **Nên làm hôm nay (vàng):** phòng quá hạn nhẹ cần nhắc, phiếu chuyển khoản chờ duyệt, khách xin gia hạn, chốt sổ khi đã đủ chỉ số (hoặc từ ngày 25), hóa đơn nháp chờ phát hành, câu khách hỏi chưa trả lời, chưa ghi chỉ số (từ ngày 25).
+- **Sắp tới (xanh):** phòng sắp đến hạn đóng tiền, hợp đồng hết hạn trong 30 ngày, phí trễ hạn chưa ghi, khách chưa có mã vào app.
+
+Mỗi việc có nút làm ngay đi thẳng tới đúng chỗ (có sẵn bộ lọc; nút *Chốt sổ* mở thẳng bước xem trước) và nút **Hoãn**: ẩn việc đó đến hết hôm nay, **tự hiện lại** nếu việc nặng thêm (gấp hơn hoặc nhiều phòng hơn lúc hoãn). Việc đã hoãn xem và hiện lại được. Danh sách việc hoãn lưu theo trình duyệt. Xếp thứ tự và hoãn ở `js/today.js` (thuần, có kiểm thử), dựng việc thô ở `S.todayItems()`.
+
 ## Đăng nhập app khách thuê
 
 Trước đây app khách thuê chỉ cần số điện thoại: ai biết một số là đọc được cả hồ sơ khách (CCCD, ngày sinh, hóa đơn, bạn cùng phòng) và gửi thay khách, còn OTP chỉ là mã cố định kiểm tra ngay trong trình duyệt. Giờ đăng nhập được kiểm ở **máy chủ**:
@@ -237,6 +247,7 @@ js/
   validate.js         # luật kiểm tra dữ liệu nhập: tiền, ngày, sđt, CCCD, biển số (không đụng DOM, có kiểm thử)
   split.js            # chia hóa đơn cho người ở, dùng chung với app khách (không đụng DOM, có kiểm thử)
   closing.js          # phân loại phòng khi chốt sổ tháng (không đụng DOM, có kiểm thử)
+  today.js            # xếp thứ tự và hoãn việc "Hôm nay cần làm gì" (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -263,6 +274,7 @@ tests/
   validate.test.js    # kiểm thử luật nhập liệu: node tests/validate.test.js
   split.test.js       # kiểm thử chia hóa đơn: node tests/split.test.js
   closing.test.js     # kiểm thử phân loại chốt sổ: node tests/closing.test.js
+  today.test.js       # kiểm thử việc hôm nay: node tests/today.test.js
 ```
 
 ## Kiểm thử
@@ -273,9 +285,10 @@ node tests/reminders.test.js
 node tests/validate.test.js
 node tests/split.test.js
 node tests/closing.test.js
+node tests/today.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca); cả năm đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca); cả sáu đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 

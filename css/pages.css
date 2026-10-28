@@ -987,6 +987,24 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 .sp-empty .ic { opacity: .4; margin-bottom: 8px; }
 .sp-empty h4 { margin-bottom: 6px; }
 
+/* ---------- Hôm nay cần làm gì (js/today.js, trang Tổng quan) ---------- */
+.td-list { list-style: none; margin: 0; padding: 0 10px 8px; max-height: 460px; overflow: auto; }
+.td-row { display: flex; align-items: center; gap: 12px; padding: 11px 10px; border-radius: 12px; animation: fxUp .5s var(--ease-out) backwards; animation-delay: calc(.15s + var(--i) * 50ms); }
+.td-row + .td-row { border-top: 1px solid var(--neutral-100); }
+.td-row:hover { background: var(--surface-2); }
+.td-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--info); }
+.muc-1 .td-dot { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-bg); }
+.muc-2 .td-dot { background: var(--warning); }
+.td-main { flex: 1; min-width: 0; }
+.td-t { font-size: 14.5px; line-height: 1.35; }
+.td-t b { font-weight: 700; }
+.td-toa { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--neutral-100); color: var(--ink-2); white-space: nowrap; }
+.td-s { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.td-act { display: flex; gap: 6px; flex: 0 0 auto; align-items: center; }
+.td-hoan { padding: 0 16px 14px; }
+.td-list-hoan { padding: 6px 0 0; opacity: .75; max-height: 220px; }
+@media (max-width: 640px) { .td-row { flex-wrap: wrap; } .td-act { width: 100%; justify-content: flex-end; } }
+
 /* ---------- Nhắc nợ nhiều cấp + phí trễ hạn (js/pages/reminders.js) ---------- */
 .rm-note {
   display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 14px;

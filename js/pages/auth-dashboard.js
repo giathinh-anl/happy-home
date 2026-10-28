@@ -191,6 +191,31 @@ HH.pages = HH.pages || {};
   // Cách hiện số khi "chạy" (HH.fx.countUp)
   const FMT = { money: (v) => U.currency(Math.round(v)), pct: (v) => U.percent(v), int: (v) => U.number(Math.round(v)) };
 
+  /* ---------- Hôm nay cần làm gì ---------- */
+  const HOAN_KEY = 'hh_today_hoan_v1';          // việc đã hoãn, lưu theo trình duyệt này
+  const docHoan = () => { try { return HH.today.donHoan(JSON.parse(localStorage.getItem(HOAN_KEY) || '{}'), new Date()); } catch (e) { return {}; } };
+  const ghiHoan = (h) => { try { localStorage.setItem(HOAN_KEY, JSON.stringify(h)); } catch (e) { /* trình duyệt chặn lưu: hoãn chỉ có tác dụng trong lần xem này */ } };
+  let tdShowHoan = false;
+
+  function todayView() {
+    const r = HH.today.boLoc(S.todayItems(), docHoan(), new Date());
+    const sum = HH.today.tomTat(r.hien), nhieuToa = S.buildings.length > 1;
+    const row = (it, hoan, i) => `<li class="td-row muc-${it.muc}" style="--i:${i}">
+        <span class="td-dot" title="${HH.today.MUC[it.muc].nhan}"></span>
+        <div class="td-main"><div class="td-t"><b>${U.esc(it.tieuDe)}</b>${nhieuToa && it.tenToa ? ` <span class="td-toa">${U.esc(it.tenToa)}</span>` : ''}</div>
+          ${it.phuDe || it.tien ? `<div class="td-s">${it.tien ? `<span class="mono">${U.currency(it.tien)}</span>` : ''}${it.tien && it.phuDe ? ' · ' : ''}${U.esc(it.phuDe || '')}</div>` : ''}</div>
+        <div class="td-act">${hoan
+          ? `<button class="btn btn-sm btn-outline" data-unhoan="${U.esc(it.id)}">Hiện lại</button>`
+          : `<a class="btn btn-sm btn-primary" href="${U.esc(it.href)}">${U.esc(it.nhanNut || 'Làm ngay')}</a>
+             <button class="btn btn-sm btn-ghost" data-hoan="${U.esc(it.id)}" title="Ẩn việc này đến hết hôm nay. Nặng thêm thì tự hiện lại">Hoãn</button>`}</div></li>`;
+    let html = r.hien.length
+      ? `<ol class="td-list">${r.hien.map((it, i) => row(it, false, i)).join('')}</ol>`
+      : `<div class="dh-calm">${pic('house', 46)}<p>${r.daHoan.length ? 'Hết việc cho hôm nay (còn các việc đã hoãn).' : 'Mọi việc đã xong, không có gì tồn đọng.'}</p></div>`;
+    if (r.daHoan.length) html += `<div class="td-hoan"><button class="link-sm" id="tdShowHoan">${tdShowHoan ? 'Ẩn' : 'Xem'} ${r.daHoan.length} việc đã hoãn</button>
+        ${tdShowHoan ? `<ol class="td-list td-list-hoan">${r.daHoan.map((it, i) => row(it, true, i)).join('')}</ol>` : ''}</div>`;
+    return { html, sum };
+  }
+
   HH.pages.dashboard = {
     render() {
       const d = S.dashboardSummary();
@@ -202,20 +227,8 @@ HH.pages = HH.pages || {};
       const first = ((S.prefs && S.prefs.userName) || '').trim().split(/\s+/).slice(-1)[0];
       const openInc = S.incidents.filter(x => x.status !== 'done').length;
 
-      /* ---- Việc cần xử lý: xếp theo mức gấp ---- */
-      const todo = [
-        { p: 'alarm', tone: 'bad', n: d.alerts.expiredContracts || 0, t: 'hợp đồng đã quá hạn', href: `#/b/${firstB}/contracts?filter=expired` },
-        { p: 'receipt', tone: 'bad', n: d.alerts.overdueInvoices, t: 'hóa đơn quá hạn', href: `#/b/${firstB}/invoices?status=overdue` },
-        { p: 'card', tone: '', n: S.pendingClaimCount(), t: 'phiếu chuyển khoản chờ duyệt', href: '#/transfers' },
-        { p: 'wrench', tone: '', n: openInc, t: 'sự cố đang mở', href: `#/b/${firstB}/incidents` },
-        { p: 'calendar', tone: 'warn', n: d.alerts.expiringContracts, t: 'hợp đồng hết hạn trong 30 ngày', href: `#/b/${firstB}/contracts?filter=soon` },
-        { p: 'meter', tone: '', n: d.alerts.pendingReadings, t: 'phòng chưa ghi chỉ số', href: `#/b/${firstB}/readings` },
-      ].filter(x => x.n > 0);
-      const todoHtml = todo.length
-        ? `<ol class="dh-todo">${todo.map((x, i) => `<li style="--i:${i}"><a href="${x.href}">
-            <span class="dh-todo-pic">${pic(x.p, 30)}</span>
-            <span class="dh-todo-t"><b class="${x.tone}">${x.n}</b> ${U.esc(x.t)}</span>${ic('chevron', 16)}</a></li>`).join('')}</ol>`
-        : `<div class="dh-calm">${pic('house', 46)}<p>Mọi việc đã xong, không có gì tồn đọng.</p></div>`;
+      /* ---- Hôm nay cần làm gì: việc theo từng tòa, xếp theo mức gấp, hoãn được (js/today.js) ---- */
+      const today = todayView();
 
       /* ---- Băng rôn: lời chào + con số chính, nền là tranh khu phố ---- */
       const remain = Math.max(0, K.billed - K.revenue);
@@ -335,8 +348,9 @@ HH.pages = HH.pages || {};
       <div class="dh-top">
         ${raw(banner)}
         <section class="card dh-todo-card">
-          <header class="dh-panel-h"><span class="dh-panel-pic">${raw(pic('clipboard', 26))}</span><h3>Cần xử lý</h3><span class="faint text-xs">xếp theo mức gấp</span></header>
-          ${raw(todoHtml)}
+          <header class="dh-panel-h"><span class="dh-panel-pic">${raw(pic('clipboard', 26))}</span><h3>Hôm nay cần làm gì</h3>
+            <span class="faint text-xs">${today.sum.tong ? `${today.sum.gap} gấp · ${today.sum.homNay} hôm nay · ${today.sum.sapToi} sắp tới` : 'không có việc nào'}</span></header>
+          ${raw(today.html)}
         </section>
       </div>
 
@@ -356,6 +370,13 @@ HH.pages = HH.pages || {};
       </div>`;
     },
     mount() {
+      const items = () => S.todayItems();
+      document.querySelectorAll('[data-hoan]').forEach(b => b.onclick = () => {
+        const it = items().find(x => x.id === b.dataset.hoan); if (!it) return;
+        ghiHoan(HH.today.themHoan(docHoan(), it, new Date())); UI.toast('Đã hoãn đến ngày mai. Việc nặng thêm sẽ tự hiện lại.', { type: 'ok' }); HH.router.render();
+      });
+      document.querySelectorAll('[data-unhoan]').forEach(b => b.onclick = () => { ghiHoan(HH.today.boHoan(docHoan(), b.dataset.unhoan)); HH.router.render(); });
+      const sh = document.getElementById('tdShowHoan'); if (sh) sh.onclick = () => { tdShowHoan = !tdShowHoan; HH.router.render(); };
       document.querySelectorAll('#bldRows tr[data-bid]').forEach(tr => {
         tr.onclick = () => HH.router.go(`/b/${tr.dataset.bid}/units`);
         tr.onkeydown = (e) => { if (e.key === 'Enter') tr.onclick(); };

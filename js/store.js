@@ -257,6 +257,7 @@ HH.store = (function () {
   const DATA_KEY = 'hh_data_v2';
   const groups = { buildings, rooms, tenants, contracts, services, readings, invoices, payments, assets, incidents, transactions, staff, claims, renewals, invoiceBatches, bankTx, auditLog, supportMsgs };
   const usingBackend = () => !!(HH.backend && HH.backend.enabled);
+  const pendingClaimCountOf = (bid) => claims.filter(c => c.status === 'pending' && c.buildingId === bid).length;
 
   let syncTimer = null;
   function persist() {
@@ -551,6 +552,83 @@ HH.store = (function () {
       return list;
     },
     notificationCount() { return api.notifications().length; },
+
+    /* ---------- "HÔM NAY CẦN LÀM GÌ" ----------
+       Dựng danh sách việc thô theo từng tòa nhà và theo quyền của người đang dùng. Việc nào cần mở trang nào
+       thì có sẵn đường dẫn (href). Xếp thứ tự / hoãn việc nằm ở js/today.js (thuần, có kiểm thử). */
+    todayItems() {
+      const items = [], now = U.today(), cur = CUR_PERIOD, R = HH.reminders;
+      const ngayThang = now.getDate();
+      buildings.forEach(b => {
+        const bid = b.id, ten = (b.name || '').replace(/^Happy Home\s*/, '');
+        const add = (o) => items.push(Object.assign({ bid, tenToa: ten }, o));
+
+        if (api.can('payments')) {
+          const gs = api.remindGroups(bid);
+          const can = gs.filter(g => g.muc.bac >= 1 && R.trangThaiNhac(api.lastReminder(bid, g.roomCode), g.muc, now).nenNhac);
+          if (can.length) {
+            const tien = can.reduce((s, g) => s + g.tongCanTra, 0), tre = Math.max(...can.map(g => g.ngayTreMax));
+            add({ id: 'nhacno:' + bid, loai: 'nhacno', muc: can.some(g => g.muc.bac >= 2) ? 1 : 2, n: can.length, tien,
+              tieuDe: `${can.length} phòng nên nhắc nợ`, phuDe: `nặng nhất quá hạn ${tre} ngày`, href: `#/b/${bid}/reminders?filter=homnay`, nhanNut: 'Soạn tin nhắc' });
+          }
+          const sap = gs.filter(g => g.muc.bac === 0);
+          if (sap.length) add({ id: 'saphan:' + bid, loai: 'saphan', muc: 3, n: sap.length, tien: sap.reduce((s, g) => s + g.tongCanTra, 0),
+            tieuDe: `${sap.length} phòng sắp đến hạn đóng tiền`, phuDe: 'còn 0 đến 3 ngày', href: `#/b/${bid}/reminders?filter=sap-han`, nhanNut: 'Xem và nhắc' });
+          const cs = api.lateFeePolicy(bid);
+          if (cs.moiNgay && api.isOwner()) {
+            const chua = gs.filter(g => g.phi > g.phiDaAp);
+            if (chua.length) add({ id: 'phitre:' + bid, loai: 'phitre', muc: 3, n: chua.length, tien: chua.reduce((s, g) => s + g.phi - g.phiDaAp, 0),
+              tieuDe: `${chua.length} phòng có phí trễ hạn chưa ghi vào hóa đơn`, href: `#/b/${bid}/reminders`, nhanNut: 'Xem phí' });
+          }
+          const cl = pendingClaimCountOf(bid);
+          if (cl) add({ id: 'chuyenkhoan:' + bid, loai: 'chuyenkhoan', muc: 2, n: cl, tieuDe: `${cl} phiếu chuyển khoản chờ duyệt`, href: '#/transfers', nhanNut: 'Duyệt' });
+        }
+        if (api.can('contracts')) {
+          const het = api.expiringContracts(bid, -1);
+          if (het.length) add({ id: 'hdhet:' + bid, loai: 'hdhet', muc: 1, n: het.length, tieuDe: `${het.length} hợp đồng đã quá hạn`,
+            phuDe: het.slice(0, 5).map(c => c.roomCode).join(', ') + (het.length > 5 ? '…' : ''), href: `#/b/${bid}/contracts?filter=expired`, nhanNut: 'Gia hạn / thanh lý' });
+          const gap = api.expiringContracts(bid, 7).filter(c => api.daysToExpiry(c) >= 0);
+          if (gap.length) add({ id: 'hdgap:' + bid, loai: 'hdgap', muc: 1, n: gap.length, tieuDe: `${gap.length} hợp đồng hết hạn trong 7 ngày`,
+            phuDe: gap.map(c => c.roomCode).join(', '), href: `#/b/${bid}/contracts?filter=urgent`, nhanNut: 'Gia hạn' });
+          const sapH = api.expiringContracts(bid, 30).filter(c => api.daysToExpiry(c) > 7);
+          if (sapH.length) add({ id: 'hdsap:' + bid, loai: 'hdsap', muc: 3, n: sapH.length, tieuDe: `${sapH.length} hợp đồng hết hạn trong 30 ngày`,
+            phuDe: sapH.slice(0, 6).map(c => c.roomCode).join(', '), href: `#/b/${bid}/contracts?filter=soon`, nhanNut: 'Xem' });
+          const gh = renewals.filter(r => r.buildingId === bid && r.status === 'pending').length;
+          if (gh) add({ id: 'xingiahan:' + bid, loai: 'xingiahan', muc: 2, n: gh, tieuDe: `${gh} khách xin gia hạn hợp đồng`, href: `#/b/${bid}/contracts`, nhanNut: 'Duyệt' });
+        }
+        if (api.can('incidents')) {
+          const sc = api.incidentsOf(bid);
+          if (sc.length) {
+            const cu = Math.max(...sc.map(x => x.createdAt ? Math.max(0, U.daysBetween(x.createdAt, now)) : 0));
+            add({ id: 'suco:' + bid, loai: 'suco', muc: cu > 7 ? 1 : 2, n: sc.length, tieuDe: `${sc.length} sự cố đang mở`, phuDe: cu > 0 ? `cũ nhất ${cu} ngày chưa xong` : 'mới báo hôm nay', href: `#/b/${bid}/incidents`, nhanNut: 'Xử lý' });
+          }
+        }
+        if (api.can('readings')) {
+          const occ = rooms.filter(r => r.buildingId === bid && (r.status === 'occupied' || r.status === 'notice'));
+          const thieu = occ.filter(r => { const rd = api.reading(bid, r.code, cur); return !(rd && rd.elecCurr != null); });
+          if (thieu.length) add({ id: 'chiso:' + bid, loai: 'chiso', muc: ngayThang >= 25 ? 2 : 3, n: thieu.length, tieuDe: `${thieu.length} phòng chưa ghi chỉ số điện`,
+            phuDe: thieu.slice(0, 6).map(r => r.code).join(', ') + (thieu.length > 6 ? '…' : ''), href: `#/b/${bid}/readings`, nhanNut: 'Ghi chỉ số' });
+        }
+        if (api.can('invoices')) {
+          const pv = HH.closing ? api.closingPreview(bid, cur) : [];
+          const san = pv.filter(r => !r.chan).length, thieuCs = pv.filter(r => r.trangThai === 'thieu-chi-so').length;
+          if (san && (ngayThang >= 25 || !thieuCs)) add({ id: 'chotso:' + bid, loai: 'chotso', muc: 2, n: san, tien: pv.filter(r => !r.chan).reduce((s, r) => s + (r.duKien || 0), 0),
+            tieuDe: `Chốt sổ ${api.periodLabel(cur)}: ${san} phòng sẵn sàng`, phuDe: thieuCs ? `${thieuCs} phòng còn thiếu chỉ số` : 'đủ chỉ số', href: `#/b/${bid}/invoices?act=chotso`, nhanNut: 'Chốt sổ' });
+          const nhap = invoices.filter(i => i.buildingId === bid && i.status === 'draft');
+          if (nhap.length) add({ id: 'nhap:' + bid, loai: 'nhap', muc: 2, n: nhap.length, tien: nhap.reduce((s, i) => s + i.total, 0), tieuDe: `${nhap.length} hóa đơn nháp chờ phát hành`,
+            phuDe: 'khách chưa thấy trong app', href: `#/b/${bid}/invoices?status=draft`, nhanNut: 'Rà soát' });
+        }
+        if (api.isOwner() && usingBackend()) {
+          const chua = tenants.filter(t => t.buildingId === bid && !t.appCodeSetAt && /^0\d{9}$/.test(HH.validate.chuanSdt(t.phone))).length;
+          if (chua) add({ id: 'mavaoapp:' + bid, loai: 'mavaoapp', muc: 3, n: chua, tieuDe: `${chua} khách chưa có mã vào app`, phuDe: 'chưa đăng nhập được app khách thuê', href: `#/b/${bid}/tenants`, nhanNut: 'Cấp mã' });
+        }
+      });
+      if (api.can('tenants') && buildings[0]) {
+        const un = api.supportUnread();
+        if (un) items.push({ id: 'hoidap', loai: 'hoidap', bid: buildings[0].id, tenToa: '', muc: 2, n: un, tieuDe: `${un} câu khách hỏi chưa trả lời`, href: `#/b/${buildings[0].id}/support`, nhanNut: 'Trả lời' });
+      }
+      return items;
+    },
 
     // Tổng hợp cho 3 thẻ trang phòng (kiểu LOZIDO)
     roomSummary(bid) {

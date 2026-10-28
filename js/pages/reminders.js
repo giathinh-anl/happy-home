@@ -26,6 +26,13 @@
   /* ---------------- TRANG ---------------- */
   HH.pages.reminders = {
     render(ctx) {
+      // Đường dẫn từ "Hôm nay" (?filter=homnay hoặc mã mức): áp bộ lọc một lần rồi bỏ khỏi địa chỉ,
+      // nếu không bấm chip lọc sẽ bị đường dẫn đè lại mỗi lần vẽ lại.
+      const q = new URLSearchParams((location.hash.split('?')[1] || ''));
+      if (q.has('filter')) {
+        rmFilter = q.get('filter') || null;
+        try { history.replaceState(null, '', location.href.split('?')[0].split('#')[0] + '#' + location.hash.slice(1).split('?')[0]); } catch (e) {}
+      }
       const policy = S.lateFeePolicy(ctx.bid);
       const all = rowsOf(ctx.bid);
       const nenNhac = all.filter(r => r.st.nenNhac);
