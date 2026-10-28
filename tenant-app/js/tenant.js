@@ -44,8 +44,9 @@
   const vnd = (n) => (n == null || isNaN(n)) ? '-' : viNum.format(Math.round(n)) + ' ₫';
   const num = (n) => (n == null || isNaN(n)) ? '-' : viNum.format(n);
   const pad = (x) => String(x).padStart(2, '0');
-  const fmtDate = (d) => { const x = new Date(d); return isNaN(x) ? '-' : `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`; };
-  const daysLeft = (d) => Math.round((new Date(d) - TODAY) / 86400000);
+  // Ngày là ngày LỊCH (js/dates.js): hạn '2026-10-05' là hết ngày 5/10, không lệch theo múi giờ, không làm tròn theo giờ
+  const fmtDate = (d) => { const x = HH.dates.phanTich(d); return x ? `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}` : '-'; };
+  const daysLeft = (d) => HH.dates.chenhNgay(new Date(), d);
   const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
   const el = (id) => document.getElementById(id);
 

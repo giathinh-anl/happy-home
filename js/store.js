@@ -234,8 +234,8 @@ HH.store = (function () {
       id: `HD-${period.slice(2, 4)}${String(m).padStart(2, '0')}-${num}`,
       buildingId: bid, roomCode: room.code, contractId: contract.id, tenantId: tenant.id,
       tenantName: tenant.fullName, period,
-      periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(),
-      dueDate: dueDate.toISOString(), lines, total, paid, status,
+      periodStart: U.dateKey(periodStart), periodEnd: U.dateKey(periodEnd),
+      dueDate: U.dateKey(dueDate), lines, total, paid, status,
       edited: false, editedAt: null, editedBy: null,
     };
     if (period === CUR_PERIOD && room.floor === 2 && room.code.endsWith('01')) {
@@ -345,7 +345,7 @@ HH.store = (function () {
       id: pre + num,
       buildingId: bid, roomCode: contract.roomCode, contractId: contract.id, tenantId: rep.id || contract.tenantId,
       tenantName: contract.tenantName, period,
-      periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(), dueDate: dueDate.toISOString(),
+      periodStart: U.dateKey(periodStart), periodEnd: U.dateKey(periodEnd), dueDate: U.dateKey(dueDate),
       lines, total, paid: 0, status: 'draft', edited: false, editedAt: null, editedBy: null,
     };
   }

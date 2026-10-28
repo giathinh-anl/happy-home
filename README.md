@@ -61,6 +61,16 @@ Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạ
 
 Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
 
+## Ngày lưu đúng (không lệch một ngày)
+
+Ngày trong hóa đơn, hợp đồng, phiếu thu là **ngày lịch**, không phải một thời điểm. Bản cũ ghi nửa đêm 1/10 giờ Việt Nam thành chuỗi UTC `2026-09-30T17:00:00Z`; cột `date` của Postgres cắt lấy `30/9`, nên hạn đóng tiền và đầu kỳ hóa đơn bị lưu **sớm một ngày** (hạn 5 thành 4, đầu kỳ ngày cuối tháng trước). Phiếu thu ghi lúc 0 đến 7 giờ sáng cũng rơi về hôm trước. Đã sửa ở gốc:
+
+- `js/dates.js` (thuần, có kiểm thử, thử ở nhiều múi giờ): đổi ngày sang `YYYY-MM-DD` theo lịch địa phương, đọc `YYYY-MM-DD` đúng ngày ở mọi múi giờ, và tính số ngày chênh theo ngày lịch (hạn 5/10, lúc 20:00 ngày 5/10 là "còn 0 ngày", chưa quá hạn).
+- `js/backend.js`: mọi cột kiểu `date` (hóa đơn, hợp đồng, phiếu thu, sổ thu chi, tài sản, phòng) đều qua bước đổi này trước khi gửi lên máy chủ.
+- `U.fmtDate` / `U.daysBetween` và app khách thuê dùng cùng quy tắc.
+
+**Dữ liệu cũ đã lưu lệch cần sửa một lần:** chạy `supabase/repair-invoice-dates.sql` trong Supabase → SQL Editor (có bước xem trước, chạy lại an toàn, chỉ dịch hóa đơn có đầu kỳ rơi vào ngày cuối tháng và không đụng hóa đơn đã đúng). Có kiểm thử trên Postgres thật: `tests/db/repair-dates.test.py`.
+
 ## Hôm nay cần làm gì
 
 Trang Tổng quan có khối **Hôm nay cần làm gì**: việc của chủ trọ gom theo **từng tòa nhà** và theo **quyền** của người đang dùng (nhân viên chỉ thấy việc thuộc quyền mình), xếp theo mức gấp:
@@ -248,6 +258,7 @@ js/
   split.js            # chia hóa đơn cho người ở, dùng chung với app khách (không đụng DOM, có kiểm thử)
   closing.js          # phân loại phòng khi chốt sổ tháng (không đụng DOM, có kiểm thử)
   today.js            # xếp thứ tự và hoãn việc "Hôm nay cần làm gì" (không đụng DOM, có kiểm thử)
+  dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
@@ -275,6 +286,7 @@ tests/
   split.test.js       # kiểm thử chia hóa đơn: node tests/split.test.js
   closing.test.js     # kiểm thử phân loại chốt sổ: node tests/closing.test.js
   today.test.js       # kiểm thử việc hôm nay: node tests/today.test.js
+  dates.test.js       # kiểm thử ngày lịch: node tests/dates.test.js
 ```
 
 ## Kiểm thử
@@ -286,9 +298,10 @@ node tests/validate.test.js
 node tests/split.test.js
 node tests/closing.test.js
 node tests/today.test.js
+node tests/dates.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca); cả sáu đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca); cả bảy đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -296,6 +309,7 @@ Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho lu�
 python -m venv .venv-db
 .venv-db/Scripts/pip install pgserver "psycopg[binary]"
 .venv-db/Scripts/python tests/db/tenant-auth.test.py
+.venv-db/Scripts/python tests/db/repair-dates.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

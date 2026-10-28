@@ -37,13 +37,15 @@ HH.util = (function () {
 
   /* ---- Ngày ---- */
   const pad = (x) => String(x).padStart(2, '0');
+  // Ngày là ngày LỊCH, không phải thời điểm: chuỗi 'YYYY-MM-DD' từ cột date đọc đúng ngày đó ở mọi múi giờ (js/dates.js)
   function fmtDate(d) {
-    const x = (d instanceof Date) ? d : new Date(d);
-    if (isNaN(x)) return '-';
+    const x = HH.dates.phanTich(d);
+    if (!x) return '-';
     return `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`;
   }
   function addMonths(d, m) { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; }
-  function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
+  /** Số ngày LỊCH từ a đến b (b sau a thì dương). Không làm tròn theo giờ: 20:00 ngày hạn vẫn là "còn 0 ngày", chưa quá hạn. */
+  function daysBetween(a, b) { return HH.dates.chenhNgay(a, b); }
   function today() { return new Date(); }
   /** 'YYYY-MM' của một ngày (mặc định hôm nay) — kỳ tính tiền của tháng đó */
   function monthKey(d) { const x = d ? new Date(d) : today(); return x.getFullYear() + '-' + pad(x.getMonth() + 1); }

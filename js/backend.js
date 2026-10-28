@@ -52,12 +52,22 @@ HH.backend = (function () {
   const toSnake = (s) => s.replace(/([A-Z])/g, (m) => '_' + m.toLowerCase());
   const toCamel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
+  // Cột kiểu `date` (khóa JS). Chuỗi ISO của nửa đêm 1/10 giờ Việt Nam là "2026-09-30T17:00:00Z" và Postgres cắt lấy
+  // 30/9: hạn đóng tiền, đầu kỳ hóa đơn lưu sớm một ngày. Nên ghi thẳng "năm-tháng-ngày" theo lịch địa phương (js/dates.js).
+  const DATE_FIELDS = {
+    rooms: ['contractEnd'], contracts: ['start', 'end'], invoices: ['periodStart', 'periodEnd', 'dueDate'],
+    payments: ['date'], transactions: ['date'], assets: ['buyDate'],
+  };
+
   function jsToRow(kind, obj) {
     const alias = ALIAS[kind] || {};
+    const dateKeys = DATE_FIELDS[kind] || [];
     const row = { owner_id: ownerId, updated_at: new Date().toISOString() };
     Object.keys(obj).forEach((k) => {
       if (k === 'ownerId' || k === 'updatedAt') return;
-      row[alias[k] || toSnake(k)] = obj[k];
+      let v = obj[k];
+      if (v != null && v !== '' && dateKeys.indexOf(k) >= 0) v = HH.dates.chuoiNgay(v) || v;   // không đổi được thì để nguyên cho DB báo lỗi
+      row[alias[k] || toSnake(k)] = v;
     });
     return row;
   }
