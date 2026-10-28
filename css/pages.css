@@ -1080,3 +1080,15 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 .ac-lbl { font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
 .ac-code { font-family: var(--font-mono, monospace); font-size: 38px; font-weight: 800; letter-spacing: 8px; color: var(--ink); margin: 4px 0 8px; user-select: all; }
 .ac-mini { font-size: 16px; letter-spacing: 3px; }
+
+/* ---------- Nhập liệu bằng giọng nói (js/voice.js, js/pages/voice-readings.js) ---------- */
+.vz-mic { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.vz-live { background: var(--danger, #C0392B) !important; border-color: var(--danger, #C0392B) !important; animation: vzPulse 1.2s ease-in-out infinite; }
+@keyframes vzPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,.45); } 50% { box-shadow: 0 0 0 9px rgba(192,57,43,0); } }
+@media (prefers-reduced-motion: reduce) { .vz-live { animation: none; } }
+.vz-tb td { vertical-align: middle; }
+.vz-in { width: 96px; min-height: 36px; padding: 4px 8px; text-align: right; }
+.vz-bad td { background: var(--danger-bg, #FDECEA); }
+.vz-gc { font-size: 12.5px; color: var(--ink-2, #455654); }
+.vz-red { color: var(--danger, #C0392B); font-weight: 700; }
+.vz-amber { color: var(--warning, #B45309); font-weight: 700; }

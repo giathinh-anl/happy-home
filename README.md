@@ -61,6 +61,15 @@ Chọn bớt phòng được, thấy sẵn tổng tiền dự kiến. Bấm tạ
 
 Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đây lấy "số hóa đơn đang có + 1" nên sau khi xóa nháp có thể trùng mã một hóa đơn khác (phát hành hoặc thu tiền rơi nhầm hóa đơn kia), giờ lấy số lớn nhất + 1; và `tenant_data` trả cả **hóa đơn nháp** cho khách, giờ chỉ trả hóa đơn đã duyệt (chạy lại `migration-tenant-auth.sql`, an toàn khi chạy lại).
 
+## Nhập liệu bằng giọng nói tiếng Việt
+
+- **Trang Chỉ số điện → nút Đọc chỉ số:** vừa đi dọc hành lang vừa đọc "phòng 101 điện 1250, phòng 102 điện 980". Trình duyệt đổi giọng thành chữ, `js/voice.js` hiểu chữ thành (phòng, chỉ số): nhận cả số viết bằng chữ ("một nghìn hai trăm năm mươi"), đọc từng số ("một không một" = 101), số viết 1.250 hoặc 1 250, nhiều phòng một câu, tiếng ậm ừ xen giữa.
+- **Giọng nói dễ nghe nhầm nên không bao giờ ghi thẳng.** Danh sách "nghe được" hiện ra để xem lại và sửa số ngay trong bảng; chưa bấm *Ghi* thì chưa lưu gì. Số nhỏ hơn kỳ trước không cho ghi (hay là nghe thiếu chữ số); cao hơn 3 lần mức thường hoặc ghi đè số đang có thì mặc định không tick, phải tự quyết; phòng không có trong tòa thì báo rõ. Mỗi lần ghi có dòng trong nhật ký hoạt động.
+- **Trợ lý ảo có nút micro:** nói câu hỏi, nói xong tự gửi (trợ lý chỉ tra cứu nên gửi luôn an toàn).
+- Không có micro hoặc trình duyệt không hỗ trợ (Firefox): vẫn gõ hoặc dán câu vào ô, kết quả như nhau. Chrome, Edge, Android và Safari thì dùng được.
+- **Quyền riêng tư:** nhận dạng giọng nói do trình duyệt làm, âm thanh được gửi tới dịch vụ của hãng trình duyệt (Google với Chrome, Apple với Safari). Happy Home không ghi âm hay lưu âm thanh; hộp thoại có ghi chú này cho người dùng thấy.
+- 87 ca kiểm thử `tests/voice.test.js` (số bằng chữ, nhiều cách đọc, các câu sai, đánh giá chỉ số, micro giả), thử phá 47 chỗ đều bị bắt. Khi thử phát hiện một lỗi thật: từ nối như "là" từng bị bỏ qua giữa hai cụm số bằng chữ nên có thể ghép "phòng một không một là một nghìn hai trăm" thành số sai; nay từ nối ngắt cụm số, chỉ tiếng ậm ừ mới được bỏ qua.
+
 ## Khách tự khai thông tin qua link / mã QR
 
 Trang **Khách thuê → Mời khách khai** (chỉ chủ trọ): chọn phòng (phòng trống xếp lên trước) và thời hạn (24 giờ, 3 ngày, 7 ngày) rồi bấm *Tạo link*. Ra một **đường link kèm mã QR** để chép, chia sẻ qua Zalo / tin nhắn hoặc tải mã QR về in. Khách mở link trên điện thoại, **chụp CCCD hai mặt và tự điền thông tin** (khoảng 3 phút, không cài gì, không cần tài khoản). Hồ sơ về trang *Khách thuê* và mục *Hôm nay cần làm gì* chờ chủ trọ duyệt.
@@ -310,6 +319,7 @@ js/
   today.js            # xếp thứ tự và hoãn việc "Hôm nay cần làm gì" (không đụng DOM, có kiểm thử)
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
+  voice.js            # hiểu câu nói tiếng Việt thành phòng + chỉ số, nghe bằng micro (phần hiểu không đụng DOM, có kiểm thử)
   onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
   vendor/qrcode.js    # thư viện tạo mã QR (MIT), tạo ngay trên máy
   icons.js            # bộ icon SVG dùng chung
@@ -342,6 +352,7 @@ tests/
   dates.test.js       # kiểm thử ngày lịch: node tests/dates.test.js
   progress.test.js    # kiểm thử tiến độ sự cố: node tests/progress.test.js
   onboarding.test.js  # kiểm thử khách tự khai: node tests/onboarding.test.js
+  voice.test.js       # kiểm thử giọng nói: node tests/voice.test.js
 ```
 
 ## Kiểm thử
@@ -356,9 +367,10 @@ node tests/today.test.js
 node tests/dates.test.js
 node tests/progress.test.js
 node tests/onboarding.test.js
+node tests/voice.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca); cả chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca); cả mười đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 

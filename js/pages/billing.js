@@ -15,6 +15,7 @@
         <div><div class="page-title">Chỉ số điện</div><div class="page-sub">${ctx.building.name} · Kỳ ${S.periodLabel(period)}</div></div>
         <div class="page-actions">
           <span class="badge s-info" style="align-self:center"><span class="dot"></span>Đã ghi ${done}/${rooms.length} phòng</span>
+          <button class="btn btn-outline" id="rdVoice" title="Đọc chỉ số bằng giọng nói, xem lại rồi mới ghi">${raw(HH.icon('mic', 16))} Đọc chỉ số</button>
           <button class="btn btn-primary" id="toBill">Lập hóa đơn →</button>
         </div></div>
         <div id="periodSel" style="margin-bottom:16px"></div>
@@ -31,6 +32,7 @@
     mount(ctx) {
       mountPeriodSelector();
       document.getElementById('toBill').onclick = () => HH.router.go(`/b/${ctx.bid}/invoices`);
+      document.getElementById('rdVoice').onclick = () => HH.voiceUI.docChiSo(ctx);
       wireReadingInputs(ctx);
     },
   };

@@ -8,6 +8,7 @@ HH.assistant = (function () {
   const U = HH.util;
   const KEY = 'hh_assist_v2';
   const state = { open: false, busy: false, msgs: [], mounted: false, history: [], hIdx: -1 };
+  let micH = null;            // đang nghe bằng micro (hỏi bằng giọng nói); trợ lý chỉ TRA CỨU nên nói xong là gửi luôn
   const ic = (n, s) => HH.icon(n, s || 18);
 
   /* ---------- Lưu / nạp hội thoại ---------- */
@@ -197,6 +198,7 @@ HH.assistant = (function () {
   function paint() {
     const el = document.getElementById('hhAssist');
     if (!el) return;
+    if (micH) { const h0 = micH; micH = null; h0.dung(); }       // vẽ lại khung thì ngừng nghe, khỏi còn micro treo
     const G = window.HHGemini;
     const lastBot = [...state.msgs].reverse().find((m) => m.who === 'bot');
     const sugg = (lastBot && lastBot.suggest && lastBot.suggest.length) ? lastBot.suggest : HH.ai.SUGGESTIONS;
@@ -222,6 +224,7 @@ HH.assistant = (function () {
           <button id="asCtxClear" title="Bỏ ngữ cảnh" aria-label="Bỏ ngữ cảnh">${ic('x', 12)}</button></div>` : ''}
         <div class="as-input">
           <textarea id="asIn" rows="1" placeholder="Hỏi doanh thu, công nợ, phòng P101…"></textarea>
+          ${HH.voice && HH.voice.hoTro() ? `<button class="as-send as-mic" id="asMic" aria-label="Nói câu hỏi" title="Nói câu hỏi">${ic('mic', 16)}</button>` : ''}
           <button class="as-send" id="asSend" aria-label="Gửi">${ic('send', 16)}</button>
         </div>
       </div>`;
@@ -272,6 +275,23 @@ HH.assistant = (function () {
         inp.value = ''; inp.style.height = 'auto'; ask(v);
       };
       q('asSend').onclick = send;
+      const mic = q('asMic');
+      if (mic) mic.onclick = () => {
+        if (micH) { micH.dung(); return; }
+        if (state.busy) return;
+        inp.value = ''; mic.classList.add('on'); inp.placeholder = 'Đang nghe... hãy nói câu hỏi';
+        micH = HH.voice.nghe({
+          lienTuc: false,
+          onChu: (t) => { inp.value = t; inp.oninput(); },
+          onLoi: (c) => HH.ui.toast(c, { type: 'error' }),
+          onKetThuc: () => {
+            micH = null; if (!mic.isConnected) return;
+            mic.classList.remove('on'); inp.placeholder = 'Hỏi doanh thu, công nợ, phòng P101…';
+            if (inp.value.trim()) send();
+          },
+        });
+        if (!micH) { mic.classList.remove('on'); inp.placeholder = 'Hỏi doanh thu, công nợ, phòng P101…'; }
+      };
       inp.onkeydown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
         // ↑ / ↓ gọi lại câu đã hỏi

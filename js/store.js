@@ -1137,6 +1137,14 @@ HH.store = (function () {
       return Math.max(0, curr - prev) + (rd[kind + 'Extra'] || 0);
     },
 
+    // Chỉ số điện kỳ trước của một phòng trong một kỳ (giống cột "Điện kỳ trước" ở trang Chỉ số điện)
+    elecPrevOf(bid, code, period) {
+      const rd = api.reading(bid, code, period) || {};
+      if (rd.elecPrev != null) return rd.elecPrev;
+      const p = api.reading(bid, code, api.prevPeriodOf(period));
+      return p ? (p.elecCurr != null ? p.elecCurr : (p.elecPrev != null ? p.elecPrev : 0)) : 0;
+    },
+
     // ----- Ghi chỉ số theo kỳ: lấy hoặc tạo bản ghi cho (phòng, kỳ) -----
     readingFor(bid, code, period) {
       let rd = readings.find(r => r.buildingId === bid && r.roomCode === code && r.period === period);
