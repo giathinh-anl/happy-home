@@ -1143,14 +1143,18 @@ HH.store = (function () {
       return changed;
     },
     // Gia hạn hợp đồng thêm N tháng
+    // Ghi thêm một dòng vào lịch sử gia hạn của hợp đồng (renewal_history) để còn dựng lại phụ lục (xem js/renewal.js)
     renewContract(id, months, newRent) {
       const c = contracts.find(x => x.id === id); if (!c) return null;
-      const base = new Date(c.end) > U.today() ? new Date(c.end) : U.today();
-      c.end = U.addMonths(base, months).toISOString();
+      const kq = HH.renewal.tinhGiaHan({ hetHan: c.end, homNay: U.today(), soThang: months, giaHienTai: c.rent, giaMoi: newRent || null });
+      if (!kq.ok) return null;
+      c.end = kq.denNgay;
       c.status = 'active';
-      if (newRent) c.rent = newRent;
+      if (kq.doiGia) c.rent = kq.giaMoi;
       c.renewCount = (c.renewCount || 0) + 1;
       c.renewedAt = new Date().toISOString();
+      c.renewalHistory = (Array.isArray(c.renewalHistory) ? c.renewalHistory : [])
+        .concat(HH.renewal.banGhi(kq, { id: U.uid('gh'), at: c.renewedAt, by: prefs.userName }));
       api.refreshExpiryFlags();
       const room = api.room(c.buildingId, c.roomCode);
       if (room) room.contractEnd = c.end;

@@ -84,6 +84,22 @@ Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trướ
 - Chỉ bảo vệ **chỉ số điện** (số mới và phần bù quay vòng). Sửa phòng, khách, hóa đơn... lúc mất mạng vẫn cần mạng như cũ.
 - 63 ca kiểm thử `tests/offline.test.js` (chữ ký chỉ số, hàng đợi, đối chiếu, ảnh chụp không lộ dữ liệu riêng, bộ nhớ hỏng/đầy), thử phá 60 chỗ đều bị bắt. Thử như người dùng thật cả ở Chrome thật: tắt hẳn máy chủ web, app vẫn mở từ bộ nhớ đệm, ghi số, bật lại thì số lên máy chủ. Khi thử phát hiện: ảnh chụp cũ hơn lần gửi thành công gần nhất làm phòng đã ghi hiện trống (nay làm mới sau mỗi lần gửi thành công), chữ "Đã có mạng" gây hiểu nhầm khi mạng chập chờn (nay thử nối máy chủ thật trước khi tải lại), thanh trạng thái bị nút trợ lý đè.
 
+## Gia hạn hợp đồng có phụ lục
+
+- **Mỗi lần gia hạn để lại dấu vết:** trước đây gia hạn chỉ sửa thẳng hợp đồng (đổi ngày hết hạn, giá), không còn biết giá cũ, gia hạn từ ngày nào. Nay mỗi lần ghi một dòng *lịch sử gia hạn* (từ ngày, đến ngày, số tháng, giá cũ → giá mới, người làm) và trang chi tiết hợp đồng có thẻ **Lịch sử gia hạn**.
+- **Phụ lục để hai bên ký:** gia hạn xong (cả khi chủ trọ gia hạn trực tiếp, lẫn khi chấp nhận khách xin gia hạn từ app khách) app hỏi *Lập phụ lục để hai bên ký?*. Phụ lục là văn bản ngắn theo mẫu: số `PL01/<mã hợp đồng>`, căn cứ hợp đồng gốc, hai bên, 5 điều (thời hạn gia hạn, giá thuê giữ nguyên hoặc điều chỉnh, tiền cọc tiếp tục giữ, các điều khoản khác giữ nguyên, hiệu lực và số bản), khung ký. Mở cửa sổ in; chọn **Lưu dưới dạng PDF** nếu muốn gửi file. In lại lúc nào cũng được từ thẻ lịch sử.
+- **Hạn mới tính đúng:** còn hiệu lực thì cộng từ ngày hết hạn, đã hết hạn (hoặc hết đúng hôm nay) thì cộng từ hôm nay. Sửa một lỗi thật tìm thấy khi làm: cộng tháng bằng `Date.setMonth` bị **tràn sang tháng sau** (hết hạn 31/8 gia hạn 6 tháng ra 3/3 thay vì 28/2; ảnh hưởng cả lúc lập hợp đồng mới có ngày bắt đầu 29–31). Nay `HH.dates.themThang` kẹp về cuối tháng.
+- **Cần chạy một lần** `supabase/migration-renewal-history.sql` (thêm cột `contracts.renewal_history`, chạy lại nhiều lần được, không đụng dữ liệu có sẵn). Chưa chạy thì gia hạn vẫn bình thường, chỉ lịch sử không lưu lên máy chủ; app báo ngay hộp thoại sau khi gia hạn để chủ trọ in phụ lục liền.
+- `js/renewal.js` thuần: 41 ca kiểm thử `tests/renewal.test.js` (hạn còn / hết / hết đúng hôm nay, tràn tháng, giá, lịch sử, nội dung phụ lục) + 15 ca cộng tháng trong `tests/dates.test.js` (thử ở ba múi giờ), thử phá 35 chỗ đều bị bắt. `tests/db/renewal-history.test.py`: 8 ca cho cột mới. Thử như người dùng thật: gõ giá quá thấp bị chặn kèm lý do, đổi giá và giữ giá, in lại từ lịch sử sau khi tải lại trang.
+
+## Ràng buộc dữ liệu ở tầng DB
+
+- **Lưới an toàn cuối cùng** sau `js/validate.js`: `supabase/migration-constraints.sql` chặn số âm (giá phòng, giá thuê, tiền cọc, đơn giá dịch vụ, chỉ số điện, đã thu, thanh toán), hợp đồng kết thúc trước khi bắt đầu, cuối kỳ hóa đơn trước đầu kỳ, kỳ không đúng dạng năm-tháng, ngày chốt ngoài 1–31, CCCD không phải 9 hoặc 12 số, số điện thoại không phải số di động 10 số (nhận +84, khoảng trắng, dấu chấm, gạch, ngoặc, đúng như luật ở app). Lỗi trả mã `23514` kèm lời nhắn tiếng Việt.
+- **Không đụng dữ liệu cũ.** Dùng trigger thay vì `CHECK` (kể cả `NOT VALID`), vì `CHECK` kiểm cả dòng mỗi lần sửa dòng đó, mà app luôn lưu nguyên dòng: một dòng cũ lỡ có số âm sẽ không sửa được cả trạng thái phòng. Trigger chỉ kiểm khi **thêm dòng mới** hoặc khi **cột đó thật sự đổi giá trị** so với bản đang có. Quan trọng: app lưu bằng `upsert` (`INSERT … ON CONFLICT DO UPDATE`), mà trigger `BEFORE INSERT` luôn coi đó là dòng mới nên trigger phải tra bản đang có rồi so sánh; lỗi này lộ ra ngay ở lần thử đầu.
+- **Chạy lúc nào cũng được, không xóa không sửa dòng nào.** `supabase/audit-du-lieu.sql` (chỉ đọc, chỉ đếm, không in CCCD hay số điện thoại) cho biết dữ liệu hiện có đang vi phạm luật nào bao nhiêu dòng, để chủ trọ biết có cần dọn không.
+- Không ràng buộc: tổng tiền hóa đơn, trạng thái (danh sách giá trị), ngày sinh (cột kiểu chữ, nhiều dạng) vì chưa chắc mọi luồng hợp lệ đều tuân theo; thêm sau khi có dữ liệu thật để đối chiếu.
+- 135 ca kiểm thử `tests/db/constraints.test.py` trên Postgres thật: dòng cũ bẩn chèn TRƯỚC khi cài (như trên Supabase thật), đường upsert của app, vai `authenticated`, chạy lại nhiều lần; thử phá 48 chỗ đều bị bắt.
+
 ## Khách tự khai thông tin qua link / mã QR
 
 Trang **Khách thuê → Mời khách khai** (chỉ chủ trọ): chọn phòng (phòng trống xếp lên trước) và thời hạn (24 giờ, 3 ngày, 7 ngày) rồi bấm *Tạo link*. Ra một **đường link kèm mã QR** để chép, chia sẻ qua Zalo / tin nhắn hoặc tải mã QR về in. Khách mở link trên điện thoại, **chụp CCCD hai mặt và tự điền thông tin** (khoảng 3 phút, không cài gì, không cần tài khoản). Hồ sơ về trang *Khách thuê* và mục *Hôm nay cần làm gì* chờ chủ trọ duyệt.
@@ -336,6 +352,7 @@ js/
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
   voice.js            # hiểu câu nói tiếng Việt thành phòng + chỉ số, nghe bằng micro (phần hiểu không đụng DOM, có kiểm thử)
+  renewal.js          # gia hạn hợp đồng: tính hạn mới, lịch sử, nội dung phụ lục (không đụng DOM, có kiểm thử)
   offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
   offline-ui.js       # đăng ký service worker, thanh trạng thái mạng, hộp thoại chỉ số xung đột, mở ngoại tuyến
   onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
@@ -372,6 +389,7 @@ tests/
   onboarding.test.js  # kiểm thử khách tự khai: node tests/onboarding.test.js
   voice.test.js       # kiểm thử giọng nói: node tests/voice.test.js
   offline.test.js     # kiểm thử ghi chỉ số ngoại tuyến: node tests/offline.test.js
+  renewal.test.js     # kiểm thử gia hạn hợp đồng: node tests/renewal.test.js
 ```
 
 ## Kiểm thử
@@ -388,9 +406,10 @@ node tests/progress.test.js
 node tests/onboarding.test.js
 node tests/voice.test.js
 node tests/offline.test.js
+node tests/renewal.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (20 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca); cả mười một đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca); cả mười hai đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -402,6 +421,8 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/nightly.test.py
 .venv-db/Scripts/python tests/db/incident-tracking.test.py
 .venv-db/Scripts/python tests/db/onboarding.test.py
+.venv-db/Scripts/python tests/db/constraints.test.py
+.venv-db/Scripts/python tests/db/renewal-history.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

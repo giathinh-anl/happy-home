@@ -9,6 +9,7 @@
    - phanTich(x)    -> Date nửa đêm địa phương của ngày đó (đọc 'YYYY-MM-DD' đúng ngày, không lệch theo múi giờ)
    - soNgayLich(x)  -> số thứ tự ngày (trừ nhau ra số ngày chênh, không bị nửa ngày làm tròn sai)
    - chenhNgay(a,b) -> b - a tính theo ngày lịch
+   - themThang(x,n) -> cộng n tháng, kẹp về cuối tháng (31/8 + 6 tháng = 28/2)
    ============================================================ */
 (function (root) {
   const NGAY_MS = 86400000;
@@ -41,7 +42,17 @@
     return (x == null || y == null) ? NaN : y - x;
   }
 
-  const api = { chuoiNgay, phanTich, soNgayLich, chenhNgay };
+  /** Cộng n tháng (âm cũng được), KẸP về ngày cuối tháng nếu tháng đích ngắn hơn: 31/8 + 6 tháng = 28/2, không phải 3/3.
+      Date.setMonth tràn sang tháng sau nên làm hợp đồng hết hạn 31/8 gia hạn 6 tháng ra 3/3. Giữ nguyên giờ trong ngày. */
+  function themThang(x, n) {
+    const d = phanTich(x);
+    if (!d) return null;
+    const r = new Date(d.getFullYear(), d.getMonth() + n, 1, d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds());
+    r.setDate(Math.min(d.getDate(), new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate()));
+    return r;
+  }
+
+  const api = { chuoiNgay, phanTich, soNgayLich, chenhNgay, themThang };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.dates = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

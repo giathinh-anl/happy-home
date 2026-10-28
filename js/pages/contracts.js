@@ -147,8 +147,8 @@
   }
 
   /* ---------------- KHÁCH XIN GIA HẠN (từ app khách thuê) ---------------- */
-  // Cùng cách tính với S.renewContract: cộng từ ngày hết hạn, hoặc từ hôm nay nếu đã quá hạn
-  const newEndOf = (c, months) => U.addMonths(new Date(c.end) > U.today() ? new Date(c.end) : U.today(), months);
+  // Cùng một nơi tính với S.renewContract (js/renewal.js): cộng từ ngày hết hạn, hoặc từ hôm nay nếu đã quá hạn
+  const newEndOf = (c, months) => HH.renewal.tinhGiaHan({ hetHan: c.end, homNay: U.today(), soThang: months, giaHienTai: c.rent }).denNgay;
 
   function approveRenewalDialog(ctx, id) {
     const r = S.renewals.find(x => x.id === id); const c = r && S.contract(r.contractId);
@@ -173,6 +173,7 @@
           const res = S.decideRenewal(id, true, null, U.parseNum(rent.value) || null);
           if (!res.ok) { UI.toast(res.reason, { type: 'error' }); return; }
           close(); UI.toast(`Đã gia hạn hợp đồng phòng ${r.roomCode}`, { type: 'ok', celebrate: true }); HH.router.render();
+          hoiInPhuLuc(ctx, S.contract(c.id));
         };
       } });
   }
@@ -214,10 +215,7 @@
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="rnGo">Gia hạn</button>`,
       onMount(el, close) {
         const sel = el.querySelector('#rnMonths'), rent = el.querySelector('#rnRent'), pv = el.querySelector('#rnPreview');
-        const upd = () => {
-          const base = new Date(c.end) > U.today() ? new Date(c.end) : U.today();
-          pv.innerHTML = `→ Hạn mới: <b class="mono">${U.fmtDate(U.addMonths(base, +sel.value))}</b>`;
-        };
+        const upd = () => { pv.innerHTML = `→ Hạn mới: <b class="mono">${U.fmtDate(newEndOf(c, +sel.value))}</b>`; };
         sel.onchange = upd; upd();
         rent.oninput = () => { const n = U.parseNum(rent.value); rent.value = n ? U.number(n) : ''; };
         const rules = UI.formRules(el, [
@@ -227,12 +225,79 @@
           if (!rules.check()) return;
           e.currentTarget.classList.add('loading');
           setTimeout(() => {
-            S.renewContract(c.id, +sel.value, U.parseNum(rent.value) || null);
-            close(); UI.toast('Đã gia hạn hợp đồng', { type: 'ok' }); HH.router.render();
+            const kq = S.renewContract(c.id, +sel.value, U.parseNum(rent.value) || null);
+            close();
+            if (!kq) { UI.toast('Không gia hạn được, kiểm tra lại số tháng và giá', { type: 'error' }); return; }
+            UI.toast('Đã gia hạn hợp đồng', { type: 'ok' }); HH.router.render();
+            hoiInPhuLuc(ctx, kq);
           }, 350);
         };
       } });
   }
+
+  /* ---------------- PHỤ LỤC GIA HẠN ---------------- */
+  // Gia hạn xong thì hỏi có in phụ lục cho hai bên ký không. Nút bấm là thao tác của người dùng nên trình duyệt không chặn cửa sổ in.
+  async function hoiInPhuLuc(ctx, c) {
+    const ban = c && HH.renewal.lichSu(c).muc.slice(-1)[0];
+    if (!ban) return;
+    const luu = HH.backend && HH.backend.hasColumn ? await HH.backend.hasColumn('contracts', 'renewal_history') : true;
+    UI.modal({ title: 'Đã gia hạn. Lập phụ lục để hai bên ký?', bodyHtml: h`
+      <p class="muted" style="margin-bottom:10px">Hợp đồng phòng <b>${c.roomCode}</b> gia hạn <b>${ban.soThang} tháng</b>, đến <b class="mono">${U.fmtDate(ban.denNgay)}</b>${raw(ban.giaCu !== ban.giaMoi ? `, giá thuê ${U.esc(U.currency(ban.giaCu))} → <b>${U.esc(U.currency(ban.giaMoi))}</b>` : ', giữ nguyên giá thuê')}.</p>
+      <p class="muted text-sm">Phụ lục là văn bản ngắn ghi lại việc gia hạn, in ra cho hai bên ký. Ở hộp thoại in, chọn <b>Lưu dưới dạng PDF</b> nếu muốn gửi file. Lúc nào cũng in lại được ở trang chi tiết hợp đồng.</p>
+      ${raw(luu ? '' : `<div class="alert alert-warning" style="margin-top:12px"><span class="ic">${HH.ic('alert', 16)}</span><div>Máy chủ chưa chạy <code>migration-renewal-history.sql</code> nên lịch sử gia hạn chỉ lưu tạm trong máy này, tải lại trang là mất. Hãy in phụ lục ngay bây giờ.</div></div>`)}`,
+      footHtml: `<button class="btn btn-outline" data-close>Để sau</button><span class="spacer"></span><button class="btn btn-primary" id="plIn">${HH.ic('print', 16)} In phụ lục gia hạn</button>`,
+      onMount(el, close) { el.querySelector('#plIn').onclick = () => { printAddendum(ctx, c, ban); close(); }; } });
+  }
+
+  function printAddendum(ctx, c, ban) {
+    const b = S.building(c.buildingId) || S.building(ctx.bid) || {};
+    const rep = (S.tenantsOf(c.buildingId).filter(t => t.roomCode === c.roomCode).find(t => t.isRep)) || S.tenantsOf(c.buildingId).find(t => t.roomCode === c.roomCode) || {};
+    const benA = { ten: b.contactName || S.prefs.userName || '', diaChi: b.address || '', dienThoai: b.contactPhone || '' };
+    const benB = { ten: rep.fullName || c.tenantName || '', cccd: rep.idNumber || '', dienThoai: rep.phone || '' };
+    const pl = HH.renewal.phuLuc({ hopDong: c, ban, stt: HH.renewal.soThuTu(c, ban.id) || 1, benA, benB, fmt: { tien: U.currency, ngay: U.fmtDate } });
+    const win = window.open('', '_blank', 'width=860,height=1000');
+    if (!win) { UI.toast('Trình duyệt chặn cửa sổ in. Hãy cho phép popup.', { type: 'error' }); return; }
+    const info = (x, pre) => `<table class="info"><tr><td style="width:38%">${pre ? 'Đại diện' : 'Họ và tên'}</td><td>${U.esc(x.ten)}</td></tr>`
+      + (x.diaChi ? `<tr><td>Địa chỉ</td><td>${U.esc(x.diaChi)}</td></tr>` : '') + (x.cccd ? `<tr><td>Số CCCD</td><td>${U.esc(x.cccd)}</td></tr>` : '')
+      + (x.dienThoai ? `<tr><td>Điện thoại</td><td>${U.esc(x.dienThoai)}</td></tr>` : '') + '</table>';
+    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Phụ lục ${U.esc(pl.so)}</title><style>${PRINT_CSS}</style></head><body>
+      <div class="head"><div class="nation">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div><div class="slogan">Độc lập – Tự do – Hạnh phúc</div>
+        <h1>${U.esc(pl.tieuDe)}</h1><div class="center"><b>${U.esc(pl.phu)}</b></div><div class="muted">Số: ${U.esc(pl.so)}</div></div>
+      <p>Hôm nay, ngày ${U.fmtDate(pl.ngayKy)}, tại ${U.esc(b.address || b.name || '')}.</p>
+      <p>${U.esc(pl.canCu)}</p>
+      <div class="party"><b>BÊN CHO THUÊ (Bên A):</b>${info(benA, true)}</div>
+      <div class="party"><b>BÊN THUÊ (Bên B):</b>${info(benB)}</div>
+      <p>Hai bên thống nhất lập phụ lục này với các nội dung sau:</p>
+      ${pl.dieu.map((d, i) => `<div class="clause"><b>Điều ${i + 1}. ${U.esc(d.tieu)}</b><p>${U.esc(d.noi)}</p></div>`).join('')}
+      <div class="sign"><div><b>BÊN CHO THUÊ (Bên A)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(benA.ten)}</div>
+        <div><b>BÊN THUÊ (Bên B)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(benB.ten)}</div></div>
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    win.document.close();
+  }
+
+  // Thẻ "Lịch sử gia hạn" ở trang chi tiết hợp đồng
+  function renewalCard(c) {
+    const l = HH.renewal.lichSu(c);
+    if (!l.muc.length && !l.thieuChiTiet) return '';
+    const dong = l.muc.map((b, i) => `<div class="settle-row" style="align-items:flex-start;gap:12px">
+        <span><b>Lần ${i + 1}: +${b.soThang} tháng</b>, đến <span class="mono">${U.fmtDate(b.denNgay)}</span>
+          <span class="muted text-xs" style="display:block">Từ ${U.fmtDate(b.tuNgay)}${b.giaCu !== b.giaMoi ? ` · giá ${U.currency(b.giaCu)} → ${U.currency(b.giaMoi)}` : ' · giữ nguyên giá'}${b.at ? ' · ghi ' + U.fmtDate(b.at) : ''}${b.by ? ' bởi ' + U.esc(b.by) : ''}</span></span>
+        <button class="btn btn-outline btn-sm" data-addendum="${U.esc(b.id)}">${HH.ic('print', 16)} In phụ lục</button></div>`).join('');
+    const thieu = l.thieuChiTiet ? `<p class="muted text-xs" style="margin-top:8px">Còn ${l.thieuChiTiet} lần gia hạn trước khi có lịch sử chi tiết, không in lại được phụ lục.</p>` : '';
+    return `<div class="card"><div class="card-head"><h3>Lịch sử gia hạn (${l.muc.length + l.thieuChiTiet})</h3></div><div class="card-pad">${dong}${thieu}</div></div>`;
+  }
+
+  const PRINT_CSS = `body{font-family:'Times New Roman',serif;font-size:14px;line-height:1.6;color:#000;max-width:760px;margin:28px auto;padding:0 20px}
+      h1{text-align:center;font-size:19px;margin:6px 0}.center{text-align:center}.muted{color:#555}
+      .head{text-align:center;margin-bottom:18px}.head .nation{font-weight:700;font-size:14px}
+      .head .slogan{font-weight:700;text-decoration:underline;margin-bottom:14px}
+      .party{margin:10px 0}.party b{display:block;margin-bottom:2px}
+      .clause{margin:10px 0}.clause p{margin:3px 0 0;text-align:justify}
+      .tbl{width:100%;border-collapse:collapse;margin:8px 0}.tbl th,.tbl td{border:1px solid #333;padding:5px 8px;font-size:13px}
+      .sign{display:flex;justify-content:space-around;margin-top:36px;text-align:center}
+      .sign div{width:45%}.sign i{font-size:12px;color:#555}
+      table.info{width:100%;margin:8px 0}table.info td{padding:3px 0;vertical-align:top}
+      @media print{body{margin:0}}`;
 
   /* ---------------- IN HỢP ĐỒNG ---------------- */
   function printContract(ctx, c) {
@@ -249,17 +314,7 @@
           `<tr><td>${U.esc(a.name)}</td><td>${a.quantity || 1} ${U.esc(a.unit || '')}</td><td>${(UI.STATUS.asset[a.condition] || {}).label || ''}</td></tr>`).join('')}</tbody></table>`
       : '<p><i>Không có tài sản bàn giao.</i></p>';
     win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Hợp đồng ${c.roomCode}</title>
-      <style>body{font-family:'Times New Roman',serif;font-size:14px;line-height:1.6;color:#000;max-width:760px;margin:28px auto;padding:0 20px}
-      h1{text-align:center;font-size:19px;margin:6px 0}.center{text-align:center}.muted{color:#555}
-      .head{text-align:center;margin-bottom:18px}.head .nation{font-weight:700;font-size:14px}
-      .head .slogan{font-weight:700;text-decoration:underline;margin-bottom:14px}
-      .party{margin:10px 0}.party b{display:block;margin-bottom:2px}
-      .clause{margin:10px 0}.clause p{margin:3px 0 0;text-align:justify}
-      .tbl{width:100%;border-collapse:collapse;margin:8px 0}.tbl th,.tbl td{border:1px solid #333;padding:5px 8px;font-size:13px}
-      .sign{display:flex;justify-content:space-around;margin-top:36px;text-align:center}
-      .sign div{width:45%}.sign i{font-size:12px;color:#555}
-      table.info{width:100%;margin:8px 0}table.info td{padding:3px 0;vertical-align:top}
-      @media print{body{margin:0}}</style></head><body>
+      <style>${PRINT_CSS}</style></head><body>
       <div class="head"><div class="nation">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
         <div class="slogan">Độc lập – Tự do – Hạnh phúc</div>
         <h1>HỢP ĐỒNG THUÊ PHÒNG TRỌ</h1>
@@ -352,6 +407,8 @@
             ${raw(S.isOwner() && c.status !== 'terminated' ? `<div style="margin-top:14px"><button class="btn btn-outline btn-sm" id="ctEdit">${HH.ic('edit', 16)} Sửa thông tin</button></div>` : '')}
           </div></div>
 
+          ${raw(renewalCard(c))}
+
           <div class="card"><div class="card-head">
             <h3>Điều khoản hợp đồng ${raw(custom ? '<span class="badge s-purple" style="margin-left:6px"><span class="dot"></span>Đã tùy chỉnh</span>' : '<span class="badge s-neutral" style="margin-left:6px"><span class="dot"></span>Mẫu chuẩn</span>')}</h3>
             ${raw(S.isOwner() ? '<button class="btn btn-outline btn-sm" id="ctTerms">' + HH.ic('edit', 16) + ' Sửa điều khoản</button>' : '')}
@@ -405,6 +462,9 @@
       const e = document.getElementById('ctEdit'); if (e) e.onclick = () => editContract(ctx, c);
       const tm = document.getElementById('ctTerms'); if (tm) tm.onclick = () => editTerms(ctx, c);
       const sv = document.getElementById('ctScans'); if (sv) sv.onclick = () => viewScans(c);
+      document.querySelectorAll('[data-addendum]').forEach(b => b.onclick = () => {
+        const ban = HH.renewal.lichSu(c).muc.find(x => x.id === b.dataset.addendum); if (ban) printAddendum(ctx, c, ban);
+      });
     },
   };
 

@@ -43,7 +43,7 @@ HH.util = (function () {
     if (!x) return '-';
     return `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`;
   }
-  function addMonths(d, m) { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; }
+  function addMonths(d, m) { return HH.dates.themThang(d, m) || new Date(NaN); }   // kẹp về cuối tháng, xem js/dates.js
   /** Số ngày LỊCH từ a đến b (b sau a thì dương). Không làm tròn theo giờ: 20:00 ngày hạn vẫn là "còn 0 ngày", chưa quá hạn. */
   function daysBetween(a, b) { return HH.dates.chenhNgay(a, b); }
   function today() { return new Date(); }

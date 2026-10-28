@@ -37,5 +37,23 @@ test('qua tháng 2 năm không nhuận', () => assert.strictEqual(D.chenhNgay('2
 test('đầu vào hỏng -> NaN', () => { assert.ok(isNaN(D.chenhNgay('abc', '2026-10-05'))); assert.ok(isNaN(D.chenhNgay(null, '2026-10-05'))); });
 test('soNgayLich liên tiếp hơn kém đúng 1', () => assert.strictEqual(D.soNgayLich('2026-10-06') - D.soNgayLich('2026-10-05'), 1));
 
+console.log('Cộng tháng (gia hạn hợp đồng)');
+const ymd = (d) => D.chuoiNgay(d);
+test('ngày thường: 15/1 + 1 tháng = 15/2', () => assert.strictEqual(ymd(D.themThang('2027-01-15', 1)), '2027-02-15'));
+test('31/1 + 1 tháng kẹp về 28/2 (không tràn sang 3/3)', () => assert.strictEqual(ymd(D.themThang('2027-01-31', 1)), '2027-02-28'));
+test('31/1 + 1 tháng năm nhuận kẹp về 29/2', () => assert.strictEqual(ymd(D.themThang('2028-01-31', 1)), '2028-02-29'));
+test('31/8 + 6 tháng kẹp về 28/2 (lỗi thật: gia hạn 6 tháng ra 3/3)', () => assert.strictEqual(ymd(D.themThang('2026-08-31', 6)), '2027-02-28'));
+test('30/8 + 6 tháng cũng kẹp về 28/2', () => assert.strictEqual(ymd(D.themThang('2026-08-30', 6)), '2027-02-28'));
+test('29/2/2028 + 12 tháng = 28/2/2029', () => assert.strictEqual(ymd(D.themThang('2028-02-29', 12)), '2029-02-28'));
+test('31/3 + 1 tháng = 30/4 (tháng 30 ngày)', () => assert.strictEqual(ymd(D.themThang('2026-03-31', 1)), '2026-04-30'));
+test('qua năm: 15/11 + 3 tháng = 15/2 năm sau', () => assert.strictEqual(ymd(D.themThang('2026-11-15', 3)), '2027-02-15'));
+test('12 và 24 tháng giữ đúng ngày', () => { assert.strictEqual(ymd(D.themThang('2026-10-05', 12)), '2027-10-05'); assert.strictEqual(ymd(D.themThang('2026-10-05', 24)), '2028-10-05'); });
+test('cộng 0 tháng giữ nguyên', () => assert.strictEqual(ymd(D.themThang('2026-10-31', 0)), '2026-10-31'));
+test('tháng âm: 31/3 - 1 = 28/2, qua năm 15/1 - 2 = 15/11', () => { assert.strictEqual(ymd(D.themThang('2027-03-31', -1)), '2027-02-28'); assert.strictEqual(ymd(D.themThang('2027-01-15', -2)), '2026-11-15'); });
+test('giữ nguyên giờ trong ngày', () => { const r = D.themThang(new Date(2026, 0, 31, 14, 30), 1); assert.deepStrictEqual([r.getDate(), r.getHours(), r.getMinutes()], [28, 14, 30]); });
+test('nhận Date, chuỗi ISO, chuỗi ngày: cùng kết quả', () => assert.strictEqual(ymd(D.themThang(new Date(2026, 7, 31), 6)), ymd(D.themThang('2026-08-31', 6))));
+test('rác hoặc rỗng -> null, không phải năm 1970', () => { assert.strictEqual(D.themThang(null, 1), null); assert.strictEqual(D.themThang('abc', 1), null); });
+test('không sửa Date truyền vào', () => { const d = new Date(2026, 0, 31); D.themThang(d, 1); assert.strictEqual(d.getMonth(), 0); });
+
 console.log(`\n${ok} đạt, ${hong} hỏng`);
 process.exit(hong ? 1 : 0);
