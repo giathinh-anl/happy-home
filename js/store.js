@@ -307,6 +307,7 @@ HH.store = (function () {
     return (kq.apDung.length || kq.canXem.length || boQua) ? { apDung: kq.apDung.length, canXem: kq.canXem.length, boQua } : null;
   }
 
+  let sampleCopy = null;      // bản dữ liệu mẫu (chuỗi JSON) lúc tài khoản mới còn trống, cho nút "Nạp dữ liệu mẫu để xem thử"
   let syncTimer = null, thuLaiTimer = null, thuLaiLan = 0;
   function persist() {
     if (usingBackend()) {
@@ -512,7 +513,9 @@ HH.store = (function () {
       layGoc(res.data.readings || []); luuAnhChup(res.data);      // ảnh chụp để mở được trang ghi chỉ số khi lần sau mất mạng
       // Nhân viên không tạo dữ liệu mẫu — chỉ dùng dữ liệu của chủ trọ
       if (total === 0 && st) { replaceAll(res.data); return 'loaded'; }
-      if (total === 0) { api.refreshExpiryFlags(); await syncAll(); return 'seeded'; }  // tài khoản mới: đẩy dữ liệu mẫu
+      // Chủ trọ mới: bắt đầu TRỐNG. Trước đây app tự đẩy cả dữ liệu mẫu (hàng trăm khách, hóa đơn giả) vào tài khoản thật, rồi chủ trọ phải dọn.
+      // Giữ bản mẫu trong bộ nhớ để màn hình trống có nút "Nạp dữ liệu mẫu để xem thử" (loadSampleData), không tự ghi gì lên máy chủ.
+      if (total === 0) { sampleCopy = JSON.stringify(groups); replaceAll(res.data); return 'empty'; }
       replaceAll(res.data);
       const gan = ganHangDoi(res.data.readings || []);          // chỉ số đã ghi lúc chưa gửi được
       if (gan && HH.offlineUI) HH.offlineUI.sauKhiGan(gan);
@@ -528,6 +531,16 @@ HH.store = (function () {
       // lời mời khách tự khai: nạp ngầm, có hồ sơ chờ duyệt thì vẽ lại để "Hôm nay cần làm gì" hiện ra
       api.loadInvites().then(r => { if (r.ok && invites.some(i => i.status === 'submitted') && HH.router) HH.router.render(); });
       return 'loaded';
+    },
+
+    /* Dữ liệu mẫu chỉ nạp khi chủ trọ BẤM nút, và chỉ khi tài khoản còn hoàn toàn trống (chưa có tòa nhà nào). */
+    hasSampleData: () => usingBackend() && !!sampleCopy && buildings.length === 0 && prefs.role === 'owner',
+    async loadSampleData() {
+      if (!api.hasSampleData()) return { ok: false, message: 'Tài khoản đã có dữ liệu, không nạp dữ liệu mẫu nữa' };
+      replaceAll(JSON.parse(sampleCopy)); api.refreshExpiryFlags();
+      persist();
+      const r = await api.flush();
+      return r.ok ? { ok: true } : { ok: false, message: r.message };
     },
 
     /* Đẩy ngay những thay đổi đang chờ lên máy chủ rồi mới trả về.
@@ -1021,7 +1034,11 @@ HH.store = (function () {
     /* ---------- Đột biến ---------- */
     persist, syncAll,
     async resetData() {
-      if (usingBackend()) { await HH.backend.deleteAll(); location.reload(); return; }
+      if (usingBackend()) {
+        await HH.backend.deleteAll();
+        if (HH.offline) { HH.offline.xoaAnh(); HH.offline.luuHangDoi(null); }      // ảnh chụp / hàng đợi ngoại tuyến của dữ liệu vừa xóa
+        location.reload(); return;
+      }
       try { localStorage.removeItem(DATA_KEY); } catch (e) {} location.reload();
     },
 

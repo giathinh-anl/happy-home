@@ -70,6 +70,16 @@ Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đ�
 - **Quyền riêng tư:** nhận dạng giọng nói do trình duyệt làm, âm thanh được gửi tới dịch vụ của hãng trình duyệt (Google với Chrome, Apple với Safari). Happy Home không ghi âm hay lưu âm thanh; hộp thoại có ghi chú này cho người dùng thấy.
 - 87 ca kiểm thử `tests/voice.test.js` (số bằng chữ, nhiều cách đọc, các câu sai, đánh giá chỉ số, micro giả), thử phá 47 chỗ đều bị bắt. Khi thử phát hiện một lỗi thật: từ nối như "là" từng bị bỏ qua giữa hai cụm số bằng chữ nên có thể ghép "phòng một không một là một nghìn hai trăm" thành số sai; nay từ nối ngắt cụm số, chỉ tiếng ậm ừ mới được bỏ qua.
 
+## Tài khoản mới bắt đầu trống
+
+- **Trước đây** lần đầu đăng nhập, app tự đẩy cả bộ dữ liệu mẫu (vài tòa nhà, hàng trăm khách, hóa đơn giả) lên máy chủ của chính chủ trọ, rồi chủ trọ phải tự dọn. Với một sản phẩm bán cho chủ trọ thật thì đó là lỗi: dữ liệu giả lẫn vào sổ sách thật.
+- **Nay** chủ trọ mới thấy màn hình **Chào mừng** với 4 bước (thêm tòa nhà → tạo phòng → thêm khách và hợp đồng → ghi chỉ số, phát hành hóa đơn) và nút **Thêm tòa nhà đầu tiên**. Không có gì được ghi lên máy chủ cho tới khi chủ trọ tự làm.
+- **Muốn xem thử** thì bấm **Nạp dữ liệu mẫu để xem thử** (có hộp thoại giải thích đây là dữ liệu giả). Chỉ hiện khi tài khoản hoàn toàn trống và chỉ chủ trọ thấy.
+- **Dọn dữ liệu:** *Tài khoản → Xóa toàn bộ dữ liệu* (trước đây tên là "Khôi phục dữ liệu mẫu" nhưng thực ra xóa sạch trên máy chủ). Nay nói đúng sự thật, bắt gõ **XOA HET** để xác nhận, xóa luôn lời mời khách tự khai còn sót, ảnh chụp và hàng đợi ngoại tuyến; xong tài khoản về trống như mới. Bản demo (không máy chủ) vẫn là "Khôi phục dữ liệu mẫu".
+- Chủ trọ đang có dữ liệu thì không thấy gì khác. Nhân viên của tài khoản trống chỉ thấy "Chủ trọ chưa tạo tòa nhà nào".
+- Sửa kèm: thanh tab điện thoại không còn tạo đường dẫn `#/b/null/...` khi chưa có tòa nhà; đường dẫn tới tòa nhà không còn tồn tại thì quay về danh sách thay vì hiện lỗi trang.
+- Dữ liệu mẫu đã được kiểm với đúng các luật của `migration-constraints.sql` (0 vi phạm trên 7 bảng) nên nạp vào tài khoản thật không bị DB từ chối.
+
 ## Cài như ứng dụng + ghi chỉ số khi mất mạng
 
 Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trước đây đang ghi chỉ số mà mất mạng thì lần lưu lỗi mà không ai biết, tải lại trang là mất sạch số vừa ghi.

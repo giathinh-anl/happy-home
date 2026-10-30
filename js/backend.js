@@ -226,6 +226,8 @@ HH.backend = (function () {
   }
   async function deleteAll() {
     if (!enabled) return;
+    const iv = await client.from('onboarding_invites').delete().neq('id', '__never__');          // lời mời khách tự khai không có khóa ngoại tới tòa nhà
+    if (iv.error && !isMissingTable(iv.error)) console.error('[deleteAll invites]', iv.error.message);
     // tuần tự cho chắc chắn (tránh xóa sót do chạy song song)
     for (const kind of Object.keys(KINDS)) {
       const { error } = await client.from(KINDS[kind]).delete().neq('id', '__never__');

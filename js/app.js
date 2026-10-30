@@ -136,7 +136,7 @@ HH.app = (function () {
     const tabs = [{ href: '#/dashboard', p: 'chart', label: 'Tổng quan', active: path === '/dashboard' }];
     const pref = ['units', 'invoices', 'tenants', 'readings', 'contracts', 'payments'];
     const all = MODULES.concat(MORE).filter(can);
-    pref.map(s => all.find(m => m.seg === s)).filter(Boolean).slice(0, 3).forEach(m => tabs.push({
+    (bid ? pref : []).map(s => all.find(m => m.seg === s)).filter(Boolean).slice(0, 3).forEach(m => tabs.push({
       href: `#/b/${bid}/${m.seg}`, p: m.pic || m.ic, label: m.seg === 'tenants' ? 'Khách' : m.label,
       active: seg === m.seg, n: modCount(m, c),
     }));
@@ -385,15 +385,30 @@ HH.app = (function () {
     if (S.isOwner()) items.push({ icon: ic('users', 16), label: 'Quản lý nhân viên', onClick: () => HH.router.go('/group') }, { sep: true });
     return HH.ui.openMenu(anchor, items.concat(userMenuTail()));
   }
+  /* Xóa dữ liệu. Có máy chủ: xóa HẾT dữ liệu của tài khoản trên máy chủ (bắt gõ chữ xác nhận, vì không hoàn tác được); tài khoản về trạng thái trống như mới.
+     Bản demo (không máy chủ): về dữ liệu mẫu ban đầu. */
+  function resetDialog() {
+    if (!S.usingBackend()) {
+      HH.ui.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
+        footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
+        onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });
+      return;
+    }
+    HH.ui.modal({ title: 'Xóa toàn bộ dữ liệu của tài khoản',
+      bodyHtml: `<div class="alert alert-danger"><span class="ic">${ic('alert', 16)}</span><div>Sẽ xóa <b>hết</b> dữ liệu của tài khoản này trên máy chủ: tòa nhà, phòng, khách thuê, hợp đồng, hóa đơn, thanh toán, chỉ số, sự cố, thu chi, nhân viên, nhật ký. <b>Không thể hoàn tác.</b> Tài khoản đăng nhập vẫn còn và trở về trạng thái trống như mới.</div></div>
+        <div class="field" style="margin-top:14px"><label>Gõ <b>XOA HET</b> để xác nhận</label><input class="input" id="rstWord" autocomplete="off"></div>`,
+      footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset" disabled>Xóa hết</button>',
+      onMount(el) {
+        const w = el.querySelector('#rstWord'), b = el.querySelector('#doReset');
+        w.oninput = () => { b.disabled = w.value.trim().toUpperCase() !== 'XOA HET'; };
+        b.onclick = () => { if (b.disabled) return; b.disabled = true; b.classList.add('loading'); S.resetData(); };
+      } });
+  }
   function userMenuTail() {
     // Nhân viên không được xóa/khôi phục toàn bộ dữ liệu
     if (!S.isOwner()) return [{ icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => dangXuat() }];
     return [
-      { icon: ic('refresh', 16), label: 'Khôi phục dữ liệu mẫu', onClick: () => {
-        HH.ui.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
-          footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
-          onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });
-      } },
+      { icon: ic('refresh', 16), label: S.usingBackend() ? 'Xóa toàn bộ dữ liệu' : 'Khôi phục dữ liệu mẫu', onClick: () => resetDialog() },
       { sep: true },
       { icon: ic('logout', 16), label: 'Đăng xuất', danger: true, onClick: () => dangXuat() },
     ];
@@ -510,5 +525,5 @@ HH.app = (function () {
     HH.router.start();
   }
 
-  return { renderShell, renderBare, boot, showShortcuts, addBuildingDialog };
+  return { renderShell, renderBare, boot, showShortcuts, addBuildingDialog, resetDialog };
 })();

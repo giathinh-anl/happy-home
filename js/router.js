@@ -96,6 +96,7 @@ HH.router = (function () {
     if (HH.store.prefs.auth && m && m.route.page === 'login') { location.hash = '/dashboard'; return; }
 
     if (!m) { HH.app.renderShell('notfound', {}, { page: 'notfound' }); return; }
+    if (m.params.bid && !HH.store.building(m.params.bid)) { location.hash = '/buildings'; return; }     // tòa nhà không còn (hoặc chưa có): về danh sách
 
     // Chặn theo vai trò & quyền được cấp
     const meta = m.route.meta || {};

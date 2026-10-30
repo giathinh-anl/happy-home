@@ -1191,7 +1191,7 @@
             <span class="hint" style="margin-top:6px;display:block">Liên hệ chủ trọ nếu cần thêm quyền.</span></div>`)}
           <div class="field" style="margin-top:12px"><label>Chế độ lưu trữ</label><div>${raw(S.usingBackend() ? '<span class="badge s-success"><span class="dot"></span>Máy chủ Supabase</span>' : '<span class="badge s-warning"><span class="dot"></span>Cục bộ (trình duyệt)</span>')}</div></div>
           <div class="field" style="margin-top:12px"><label>Phiên bản</label><div class="mono">Happy Home v1.0</div></div>
-          ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">' + HH.ic('refresh', 16) + ' Khôi phục dữ liệu mẫu</button></div>' : '')}
+          ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">' + HH.ic('refresh', 16) + (S.usingBackend() ? ' Xóa toàn bộ dữ liệu' : ' Khôi phục dữ liệu mẫu') + '</button></div>' : '')}
         </div></div>
         <div class="card" style="grid-column:1/-1"><div class="card-head"><h3>Trợ lý ảo (AI)</h3></div>
           <div class="card-pad">${raw(aiStatusHtml())}</div></div>
@@ -1203,11 +1203,7 @@
         if (name) { S.setPref('userName', name); UI.toast('Đã lưu', { type: 'ok' }); HH.router.render(); }
       };
       const rst = document.getElementById('cfgReset');
-      if (rst) rst.onclick = () => {
-        UI.modal({ title: 'Khôi phục dữ liệu mẫu', bodyHtml: '<p class="muted">Xóa toàn bộ thay đổi và nạp lại dữ liệu mẫu ban đầu. Không thể hoàn tác.</p>',
-          footHtml: '<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-danger" id="doReset">Khôi phục</button>',
-          onMount(el) { el.querySelector('#doReset').onclick = () => S.resetData(); } });
-      };
+      if (rst) rst.onclick = () => HH.app.resetDialog();
     },
   };
 })();

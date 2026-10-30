@@ -405,6 +405,24 @@ HH.pages = HH.pages || {};
   /* ---------------- TÒA NHÀ (danh sách) ---------------- */
   HH.pages.buildings = {
     render() {
+      if (!S.buildings.length) {
+        const chu = S.isOwner();
+        return h`<div class="page-head"><div><h1 class="page-title">Chào mừng đến Happy Home</h1>
+          <div class="page-sub">${chu ? 'Tài khoản của bạn đang trống. Bắt đầu theo 4 bước dưới đây.' : 'Chủ trọ chưa tạo tòa nhà nào.'}</div></div></div>
+          ${raw(chu ? `<div class="card"><div class="card-pad">
+            <ol class="start-steps">
+              <li><b>Thêm tòa nhà</b>: tên và địa chỉ.</li>
+              <li><b>Tạo phòng</b>: nhập số tầng, số phòng mỗi tầng và giá thuê, app tạo hàng loạt.</li>
+              <li><b>Thêm khách thuê và lập hợp đồng</b>, hoặc gửi link để khách tự khai thông tin.</li>
+              <li><b>Ghi chỉ số điện hàng tháng</b>, chốt sổ rồi phát hành hóa đơn.</li>
+            </ol>
+            <div class="row-gap-3 wrap" style="margin-top:18px">
+              <button class="btn btn-primary" id="blFirst">${HH.ic('plus', 16)} Thêm tòa nhà đầu tiên</button>
+              ${S.hasSampleData() ? `<button class="btn btn-outline" id="blSample">Nạp dữ liệu mẫu để xem thử</button>` : ''}
+            </div>
+            ${S.hasSampleData() ? '<p class="muted text-xs" style="margin-top:10px">Dữ liệu mẫu là tòa nhà, khách và hóa đơn giả để bạn xem app chạy thế nào. Nằm trong tài khoản của bạn cho tới khi bạn xóa (Tài khoản → Xóa toàn bộ dữ liệu).</p>' : ''}
+          </div></div>` : '')}`;
+      }
       const cards = S.buildings.map(b => {
         const rs = S.roomsOf(b.id);
         const occ = rs.filter(r => r.status === 'occupied' || r.status === 'notice').length;
@@ -432,6 +450,19 @@ HH.pages = HH.pages || {};
     mount() {
       const b = document.querySelector('[data-primary-new]');
       if (b) b.onclick = () => HH.app.addBuildingDialog();
+      const first = document.getElementById('blFirst'); if (first) first.onclick = () => HH.app.addBuildingDialog();
+      const sm = document.getElementById('blSample');
+      if (sm) sm.onclick = () => UI.modal({ title: 'Nạp dữ liệu mẫu để xem thử?',
+        bodyHtml: '<p>Sẽ thêm vài tòa nhà mẫu cùng phòng, khách thuê, hợp đồng và hóa đơn giả vào tài khoản của bạn.</p><p class="muted" style="margin-top:8px">Đây chỉ là dữ liệu để xem thử, không phải dữ liệu thật. Xóa được bất cứ lúc nào ở Tài khoản → Xóa toàn bộ dữ liệu.</p>',
+        footHtml: '<button class="btn btn-outline" data-close>Để sau</button><span class="spacer"></span><button class="btn btn-primary" id="blSampleGo">Nạp dữ liệu mẫu</button>',
+        onMount(el, close) {
+          el.querySelector('#blSampleGo').onclick = async (e) => {
+            e.currentTarget.disabled = true; e.currentTarget.classList.add('loading');
+            const r = await S.loadSampleData(); close();
+            UI.toast(r.ok ? 'Đã nạp dữ liệu mẫu' : (r.message || 'Chưa nạp được dữ liệu mẫu'), { type: r.ok ? 'ok' : 'error' });
+            HH.router.render();
+          };
+        } });
     },
   };
 

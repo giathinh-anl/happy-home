@@ -603,6 +603,10 @@ table.dt tr.disabled-row td { color: var(--neutral-400); background: var(--neutr
 .tenant-group-head .cnt { color: var(--danger); font-weight: 700; }
 /* Huy hiệu điểm thanh toán (js/scoring.js). Màu theo hạng; chữ "tạm tính" nhạt đi để
    khỏi coi là kết luận khi mới có 1–2 hóa đơn. */
+/* ---------- Tài khoản trống: hướng dẫn bắt đầu ---------- */
+.start-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: var(--text-base); line-height: 1.5; }
+.start-steps li::marker { font-weight: 800; color: var(--teal-600); }
+
 /* ---------- Điểm thưởng đóng tiền đúng hạn (js/pages/rewards.js) ---------- */
 .rw-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 2px 10px; border-radius: var(--r-pill); border: 1px solid var(--wood-100);
   background: var(--wood-50); color: var(--wood-700); font-size: 12.5px; font-weight: 600; cursor: pointer; vertical-align: middle; }
