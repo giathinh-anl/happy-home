@@ -18,11 +18,19 @@
      4. supabase functions deploy bank-webhook --no-verify-jwt
      5. Vào SePay/Casso → Webhook → dán:
           https://<project-ref>.supabase.co/functions/v1/bank-webhook
-        Chọn "chỉ gửi giao dịch tiền vào".
+        Chọn "chỉ gửi giao dịch tiền vào", và khai CHUỖI SECRET ở bước 2 theo cách dịch vụ đó hỗ trợ:
+          - SePay: kiểu xác thực "API Key", dán chuỗi secret (SePay gửi "Authorization: Apikey <secret>").
+          - Casso bản V1: ô khóa bảo mật / secure-token, dán chuỗi secret (Casso gắn vào HTTP header).
+          - Cách nào cũng dùng được: thêm  ?key=<secret>  vào cuối đường link ở trên.
+        (Casso bản V2 dùng chữ ký số, hàm này chưa hỗ trợ: chọn bản V1 hoặc dùng ?key=)
 
    BẢO MẬT: secret nằm ở phía máy chủ, không lộ ra trình duyệt.
-   Ai không có secret thì gọi vào đây cũng không ghi được gì.
+   Lời gọi KHÔNG mang đúng secret (kể cả không mang gì) bị từ chối 401 ngay, trước khi đọc dữ liệu: nếu không thì ai biết đường link cũng
+   bơm được giao dịch "tiền vào" giả. Xem auth.ts (có kiểm thử: node tests/bank-webhook-auth.test.js).
+   Triển khai bằng CLI (supabase functions deploy) tự gói cả auth.ts; nếu dán tay trong trang Supabase thì phải tạo đủ HAI tệp index.ts và auth.ts.
    ============================================================ */
+
+import { duocPhep } from './auth.ts';
 
 const SECRET = Deno.env.get('BANK_WEBHOOK_SECRET') ?? '';
 const SB_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -56,13 +64,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   if (!SECRET || !SB_URL || !SB_KEY) return json({ error: 'chưa đặt đủ biến môi trường' }, 500);
 
+  // BẮT BUỘC có đúng mã bí mật (header Authorization / secure-token, hoặc ?key=). Kiểm TRƯỚC khi đọc dữ liệu; không mã thì 401.
+  if (!duocPhep(req, SECRET)) return json({ error: 'unauthorized' }, 401);
+
   let payload: Record<string, unknown>;
   try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
-
-  // SePay gửi kèm "Authorization: Apikey <key>" — nếu bạn đặt key trùng secret thì kiểm luôn ở đây.
-  const auth = req.headers.get('authorization') ?? '';
-  const headerKey = auth.replace(/^(Apikey|Bearer)\s+/i, '').trim();
-  if (headerKey && headerKey !== SECRET) return json({ error: 'unauthorized' }, 401);
 
   // Có dịch vụ gửi 1 giao dịch, có dịch vụ gửi mảng trong "data"
   const items = Array.isArray(payload.data) ? payload.data as Record<string, unknown>[] : [payload];

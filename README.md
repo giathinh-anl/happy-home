@@ -325,6 +325,8 @@ Ngân hàng Việt Nam không mở API cho tài khoản cá nhân, nên có 3 đ
 Mọi khoản thu đều sinh **phiếu thu có số**, ghi vào nhật ký, và có chống ghi trùng theo mã giao dịch
 ngân hàng. Xem ở **Khách chuyển khoản → Đối soát ngân hàng**.
 
+**Webhook bắt buộc có mã bí mật.** Hàm `bank-webhook` từ chối (401) mọi lời gọi không mang đúng mã, nhận mã từ header `Authorization: Apikey <mã>` (SePay), header `secure-token` (Casso V1) hoặc `?key=<mã>` trên link. Bản cũ chỉ kiểm khi lời gọi có kèm header `Authorization`, nên yêu cầu không kèm gì vẫn lọt: ai biết link đều bơm được giao dịch "tiền vào" giả để app tự xóa công nợ. Đã vá; phần kiểm mã tách ở `supabase/functions/bank-webhook/auth.ts`, 21 ca `tests/bank-webhook-auth.test.js`, thử phá 13 chỗ (chỉ còn một kiểu tương đương, chỉ khác thời gian chạy). Các bước đăng ký SePay / Casso / Zalo OA / SMS: xem `HUONG_DAN_DANG_KY.md`.
+
 ## Trợ lý ảo (AI)
 
 Trợ lý chạy theo **3 tầng**, thiết kế để **không bao giờ để mô hình tự nghĩ ra số liệu**:
@@ -429,6 +431,7 @@ tests/
   renewal.test.js     # kiểm thử gia hạn hợp đồng: node tests/renewal.test.js
   rewards.test.js     # kiểm thử điểm thưởng: node tests/rewards.test.js
   listing.test.js     # kiểm thử trang công khai phòng: node tests/listing.test.js
+  bank-webhook-auth.test.js  # kiểm thử kiểm mã webhook ngân hàng (cần node 22.18+): node tests/bank-webhook-auth.test.js
 ```
 
 ## Kiểm thử
@@ -448,6 +451,7 @@ node tests/offline.test.js
 node tests/renewal.test.js
 node tests/rewards.test.js
 node tests/listing.test.js
+node tests/bank-webhook-auth.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
