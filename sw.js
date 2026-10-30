@@ -5,12 +5,12 @@
    không cần nhớ đổi số phiên bản mỗi lần cập nhật.
    Chỉ lưu: tệp của chính trang này (HTML, CSS, JS, hình) và SDK Supabase. KHÔNG đụng tới:
    - lệnh gọi API Supabase (dữ liệu phải luôn mới, và không để dữ liệu khách nằm trong bộ nhớ đệm của service worker),
-   - app khách thuê (tenant-app/) và trang khách tự khai (join/): hai nơi đó tự có cách riêng. */
+   - app khách thuê (tenant-app/), trang khách tự khai (join/) và trang công khai giới thiệu phòng (phong/): ba nơi đó tự có cách riêng. */
 const PHIEN_BAN = 1;                       // đổi số này khi sửa tệp này, để trình duyệt cài lại
 const CACHE = 'hh-admin-v1';
 const GOC = new URL(self.registration.scope);              // thư mục chứa sw.js (gốc của trang)
 const VAO = new URL('index.html', GOC).href;
-const BO_QUA = ['tenant-app/', 'join/'].map(p => new URL(p, GOC).pathname);
+const BO_QUA = ['tenant-app/', 'join/', 'phong/'].map(p => new URL(p, GOC).pathname);
 const CDN_CAN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js';
 const CHO_MANG_MS = 5000;                  // mạng chậm hơn thế thì dùng bản đã lưu (nếu có)
 

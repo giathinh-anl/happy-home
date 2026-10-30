@@ -210,5 +210,5 @@
     });
   }
 
-  HH.onboardingUI = { inviteDialog, listDialog, rejectInvite, loiText };
+  HH.onboardingUI = { inviteDialog, listDialog, rejectInvite, loiText, qrSvg, taiQr, chep };
 })();

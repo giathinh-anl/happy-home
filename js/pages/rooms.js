@@ -172,9 +172,11 @@
           <label class="btn btn-outline btn-sm" style="width:fit-content">${HH.ic('camera', 16)} Tải ảnh lên<input type="file" accept="image/*" multiple hidden id="roomPhotoInput"></label></div>` : '')}
       </div>
       <div class="field" style="margin-top:16px"><label>Mô tả (hiện trong tin đăng)</label>
-        <textarea class="textarea" id="roomDesc" placeholder="VD: Phòng thoáng, có ban công, gần chợ...">${U.esc(r.description || '')}</textarea></div>`,
+        <textarea class="textarea" id="roomDesc" placeholder="VD: Phòng thoáng, có ban công, gần chợ...">${U.esc(r.description || '')}</textarea></div>
+      ${raw(S.isOwner() ? HH.listingUI.html() : '')}`,
       footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>${S.isOwner() ? '<button class="btn btn-primary" id="saveRoomInfo">Lưu</button>' : ''}`,
       onMount(el, close) {
+        HH.listingUI.wire(el, ctx, r);        // link giới thiệu công khai (chủ trọ)
         el.querySelectorAll('[data-person]').forEach(b => b.onclick = () => {
           close(); HH.router.go(`/b/${ctx.bid}/tenants?tn=${encodeURIComponent(b.dataset.person)}`);
         });

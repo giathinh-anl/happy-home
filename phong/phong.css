@@ -1,0 +1,72 @@
+/* Trang công khai giới thiệu phòng (phong/). Dành cho điện thoại: chữ 16px, nút cao 52px, thanh liên hệ dính đáy màn hình. */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--teal-50, #EEF5F4); color: var(--ink, #142120);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 16px; line-height: 1.5;
+}
+.pp { max-width: 640px; margin: 0 auto; padding: 12px 14px calc(110px + env(safe-area-inset-bottom, 0px)); }
+
+.pp-head { display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; }
+.pp-head img { width: 38px; height: 38px; border-radius: 11px; background: #fff; padding: 4px; }
+.pp-head b { font-size: 13px; letter-spacing: .02em; color: var(--teal-600, #0F5C5B); }
+
+/* Ảnh: cuộn ngang, mỗi ảnh dính vào giữa */
+.pp-gal { position: relative; border-radius: 20px; overflow: hidden; background: #dfe9e7; margin-bottom: 14px; }
+.pp-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.pp-strip::-webkit-scrollbar { display: none; }
+.pp-strip > button { flex: 0 0 100%; scroll-snap-align: center; border: 0; padding: 0; background: none; cursor: zoom-in; aspect-ratio: 4 / 3; }
+.pp-strip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pp-noimg { aspect-ratio: 4 / 3; display: grid; place-items: center; color: var(--ink-3, #687876); font-size: 14px; text-align: center; padding: 20px; }
+.pp-count { position: absolute; right: 10px; bottom: 10px; background: rgba(20,33,32,.72); color: #fff; font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+
+.pp-card { background: #fff; border-radius: 20px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(7,43,42,.06); }
+.pp-card h2 { margin: 0 0 8px; font-size: 16px; }
+.pp-chip { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.pp-chip.trong { background: var(--success-bg, #E7F2EB); color: var(--success, #2D7A4E); }
+.pp-chip.da-coc { background: var(--warning-bg, #FBF0DF); color: var(--warning, #98600F); }
+.pp-chip.da-thue { background: var(--neutral-100, #EAEFED); color: var(--ink-2, #455654); }
+.pp h1 { margin: 0; font-size: 24px; line-height: 1.25; }
+.pp-where { color: var(--ink-2, #455654); font-size: 15px; margin-top: 2px; }
+.pp-price { margin-top: 10px; font-size: 26px; font-weight: 800; color: var(--teal-600, #0F5C5B); }
+.pp-price small { font-size: 15px; font-weight: 600; color: var(--ink-2, #455654); }
+.pp-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pp-fact { background: var(--teal-50, #EEF5F4); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+.pp-fact b { display: block; font-size: 16px; }
+.pp-fact span { color: var(--ink-2, #455654); font-size: 12.5px; }
+.pp-amen { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-amen span { border: 1px solid var(--line-2, #C8D2CF); border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+.pp-desc p { margin: 0 0 8px; }
+.pp-desc p:last-child { margin: 0; }
+.pp-addr { margin: 0 0 8px; }
+.pp-notice { border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; background: var(--warning-bg, #FBF0DF); color: #6B430A; font-size: 15px; }
+
+.pp-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--teal-600, #0F5C5B); text-decoration: none; min-height: 44px; }
+.pp-link:hover { text-decoration: underline; }
+
+/* Thanh liên hệ dính đáy */
+.pp-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: rgba(253,254,254,.96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line, #DEE5E3); padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -6px 24px rgba(10,58,57,.08); }
+.pp-bar-in { max-width: 640px; margin: 0 auto; display: flex; gap: 10px; }
+.pp-btn { flex: 1; min-height: 52px; border: 0; border-radius: 14px; font: inherit; font-weight: 800; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
+.pp-btn.call { background: var(--teal-600, #0F5C5B); color: #fff; }
+.pp-btn.zalo { background: #0068FF; color: #fff; }
+.pp-btn.ghost { background: #fff; color: var(--teal-600, #0F5C5B); border: 2px solid var(--teal-300, #7DB6B1); }
+.pp-btn.share { flex: 0 0 52px; background: var(--teal-50, #EEF5F4); color: var(--teal-600, #0F5C5B); font-size: 20px; }
+.pp-btn:focus-visible, .pp-link:focus-visible, .pp-strip > button:focus-visible { outline: 3px solid #0068FF; outline-offset: 2px; }
+.pp-nocontact { flex: 1; text-align: center; color: var(--ink-2, #455654); font-size: 14px; padding: 6px 0; }
+
+/* Trạng thái: đang tải / lỗi */
+.pp-load { text-align: center; padding: 70px 0; color: var(--ink-2, #455654); }
+.pp-spin { width: 34px; height: 34px; border: 4px solid var(--teal-100, #D6E9E7); border-top-color: var(--teal-600, #0F5C5B); border-radius: 50%; margin: 0 auto 12px; animation: pp-r .8s linear infinite; }
+@keyframes pp-r { to { transform: rotate(360deg); } }
+.pp-end { text-align: center; padding: 34px 20px; }
+.pp-end .pp-ic { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 12px; font-size: 28px; font-weight: 800; background: var(--danger-bg, #FAE9E5); color: var(--danger, #B3402F); }
+.pp-end h1 { font-size: 20px; margin: 0 0 6px; }
+.pp-end p { margin: 0 0 8px; color: var(--ink-2, #455654); }
+.pp-end .pp-btn { margin-top: 10px; max-width: 240px; flex: none; width: 100%; }
+
+/* Xem ảnh lớn */
+.pp-zoom { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.92); display: grid; place-items: center; padding: 12px; cursor: zoom-out; border: 0; width: 100%; }
+.pp-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { .pp-spin { animation-duration: 3s; } }

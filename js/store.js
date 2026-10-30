@@ -1044,6 +1044,17 @@ HH.store = (function () {
 
     // Thêm mới (đẩy vào MẢNG GỐC rồi lưu bền)
     addRoom(r) { rooms.push(r); persist(); return r; },
+    /* ---------- Link giới thiệu công khai của phòng (supabase/migration-public-rooms.sql, trang phong/) ----------
+       Bật: tạo mã ngẫu nhiên khó đoán (một lần, giữ nguyên khi tắt rồi bật lại để link cũ vẫn dùng được). Tắt: link báo "không còn được giới thiệu". */
+    publicLink(bid, code) { const r = api.room(bid, code); return r && r.publicOn ? HH.listing.lienKet(location.href, r.publicSlug) : ''; },
+    setRoomPublic(bid, code, on) {
+      const r = api.room(bid, code); if (!r) return { ok: false };
+      const patch = { publicOn: !!on };
+      if (on && !HH.listing.slugHopLe(r.publicSlug)) patch.publicSlug = HH.listing.taoMa();
+      api.updateRoom(bid, code, patch);
+      api.log('room.public', `${on ? 'Bật' : 'Tắt'} link giới thiệu công khai phòng ${code}`);
+      return { ok: true, link: on ? HH.listing.lienKet(location.href, r.publicSlug) : '' };
+    },
     updateRoom(bid, code, patch) { const r = api.room(bid, code); if (r) { Object.assign(r, patch); persist(); } return r; },
     addTenant(t) { tenants.push(t); persist(); return t; },
     updateTenant(id, patch) { const t = tenants.find(x => x.id === id); if (t) { Object.assign(t, patch); persist(); } return t; },

@@ -80,6 +80,19 @@ Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đ�
 - Sửa kèm: thanh tab điện thoại không còn tạo đường dẫn `#/b/null/...` khi chưa có tòa nhà; đường dẫn tới tòa nhà không còn tồn tại thì quay về danh sách thay vì hiện lỗi trang.
 - Dữ liệu mẫu đã được kiểm với đúng các luật của `migration-constraints.sql` (0 vi phạm trên 7 bảng) nên nạp vào tài khoản thật không bị DB từ chối.
 
+## Trang công khai giới thiệu phòng trống
+
+Để người cần thuê xem phòng mà không phải đăng nhập hay hỏi qua lại: mỗi phòng có thể có **một đường link và mã QR** riêng.
+
+- **Chủ trọ bật ở hộp thoại phòng** (Phòng → bấm vào phòng → *Link giới thiệu công khai* → *Bật link công khai*). Mặc định tắt. Bật xong có: ô link (sao chép), nút *Mở trang xem thử*, *Chép tin chia sẻ* (soạn sẵn giá, diện tích, địa chỉ, link để dán Zalo / Facebook), **mã QR** tải về in dán trước nhà. Tắt lúc nào cũng được, hết xem được ngay; bật lại thì dùng đúng link cũ (mã được giữ).
+- **Người ngoài mở link** `.../phong/#<mã>` thấy trang làm cho điện thoại: ảnh cuộn ngang (bấm xem lớn), giá, diện tích, tầng, số người, tiện nghi, mô tả, địa chỉ kèm link bản đồ, và thanh dính đáy **Gọi ngay / Nhắn Zalo / Chia sẻ**. Phòng đã có người thuê hoặc đặt cọc thì trang nói rõ và đổi nút thành "Gọi hỏi phòng khác".
+- **Chỉ lộ đúng những gì chủ trọ đã nhập để đăng tin:** số phòng, giá, diện tích, mô tả, tiện nghi, tối đa 5 ảnh, tên + địa chỉ tòa nhà, tên + số điện thoại liên hệ. **Không có** tên khách, công nợ, hợp đồng, chỉ số. Trạng thái chỉ có 3 loại, nên phòng sắp trả phòng hay đang dọn đều hiện "đã có người thuê", không lộ chi tiết.
+- **Người lạ chỉ gọi được đúng một hàm** `public_room(mã)` (`supabase/migration-public-rooms.sql`); bảng phòng vẫn khóa kín. Mã là 16 ký tự ngẫu nhiên khó đoán (36¹⁶ khả năng); mã sai dạng, mã không có và phòng chưa bật công khai đều trả y hệt nhau ("không còn được giới thiệu"), không dò được mã nào tồn tại. Mã là chuỗi sau dấu `#` nên không gửi lên máy chủ web, trang đặt `noindex`.
+- **An toàn nội dung:** chữ từ máy chủ luôn qua `textContent` (không bao giờ `innerHTML`), ảnh chỉ nhận ảnh nhúng jpeg/png/webp (chặn đường dẫn ngoài, svg, `javascript:`), số điện thoại sai dạng thì không tạo nút gọi. Đã thử với mô tả chứa `<script>`, `onerror`, ảnh `javascript:`: không chạy gì.
+- **Giới hạn nói thẳng:** vì trang là tĩnh (GitHub Pages) nên khi dán link vào Zalo / Facebook chỉ ra thẻ xem trước **chung** của Happy Home, chưa có ảnh và giá từng phòng (hai nơi đó không chạy JavaScript). Muốn thẻ riêng cho từng phòng cần thêm một hàm máy chủ trả HTML riêng; chưa làm.
+- **Cần chạy một lần** `supabase/migration-public-rooms.sql` (thêm cột `rooms.public_on`, `rooms.public_slug` và hàm `public_room`; chạy lại được, không đụng dữ liệu có sẵn; cần `migration-room-photos.sql` trước). Chưa chạy thì hộp thoại phòng báo rõ và link chưa mở được với người ngoài.
+- `js/listing.js` thuần (mã ngẫu nhiên không thiên vị, link, số điện thoại, ảnh, trạng thái, tin chia sẻ): 36 ca `tests/listing.test.js`, thử phá 46 chỗ đều bị bắt. `tests/db/public-room.test.py`: 57 ca trên Postgres thật (danh sách trắng đúng các trường, không lộ khách / công nợ / chủ sở hữu, mã yếu, hai chủ trọ cùng mã tòa, vai anon không đọc được bảng, chạy lại), thử phá 36 chỗ đều bị bắt (loại hai kiểu phá tương đương: chỉ mục duy nhất vẫn cho nhiều NULL, thứ tự ảnh đã có ở truy vấn con). Khi thử phá phát hiện bài test từng chưa bắt được truy vấn thiếu điều kiện chủ sở hữu của tòa nhà (hai chủ trọ cùng mã `b1`): đã bổ sung.
+
 ## Cài như ứng dụng + ghi chỉ số khi mất mạng
 
 Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trước đây đang ghi chỉ số mà mất mạng thì lần lưu lỗi mà không ai biết, tải lại trang là mất sạch số vừa ghi.
@@ -374,6 +387,7 @@ js/
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
   voice.js            # hiểu câu nói tiếng Việt thành phòng + chỉ số, nghe bằng micro (phần hiểu không đụng DOM, có kiểm thử)
+  listing.js          # trang công khai giới thiệu phòng: mã ngẫu nhiên, link, số điện thoại, ảnh, tin chia sẻ (không đụng DOM, có kiểm thử)
   rewards.js          # điểm thưởng đóng tiền đúng hạn: luật điểm, chuỗi, đổi điểm, tin nhắn (không đụng DOM, có kiểm thử)
   renewal.js          # gia hạn hợp đồng: tính hạn mới, lịch sử, nội dung phụ lục (không đụng DOM, có kiểm thử)
   offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
@@ -414,6 +428,7 @@ tests/
   offline.test.js     # kiểm thử ghi chỉ số ngoại tuyến: node tests/offline.test.js
   renewal.test.js     # kiểm thử gia hạn hợp đồng: node tests/renewal.test.js
   rewards.test.js     # kiểm thử điểm thưởng: node tests/rewards.test.js
+  listing.test.js     # kiểm thử trang công khai phòng: node tests/listing.test.js
 ```
 
 ## Kiểm thử
@@ -432,9 +447,10 @@ node tests/voice.test.js
 node tests/offline.test.js
 node tests/renewal.test.js
 node tests/rewards.test.js
+node tests/listing.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca); cả mười ba đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -448,6 +464,7 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/onboarding.test.py
 .venv-db/Scripts/python tests/db/constraints.test.py
 .venv-db/Scripts/python tests/db/renewal-history.test.py
+.venv-db/Scripts/python tests/db/public-room.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

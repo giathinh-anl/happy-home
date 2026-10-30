@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Happy Home — Xem phòng trọ</title>
+  <meta name="description" content="Xem ảnh, giá và liên hệ chủ nhà để thuê phòng trọ">
+  <meta name="theme-color" content="#0F5C5B">
+  <!-- Mã phòng nằm sau dấu #, nên mọi link phòng đều là cùng một địa chỉ với công cụ tìm kiếm: không lập chỉ mục trang trống này -->
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <!-- Thẻ xem trước khi dán link vào Zalo / Facebook. Dùng chung cho mọi phòng: Facebook và Zalo không chạy JavaScript nên không đọc được thông tin từng phòng -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Xem phòng trọ trên Happy Home">
+  <meta property="og:description" content="Bấm để xem ảnh, giá và liên hệ chủ nhà.">
+  <meta property="og:image" content="https://giathinh-anl.github.io/happy-home/assets/icon-512.png">
+  <link rel="icon" type="image/svg+xml" href="../assets/logo-icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css?v=1">
+  <link rel="stylesheet" href="phong.css?v=1">
+</head>
+<body>
+  <main id="pp" class="pp" aria-live="polite">
+    <div class="pp-load"><div class="pp-spin" aria-hidden="true"></div><p>Đang mở phòng...</p></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>window.HH = window.HH || {};</script>
+  <script src="../js/config.js?v=1" onerror="console.info('Chưa có js/config.js')"></script>
+  <script src="../js/listing.js?v=1"></script>
+  <script src="phong.js?v=1"></script>
+</body>
+</html>
