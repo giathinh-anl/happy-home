@@ -1149,3 +1149,8 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 .net-pill .btn { min-height: 32px; padding: 4px 12px; flex: 0 0 auto; }
 /* điện thoại: nằm trên thanh tab, lệch trái để chừa chỗ cho nút trợ lý ảo ở góc phải */
 @media (max-width: 860px) { body.has-shell .net-pill { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); left: 12px; right: auto; margin: 0; max-width: calc(100vw - 84px); } }
+
+/* Báo cáo tháng: tờ giấy trắng đặt trên nền xám, trông đúng như bản in (js/report.js) */
+.bct-wrap { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 16px; }
+.bct-wrap .bct { padding: 24px 28px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+@media (max-width: 640px) { .bct-wrap { padding: 8px; } .bct-wrap .bct { padding: 16px; } }

@@ -342,7 +342,7 @@ HH.pages = HH.pages || {};
         <div><h1 class="page-title">Tổng quan</h1><div class="page-sub">Toàn công ty, kỳ ${P}</div></div>
         <div class="page-actions">
           <div id="periodSel"></div>
-          ${raw(owner ? `<button class="btn btn-outline" id="exportReport">${ic('download', 16)} Xuất báo cáo</button>` : '')}
+          ${raw(S.can('reports') ? `<a class="btn btn-outline" href="#/reports">${ic('print', 16)} Báo cáo tháng</a>` : '')}
         </div>
       </div>
 
@@ -389,17 +389,6 @@ HH.pages = HH.pages || {};
         UI.attachPeriod(psel.querySelector('[data-period-root]'), opt);
       }
       HH.fx.countUp(document.getElementById('pageRoot'), FMT);
-      const ex = document.getElementById('exportReport');
-      if (ex) ex.onclick = () => {
-        const d = S.dashboardSummary(), a = S.dashboardAnalytics();
-        U.downloadCSV(`bao-cao-${d.period}.csv`,
-          ['Tòa nhà', 'Số phòng', 'Tỷ lệ lấp đầy', 'Phát hành kỳ', 'Đã thu kỳ', 'Công nợ'],
-          a.byBuilding.map(b => {
-            const bb = d.buildings.find(x => x.id === b.id) || {};
-            return [b.name, b.rooms, U.percent(b.occupancy), b.billed, b.collected, bb.debt || 0];
-          }));
-        UI.toast('Đã tải báo cáo (CSV)', { type: 'ok' });
-      };
     },
   };
 

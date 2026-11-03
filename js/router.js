@@ -8,9 +8,7 @@ HH.router = (function () {
     { pat: '/offline', page: 'offlineReadings', bare: true },      // chỉ có khi mở ngoại tuyến từ ảnh chụp (js/offline.js)
     { pat: '/dashboard', page: 'dashboard' },
     { pat: '/buildings', page: 'buildings' },
-    { pat: '/reports', page: 'stub', meta: { title: 'Báo cáo', owner: true } },
-    { pat: '/accounting', page: 'stub', meta: { title: 'Sổ kế toán', owner: true } },
-    { pat: '/hr', page: 'stub', meta: { title: 'Nhân sự & phân quyền', owner: true } },
+    { pat: '/reports', page: 'reports', meta: { title: 'Báo cáo tháng', perm: 'reports' } },
     { pat: '/config', page: 'companyConfig', meta: { title: 'Cài đặt chung' } },
     { pat: '/logs', page: 'logs', meta: { title: 'Nhật ký hệ thống', owner: true } },
     { pat: '/transfers', page: 'transfers', meta: { perm: 'payments' } },

@@ -328,6 +328,18 @@ ngân hàng. Xem ở **Khách chuyển khoản → Đối soát ngân hàng**.
 
 **Webhook bắt buộc có mã bí mật.** Hàm `bank-webhook` từ chối (401) mọi lời gọi không mang đúng mã, nhận mã từ header `Authorization: Apikey <mã>` (SePay), header `secure-token` (Casso V1) hoặc `?key=<mã>` trên link. Bản cũ chỉ kiểm khi lời gọi có kèm header `Authorization`, nên yêu cầu không kèm gì vẫn lọt: ai biết link đều bơm được giao dịch "tiền vào" giả để app tự xóa công nợ. Đã vá; phần kiểm mã tách ở `supabase/functions/bank-webhook/auth.ts`, 21 ca `tests/bank-webhook-auth.test.js`, thử phá 13 chỗ (chỉ còn một kiểu tương đương, chỉ khác thời gian chạy). Các bước đăng ký SePay / Casso / Zalo OA / SMS: xem `HUONG_DAN_DANG_KY.md`.
 
+## Báo cáo tháng (xem, in ra PDF, xuất Excel)
+
+Vào **Tổng quan → Báo cáo tháng** (hoặc `#/reports`). Chọn tháng ở dải tháng, chọn **toàn công ty hay một tòa**, thấy ngay một tờ báo cáo trắng đúng như bản in. Bấm **In / Lưu PDF** để mở hộp in của trình duyệt (chọn "Lưu thành PDF" là có tệp gửi người góp vốn hoặc kế toán), hoặc **Xuất Excel** để có tệp CSV mở bằng Excel (số tiền để dạng số, cộng được).
+
+Trong tờ báo cáo:
+- **Điểm đáng chú ý**, viết bằng lời thường, tối đa 5 ý: thu được bao nhiêu phần trăm, có hóa đơn quá hạn trên 30 ngày không, có lỗ không, còn mấy phòng trống, tiền thu có tụt quá 20% so với kỳ trước không. Không có gì thì nói thẳng là không có gì.
+- **Tóm tắt** bảy chỉ tiêu (phát hành, đã thu, tỷ lệ thu, chi phí, lợi nhuận, công nợ, lấp đầy), mỗi chỉ tiêu so với kỳ trước; chi phí và công nợ giảm được tô xanh, tăng tô đỏ. Kỳ trước chưa phát hành gì thì không so tỷ lệ thu (0% khi đó không có nghĩa là thu tệ).
+- **Theo tòa nhà**, **thu và chi các kỳ gần nhất**, cơ cấu tiền phát hành và cơ cấu chi phí.
+- **Tuổi nợ**: tính từ hạn thanh toán từng hóa đơn đến hôm nay, bốn mốc (chưa đến hạn / quá 1–30 / 31–60 / trên 60 ngày). Bản in liệt kê 10 phòng nợ nhiều nhất; bản Excel liệt kê đủ.
+
+Ai thấy được: chủ trọ, và nhân viên nào được cấp quyền **Báo cáo & tổng quan** (ô này vốn có trong màn hình phân quyền nhưng trước đây chưa có trang nào dùng nó). Số liệu dựng ở `js/report.js` (thuần, không đụng DOM, 83 ca kiểm thử trong `tests/report.test.js`); trang xem và bản in dựng từ cùng một bản số liệu nên luôn giống nhau. Không cần chạy thêm SQL.
+
 ## Trang giới thiệu có hiệu ứng cuộn
 
 Trang `gioi-thieu/` (địa chỉ `.../gioi-thieu/`, có link "Xem giới thiệu Happy Home" ở màn đăng nhập) giới thiệu Happy Home bằng một khu nhà trọ dựng bằng CSS 3D, có nút **Đăng nhập** (về web quản trị) và **Dành cho khách thuê** (về app khách).
@@ -401,6 +413,7 @@ js/
   validate.js         # luật kiểm tra dữ liệu nhập: tiền, ngày, sđt, CCCD, biển số (không đụng DOM, có kiểm thử)
   split.js            # chia hóa đơn cho người ở, dùng chung với app khách (không đụng DOM, có kiểm thử)
   closing.js          # phân loại phòng khi chốt sổ tháng (không đụng DOM, có kiểm thử)
+  report.js           # số liệu, bản in và bản Excel của Báo cáo tháng (không đụng DOM, có kiểm thử)
   today.js            # xếp thứ tự và hoãn việc "Hôm nay cần làm gì" (không đụng DOM, có kiểm thử)
   dates.js            # ngày theo lịch: ghi cột date không lệch múi giờ, đếm ngày quá hạn (không đụng DOM, có kiểm thử)
   progress.js         # tiến độ xử lý sự cố: dòng thời gian, hẹn thợ, chi phí (không đụng DOM, có kiểm thử)
@@ -432,12 +445,14 @@ js/
     billing.js        # chỉ số, hóa đơn, chi tiết, thanh toán
     reminders.js      # trang Nhắc nợ + chính sách phí trễ hạn
     misc.js           # dịch vụ, tài sản
+    reports.js        # trang Báo cáo tháng: chọn kỳ và tòa, in, xuất Excel
 tests/
   scoring.test.js     # kiểm thử luật điểm: node tests/scoring.test.js
   reminders.test.js   # kiểm thử nhắc nợ + phí: node tests/reminders.test.js
   validate.test.js    # kiểm thử luật nhập liệu: node tests/validate.test.js
   split.test.js       # kiểm thử chia hóa đơn: node tests/split.test.js
   closing.test.js     # kiểm thử phân loại chốt sổ: node tests/closing.test.js
+  report.test.js      # kiểm thử báo cáo tháng: node tests/report.test.js
   today.test.js       # kiểm thử việc hôm nay: node tests/today.test.js
   dates.test.js       # kiểm thử ngày lịch: node tests/dates.test.js
   progress.test.js    # kiểm thử tiến độ sự cố: node tests/progress.test.js
@@ -458,6 +473,7 @@ node tests/reminders.test.js
 node tests/validate.test.js
 node tests/split.test.js
 node tests/closing.test.js
+node tests/report.test.js
 node tests/today.test.js
 node tests/dates.test.js
 node tests/progress.test.js
@@ -470,7 +486,7 @@ node tests/listing.test.js
 node tests/bank-webhook-auth.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười bốn đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười lăm đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -499,7 +515,7 @@ Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đă
 
 - **SMS OTP cho app khách thuê**: chưa có. Đăng nhập dùng mã vào app do chủ trọ cấp (xem mục *Đăng nhập app khách thuê*).
 - Dữ liệu chỉ nằm **trên trình duyệt này**; chưa đồng bộ nhiều thiết bị / nhiều người dùng (cần backend + database).
-- **Khóa thông minh** là màn hình mô phỏng, chưa nối khóa thật. Ba trang **Báo cáo, Sổ kế toán, Nhân sự & phân quyền** vẫn là trang giữ chỗ.
+- **Khóa thông minh** là màn hình mô phỏng, chưa nối khóa thật. Hai trang giữ chỗ cũ không ai trỏ tới đã bỏ: *Sổ kế toán* chính là trang **Thu chi** của từng tòa (sổ 12 tháng, xuất Excel), *Nhân sự & phân quyền* chính là **Công ty/nhóm**; *Báo cáo* nay là trang thật (mục *Báo cáo tháng* ở trên).
 
 ## Bước tiếp theo để thành "bản chính" thật
 Muốn nhiều người dùng chung + đồng bộ nhiều máy thì cần **máy chủ + cơ sở dữ liệu**: thay `js/store.js` bằng lớp gọi API thật (đăng nhập/JWT, REST/GraphQL), thêm OCR thật và cổng thanh toán. Giao diện & luồng nghiệp vụ hiện tại dùng lại được gần như nguyên vẹn.
