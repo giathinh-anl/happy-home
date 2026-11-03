@@ -59,6 +59,7 @@ HH.pages = HH.pages || {};
             <button class="btn btn-primary btn-lg btn-block" id="loginBtn" type="submit">Đăng nhập</button>
             ${raw(hint)}
             <a href="tenant-app/index.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
+            <a href="gioi-thieu/" style="text-align:center;display:block;margin-top:4px">Xem giới thiệu Happy Home →</a>
           </form>
           </div>
           <div class="login-ads">${raw(HH.promo.hero(HH.promo.OWNER))}</div>

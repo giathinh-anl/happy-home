@@ -58,6 +58,9 @@ def main():
                 '<p class="muted text-xs" style="text-align:center;margin-top:4px">'
                 'Bản demo này chỉ có trang quản trị. App khách thuê nằm trong thư mục '
                 '<span class="mono">tenant-app</span> của mã nguồn.</p>')
+            # Trang giới thiệu cũng là một thư mục riêng, không có trong bản gộp
+            src = src.replace(
+                '<a href="gioi-thieu/" style="text-align:center;display:block;margin-top:4px">Xem giới thiệu Happy Home →</a>', '')
         js_parts.append('/* ===== %s ===== */\n%s' % (rel, src))
     js = '\n\n'.join(js_parts)
     for rel, mime in ASSETS:

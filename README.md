@@ -21,6 +21,7 @@ Rồi mở `http://localhost:8777/index.html`.
 
 **https://giathinh-anl.github.io/happy-home/** — trang chủ trọ
 **https://giathinh-anl.github.io/happy-home/tenant-app/** — app khách thuê
+**https://giathinh-anl.github.io/happy-home/gioi-thieu/** — trang giới thiệu có hiệu ứng cuộn
 
 Mở là dùng được ngay trên điện thoại lẫn máy tính, dùng chung dữ liệu thật,
 không phải tải mã nguồn hay chép tệp cấu hình.
@@ -327,6 +328,19 @@ ngân hàng. Xem ở **Khách chuyển khoản → Đối soát ngân hàng**.
 
 **Webhook bắt buộc có mã bí mật.** Hàm `bank-webhook` từ chối (401) mọi lời gọi không mang đúng mã, nhận mã từ header `Authorization: Apikey <mã>` (SePay), header `secure-token` (Casso V1) hoặc `?key=<mã>` trên link. Bản cũ chỉ kiểm khi lời gọi có kèm header `Authorization`, nên yêu cầu không kèm gì vẫn lọt: ai biết link đều bơm được giao dịch "tiền vào" giả để app tự xóa công nợ. Đã vá; phần kiểm mã tách ở `supabase/functions/bank-webhook/auth.ts`, 21 ca `tests/bank-webhook-auth.test.js`, thử phá 13 chỗ (chỉ còn một kiểu tương đương, chỉ khác thời gian chạy). Các bước đăng ký SePay / Casso / Zalo OA / SMS: xem `HUONG_DAN_DANG_KY.md`.
 
+## Trang giới thiệu có hiệu ứng cuộn
+
+Trang `gioi-thieu/` (địa chỉ `.../gioi-thieu/`, có link "Xem giới thiệu Happy Home" ở màn đăng nhập) giới thiệu Happy Home bằng một khu nhà trọ dựng bằng CSS 3D, có nút **Đăng nhập** (về web quản trị) và **Dành cho khách thuê** (về app khách).
+Khi cuộn xuống, trời đi từ **sáng qua chiều tới tối**: bốn tầng của tòa chính lần lượt rơi xuống xếp chồng, hai tòa bên cạnh dựng lên, mặt trời lặn, trăng sao lên, đèn đường và cửa sổ sáng dần (có bóng người, mèo, chậu cây bên trong), chuỗi đèn dây nhiều màu sáng ở mép mái, ba chiếc xe máy chạy qua, một vị khách kéo vali vào cửa, một đèn chập chờn rồi sáng lại (báo hỏng, sửa xong), rồi bảng hiệu HAPPY HOME nhô lên và lời mời đăng nhập hiện ra.
+
+- **Không dùng thư viện, không có JavaScript, không ảnh.** Cảnh dựng bằng CSS (`transform-style: preserve-3d`), hiệu ứng chạy bằng CSS `animation-timeline: scroll()`. Mọi mốc cuộn tính theo đơn vị `--sv` (1,7svh) ở `:root` của `gioi-thieu/gioi-thieu.css`; cảnh dài 300 đơn vị. Muốn dài hơn hay ngắn hơn thì đổi `--sv`.
+- **Màu đi theo một số duy nhất `--n`** (0 là ban ngày, 0,5 là hoàng hôn, 1 là ban đêm), khai báo bằng `@property`; mọi màu của cảnh là `color-mix` theo số đó. Mỗi tòa nhà có màu riêng (xanh ngọc, tím, san hô) ở các dòng `.bld.tower`, `.bld.left`, `.bld.right`.
+- **Tệp sinh ra từ script** vì có nhiều phần tử lặp lại (tầng, cửa sổ, cây, xe): `python tools/gioi-thieu/build_css.py` sinh `gioi-thieu.css`, `python tools/gioi-thieu/gen_html.py` sinh `index.html` (đặt biến môi trường `CSS_VER=n` và tăng n mỗi lần sửa CSS để trình duyệt tải lại). Có thể sửa thẳng hai tệp nhưng lần sinh sau sẽ ghi đè.
+- **Trình duyệt chưa hỗ trợ hoặc người dùng bật "giảm chuyển động"** thì thấy cảnh ban đêm đã dựng xong (mọi tầng đã đặt, mọi đèn đã sáng) và các đoạn chữ xếp dọc.
+- **Chỉ có nền tối** ở phần chữ và thanh trên; bầu trời trong cảnh đổi màu theo giờ. Nút đăng nhập luôn là vàng đèn.
+- Trang `gioi-thieu/` nằm ngoài vùng lưu của `sw.js` (như `tenant-app/`, `join/`, `phong/`).
+- Chưa là trang vào mặc định: web quản trị vẫn mở thẳng màn đăng nhập. Muốn trang này là cửa trước thì đổi điểm vào, cần cân nhắc app cài như ứng dụng (`start_url`) và `sw.js`.
+
 ## Trợ lý ảo (AI)
 
 Trợ lý chạy theo **3 tầng**, thiết kế để **không bao giờ để mô hình tự nghĩ ra số liệu**:
@@ -371,6 +385,8 @@ Trạng thái trợ lý (đang chạy tầng nào, còn bao nhiêu lượt) xem 
 index.html            # nạp toàn bộ CSS/JS
 sw.js                 # service worker: mở được khi mất mạng, ưu tiên mạng (xem mục "Cài như ứng dụng")
 manifest.webmanifest  # khai báo để cài lên màn hình chính, biểu tượng ở assets/icon-*.png
+gioi-thieu/           # trang giới thiệu có hiệu ứng cuộn (index.html + gioi-thieu.css, sinh bằng tools/gioi-thieu/)
+tools/gioi-thieu/     # build_css.py và gen_html.py: sinh lại hai tệp trên
 css/
   tokens.css          # biến thiết kế (màu, chữ, khoảng cách) — §1.2–1.4
   base.css            # reset + tiện ích
