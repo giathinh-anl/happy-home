@@ -20,12 +20,19 @@ Nhập **số điện thoại** của một khách thuê có trong hệ thống 
 - Báo hỏng: gửi yêu cầu → theo dõi timeline (hiện trong "Sự cố phòng" của chủ trọ)
 - Ghi chỉ số: khách tự ghi → chờ chủ trọ duyệt
 
+## Tiện ích thêm
+- Cài về màn hình chính (biểu tượng PNG, lối tắt), chế độ tối, xem bản đã lưu khi mất mạng
+- Thanh toán: lưu ảnh QR, chia sẻ, thêm hạn vào lịch (.ics)
+- Gửi chỉ số điện: AI điền sẵn số từ ảnh đồng hồ, app soát số trước khi gửi
+- Đổi mã vào app, "Quên mã?" (cần `supabase/migration-tenant-code-self.sql`)
+- Hàm thuần ở `js/helpers.js`, kiểm thử ở `tests/tenant-helpers.test.js`
+
 ## Cấu trúc
 ```
 tenant-app/
   index.html
   css/  tokens.css · tenant.css
-  js/   config.js (không commit) · config.example.js · tenant.js
+  js/   config.js (không commit) · config.example.js · helpers.js (hàm thuần) · tenant.js
 ```
 
 Dùng chung 1 database Supabase với app quản trị: khách báo hỏng / tự ghi chỉ số → chủ trọ thấy ngay.

@@ -36,8 +36,21 @@
   const PHONE_KEY = 'hh_tenant_phone';
   const TOKEN_KEY = 'hh_tenant_token';     // token phiên do máy chủ cấp sau khi nhập đúng mã vào app
   // Logo dùng chung với web quản trị (thư mục assets ở gốc dự án)
-  const LOGO = '../assets/logo-mark.svg', LOGO_3D = '../assets/logo-3d.webp';
+  const LOGO = '../assets/logo-mark.svg';
   const logoImg = (w) => `<img src="${LOGO}" alt="" width="${w}" height="${Math.round(w * 0.865)}">`;
+
+  /* Biểu tượng nét mảnh một màu (ăn theo màu chữ), cùng bộ với web quản trị (js/icons.js).
+     Giữ tên và cỡ cũ của hình tượng hình để các chỗ gọi không phải đổi: ico('wrench', 34). */
+  const IC_NAME = { contract: 'file', gear: 'settings', coins: 'wallet', concierge: 'list' };
+  const IC_LOCAL = {
+    house: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5.5h4V20"/>',
+    clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/>',
+  };
+  function ico(name, size) {
+    const px = Math.max(16, Math.round((size || 24) * 0.72));
+    if (IC_LOCAL[name]) return `<svg class="ic-svg" width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC_LOCAL[name]}</svg>`;
+    return String(HH.icon(IC_NAME[name] || name, { size: px }));
+  }
 
   /* ---------- tiện ích ---------- */
   const viNum = new Intl.NumberFormat('vi-VN');
@@ -59,8 +72,98 @@
     else toast('Trình duyệt không hỗ trợ sao chép');
   }
 
+  /* Tờ giấy trượt từ dưới lên (hướng dẫn, xác nhận nhẹ). Bấm nền hoặc nút Xong để đóng. */
+  function closeSheet() { const d = document.getElementById('tSheet'); if (d) d.remove(); }
+  function sheet(html) {
+    closeSheet();
+    const d = document.createElement('div'); d.className = 't-sheet'; d.id = 'tSheet';
+    d.innerHTML = `<div class="t-sheet-bg" data-close></div><div class="t-sheet-box" role="dialog" aria-modal="true">${html}</div>`;
+    document.body.appendChild(d);
+    d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeSheet(); });
+    requestAnimationFrame(() => d.classList.add('on'));
+    return d;
+  }
+  window.addEventListener('hashchange', closeSheet);
+  function confirmSheet(title, msg, yesLabel, noLabel) {
+    return new Promise((resolve) => {
+      const d = sheet(`<h3 style="margin-bottom:6px">${esc(title)}</h3><p style="color:var(--ink-2);line-height:1.5;margin-bottom:16px">${esc(msg)}</p>
+        <button class="t-btn" data-no style="margin-bottom:8px">${esc(noLabel || 'Sửa lại')}</button>
+        <button class="t-btn outline" data-yes>${esc(yesLabel || 'Vẫn gửi')}</button>`);
+      let done = false;
+      const fin = (v) => { if (done) return; done = true; closeSheet(); resolve(v); };
+      d.addEventListener('click', (e) => { if (e.target.closest('[data-yes]')) fin(true); else if (e.target.closest('[data-no],[data-close]')) fin(false); });
+    });
+  }
+
+  /* ---------- Cài app về màn hình chính (hàm quyết định ở js/helpers.js) ---------- */
+  const TH = () => HH.tenantHelpers;
+  const pwa = { evt: null };
+  const INSTALL_SNOOZE = 'hh_install_snooze';
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwa.evt = e; if (state.data && /^#\/(home)?$/.test(location.hash || '#/home')) render(); });
+  window.addEventListener('appinstalled', () => { pwa.evt = null; toast('Đã cài app về màn hình chính'); if (state.data) render(); });
+  function installMode() {
+    return TH().installMode({ ua: navigator.userAgent, maxTouch: navigator.maxTouchPoints, promptReady: !!pwa.evt,
+      standalone: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true });
+  }
+  function installSnoozed() { try { const t = Number(localStorage.getItem(INSTALL_SNOOZE) || 0); return t && Date.now() - t < 14 * 86400000; } catch (e) { return false; } }
+  function installCard() {
+    const m = installMode();
+    if ((m !== 'prompt' && m !== 'ios') || installSnoozed()) return '';
+    return `<div class="t-install"><span class="ti-ic">${HH.ic('download', 20)}</span>
+      <div class="ti-tx"><b>Cài app về màn hình chính</b><span>Mở nhanh như app thật.</span></div>
+      <button class="ti-go" id="installGo">Cài</button><button class="ti-x" id="installX" aria-label="Để sau">${HH.ic('x', 16)}</button></div>`;
+  }
+  function wireInstall() {
+    const go1 = el('installGo'), x = el('installX');
+    if (go1) go1.onclick = installNow;
+    if (x) x.onclick = () => { try { localStorage.setItem(INSTALL_SNOOZE, String(Date.now())); } catch (e) {} render(); };
+  }
+  function installNow() {
+    const m = installMode();
+    if (m === 'prompt' && pwa.evt) { const e = pwa.evt; e.prompt(); (e.userChoice || Promise.resolve()).then(() => { pwa.evt = null; render(); }); return; }
+    if (m === 'ios') sheet(`<h3 style="margin-bottom:6px">Thêm vào màn hình chính</h3>
+      <ol class="t-steps"><li>Bấm nút <b>Chia sẻ</b> ${HH.ic('external', 16)} ở thanh của trình duyệt (Safari: phía dưới; Chrome: phía trên bên phải).</li>
+        <li>Kéo xuống, chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li><li>Bấm <b>Thêm</b>. Biểu tượng Happy Home sẽ nằm ngay màn hình chính.</li></ol>
+      <button class="t-btn" data-close>Xong</button>`);
+  }
+
+  /* ---------- Giao diện sáng / tối: tự theo máy, hoặc khách chọn tay (lưu ở máy này) ---------- */
+  const THEMES = [['auto', 'Tự động'], ['light', 'Sáng'], ['dark', 'Tối']];
+  function themeNow() { try { const t = localStorage.getItem('hh_theme'); return t === 'dark' || t === 'light' ? t : 'auto'; } catch (e) { return 'auto'; } }
+  function setTheme(t) {
+    try { if (t === 'auto') localStorage.removeItem('hh_theme'); else localStorage.setItem('hh_theme', t); } catch (e) {}
+    if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  }
+
+  /* ---------- Chia sẻ hóa đơn, lưu ảnh QR, thêm hạn vào lịch ---------- */
+  async function shareInvoice(inv) {
+    const d = state.data;
+    const text = TH().shareText(inv, { room: (d.room && d.room.code) || d.tenant.roomCode, building: d.building && d.building.name, bank: BANK_OK ? BANK : null, content: payContent(inv) });
+    if (navigator.share) { try { await navigator.share({ title: 'Hóa đơn ' + vnPeriod(inv.period), text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    copy(text, 'nội dung hóa đơn');
+  }
+  async function saveQr(url, name) {
+    try {
+      const r = await fetch(url); if (!r.ok) throw new Error('http');
+      const blob = await r.blob(), file = new File([blob], name, { type: blob.type || 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Mã QR thanh toán' }); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Đã lưu ảnh QR');
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      window.open(url, '_blank'); toast('Giữ ngón tay vào ảnh rồi chọn Lưu');
+    }
+  }
+  function addToCalendar(inv) {
+    const d = state.data, s = TH().buildIcs(inv, { room: (d.room && d.room.code) || d.tenant.roomCode });
+    if (!s) { toast('Hóa đơn này chưa có hạn thanh toán'); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([s], { type: 'text/calendar;charset=utf-8' }));
+    a.download = 'han-dong-tien-' + (inv.period || inv.id) + '.ics'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Đã tạo lịch nhắc, mở tệp để thêm vào lịch');
+  }
+
   /* ---------- trạng thái ---------- */
-  const state = { phone: null, token: null, notice: null, pendingPhone: null, data: null, repair: { cat: null, time: 'Bất kỳ', photos: [] } };
+  const state = { phone: null, token: null, offline: null, notice: null, pendingPhone: null, data: null, repair: { cat: null, time: 'Bất kỳ', photos: [] } };
 
   /* Ảnh chụp từ điện thoại rất nặng, nén lại trước khi gửi lên máy chủ */
   function compressImg(file, maxSize, quality) {
@@ -94,12 +197,28 @@
 
   /* Mọi hàm của khách nhận TOKEN (do tenant_login cấp), không còn nhận số điện thoại.
      Máy chủ trả null khi token sai hoặc hết hạn: coi là phiên đã mất, đưa về màn đăng nhập. */
+  /* Bản lưu để xem khi mất mạng (hàm thuần ở js/helpers.js; không lưu số CCCD, ngày sinh).
+     Mở app trong hầm xe, thang máy... vẫn thấy hóa đơn lần xem gần nhất và mã QR. Đăng xuất hoặc hết phiên thì xóa. */
+  const CACHE_KEY = 'hh_tenant_cache';
+  function saveCache(data) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(HH.tenantHelpers.cacheEnvelope(data, state.phone, new Date()))); } catch (e) { /* đầy bộ nhớ: bỏ qua */ } }
+  function clearCache() { try { localStorage.removeItem(CACHE_KEY); } catch (e) {} state.offline = null; }
+  function fromCache(err) {
+    let c = null; try { c = HH.tenantHelpers.readCache(localStorage.getItem(CACHE_KEY), state.phone, new Date()); } catch (e) {}
+    if (!c) throw err;
+    state.offline = { ageMin: c.ageMin };
+    return c.data;
+  }
   async function loadData() {
     if (!enabled) throw new Error('NO_CONFIG');
-    const { data, error } = await client.rpc('tenant_data', { p_token: state.token });
-    if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
+    let res;
+    try { res = await client.rpc('tenant_data', { p_token: state.token }); }
+    catch (e) { return fromCache(e instanceof Error ? e : new Error(String(e))); }     // mất mạng: dùng bản đã lưu
+    const { data, error } = res;
+    if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); return fromCache(new Error(error.message)); }
     if (data == null) { sessionLost(); throw new Error('SESSION'); }
     await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents)]);
+    state.offline = null;
+    saveCache(data);
     return data;
   }
   /* Tiến độ sửa chữa chủ nhà đã chọn cho khách thấy (supabase/migration-incident-tracking.sql). Chưa chạy migration hay lỗi
@@ -137,7 +256,7 @@
   const rpcNeed = rpc;
 
   function sessionLost(msg) {
-    stopStaffPoll();
+    stopStaffPoll(); clearCache();
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
     state.token = null; state.phone = null; state.pendingPhone = null;
     state.notice = msg || 'Phiên đăng nhập đã hết hạn. Vui lòng nhập lại số điện thoại và mã vào app.';
@@ -146,7 +265,7 @@
   }
   async function doLogout() {
     const tok = state.token, chatK = chatKey();
-    stopStaffPoll();
+    stopStaffPoll(); clearCache();
     try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatK); } catch (e) {}
     state.token = null; state.phone = null; state.data = null;
     go('#/login');
@@ -189,6 +308,7 @@
     if (h === '#/usage') return screenUsage();
     if (h === '#/history') return screenPayHistory();
     if (h === '#/account') return screenAccount();
+    if (h === '#/changecode') return screenChangeCode();
     if (h === '#/services') return screenServices();
     if (h === '#/chat') return screenChat();
     if (h === '#/proof') return screenProof();
@@ -197,10 +317,10 @@
 
   /* ---------- thanh tab dưới ---------- */
   const TABS = [
-    { key: 'home', hash: '#/home', ic: HH.pic('house', 28), label: 'Trang chủ' },
-    { key: 'invoices', hash: '#/invoices', ic: HH.pic('receipt', 28), label: 'Hóa đơn' },
-    { key: 'room', hash: '#/room', ic: HH.pic('door', 28), label: 'Phòng của tôi' },
-    { key: 'account', hash: '#/account', ic: HH.pic('user', 28), label: 'Tài khoản' },
+    { key: 'home', hash: '#/home', ic: ico('house', 28), label: 'Trang chủ' },
+    { key: 'invoices', hash: '#/invoices', ic: ico('receipt', 28), label: 'Hóa đơn' },
+    { key: 'room', hash: '#/room', ic: ico('door', 28), label: 'Phòng của tôi' },
+    { key: 'account', hash: '#/account', ic: ico('user', 28), label: 'Tài khoản' },
   ];
   function tabbar(active) {
     const unpaid = (state.data.invoices || []).filter(i => (i.total - i.paid) > 0).length;
@@ -214,20 +334,20 @@
 
   /* ---------- Thanh bên (chỉ hiện trên máy tính) ---------- */
   const SIDE_MAIN = [
-    { hash: '#/home', ic: HH.pic('house', 26), label: 'Trang chủ', key: 'home' },
-    { hash: '#/invoices', ic: HH.pic('receipt', 26), label: 'Hóa đơn', key: 'invoices' },
-    { hash: '#/room', ic: HH.pic('door', 26), label: 'Phòng của tôi', key: 'room' },
-    { hash: '#/contract', ic: HH.pic('contract', 26), label: 'Hợp đồng', key: 'contract' },
+    { hash: '#/home', ic: ico('house', 26), label: 'Trang chủ', key: 'home' },
+    { hash: '#/invoices', ic: ico('receipt', 26), label: 'Hóa đơn', key: 'invoices' },
+    { hash: '#/room', ic: ico('door', 26), label: 'Phòng của tôi', key: 'room' },
+    { hash: '#/contract', ic: ico('contract', 26), label: 'Hợp đồng', key: 'contract' },
   ];
   const SIDE_MORE = [
-    { hash: '#/readings', ic: HH.pic('camera', 26), label: 'Gửi chỉ số điện', key: 'readings' },
-    { hash: '#/repair', ic: HH.pic('wrench', 26), label: 'Báo hỏng', key: 'repair' },
-    { hash: '#/track', ic: HH.pic('clipboard', 26), label: 'Yêu cầu sửa chữa', key: 'track' },
-    { hash: '#/usage', ic: HH.pic('chart', 26), label: 'Lịch sử điện', key: 'usage' },
-    { hash: '#/history', ic: HH.pic('card', 26), label: 'Lịch sử thanh toán', key: 'history' },
-    { hash: '#/services', ic: HH.pic('concierge', 26), label: 'Bảng giá dịch vụ', key: 'services' },
-    { hash: '#/chat', ic: HH.pic('chat', 26), label: 'Trợ lý ảo', key: 'chat' },
-    { hash: '#/account', ic: HH.pic('user', 26), label: 'Tài khoản', key: 'account' },
+    { hash: '#/readings', ic: ico('camera', 26), label: 'Gửi chỉ số điện', key: 'readings' },
+    { hash: '#/repair', ic: ico('wrench', 26), label: 'Báo hỏng', key: 'repair' },
+    { hash: '#/track', ic: ico('clipboard', 26), label: 'Yêu cầu sửa chữa', key: 'track' },
+    { hash: '#/usage', ic: ico('chart', 26), label: 'Lịch sử điện', key: 'usage' },
+    { hash: '#/history', ic: ico('card', 26), label: 'Lịch sử thanh toán', key: 'history' },
+    { hash: '#/services', ic: ico('concierge', 26), label: 'Bảng giá dịch vụ', key: 'services' },
+    { hash: '#/chat', ic: ico('chat', 26), label: 'Trợ lý ảo', key: 'chat' },
+    { hash: '#/account', ic: ico('user', 26), label: 'Tài khoản', key: 'account' },
   ];
 
   function sidebar() {
@@ -257,23 +377,13 @@
   }
 
   /* ---------- màn hình: ĐĂNG NHẬP ---------- */
-  const TICKER_T = [
-    '🏠 Happy Home — nhà của bạn, gọn trong một app',
-    '🧾 Hóa đơn rõ từng khoản, xem lại mọi tháng',
-    '💳 Quét mã là chuyển khoản, khỏi nhớ nội dung',
-    '📷 Chụp đồng hồ điện, gửi thẳng cho chủ nhà',
-    '🔧 Báo hỏng kèm ảnh, theo dõi tới khi xong',
-  ];
-
   function screenLogin() {
     /* Hai khối .tl-form và .tl-side chỉ để xếp 2 cột trên máy tính.
        Trên điện thoại CSS cho chúng display:contents nên coi như không có,
        thứ tự hiển thị y hệt lúc chưa bọc. */
     el('tapp').innerHTML = `<div class="t-login">
-      ${HH.promo.ticker(TICKER_T)}
-      <div class="t-login-art" aria-hidden="true">${HH.scene()}</div>
       <div class="tl-form">
-        <div class="logo"><div class="t-sign"><img class="logo3d" src="${LOGO_3D}" alt="Logo Happy Home" width="2000" height="1804"></div>
+        <div class="logo"><span class="mark">${logoImg(40)}</span><div class="wordmark">happy home</div>
           <h1 class="sr-only">Happy Home</h1><p class="lead">Nhập số điện thoại đã đăng ký với chủ nhà</p></div>
         <div id="loginErr"></div>
         <div class="t-field"><label>Số điện thoại</label>
@@ -283,12 +393,9 @@
         ${enabled ? '' : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
       </div>
       <div class="tl-side">
-        <div class="t-ads">${HH.promo.html(HH.promo.TENANT, { compact: true })}</div>
-        <div style="flex:1"></div>
         <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
       </div>
     </div>`;
-    HH.promo.mount(el('tapp'));
     el('phone').addEventListener('keydown', e => { if (e.key === 'Enter') el('sendOtp').click(); });
     // giữ lời báo (phiên hết hạn...) qua các lần vẽ lại, chỉ xóa khi khách bấm Tiếp tục
     if (state.notice) el('loginErr').innerHTML = errBox(state.notice);
@@ -319,8 +426,7 @@
     const masked = state.pendingPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1 *** $2');
     // hep: màn này không xếp 2 cột, giữ kiểu thẻ hẹp nằm giữa trên máy tính
     el('tapp').innerHTML = `<div class="t-login hep">
-      <div class="t-login-art short" aria-hidden="true">${HH.scene()}</div>
-      <div class="logo"><div class="mark">${logoImg(46)}</div></div>
+      <div class="logo"><span class="mark">${logoImg(40)}</span><div class="wordmark">happy home</div></div>
       <h1 style="font-size:22px">Nhập mã vào app</h1>
       <p class="lead">Mã gồm 6 chữ số do chủ nhà cấp cho số<br><b>${masked}</b></p>
       <div id="otpErr"></div>
@@ -337,6 +443,7 @@
       </div>
       <button class="t-btn" id="verify">Vào app</button>
       <div class="otp-resend">Chưa có mã? Nhờ chủ nhà cấp mã vào app cho bạn.</div>
+      <button class="t-btn outline" id="forgot" style="margin-bottom:6px">Quên mã? Nhờ chủ nhà cấp lại</button>
       <button class="t-btn ghost" id="changePhone">← Đổi số điện thoại</button>
     </div>`;
     const boxes = Array.from(document.querySelectorAll('#otpBoxes input'));
@@ -365,6 +472,18 @@
       });
     });
     el('verify').onclick = doVerify;
+    el('forgot').onclick = async () => {
+      const b = el('forgot'), err = el('otpErr'); b.disabled = true; err.innerHTML = '';
+      try {
+        const { error } = await client.rpc('tenant_request_code', { p_phone: state.pendingPhone });
+        if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); throw new Error(error.message); }
+        err.innerHTML = `<div class="t-hint" style="margin:0 0 14px;text-align:left">Em đã báo cho chủ nhà. Khi có mã mới, chủ nhà sẽ gửi cho anh/chị. Mỗi giờ chỉ gửi được một lần.</div>`;
+        b.textContent = 'Đã gửi yêu cầu';
+      } catch (e) {
+        b.disabled = false;
+        err.innerHTML = errBox(e.message === 'NOT_ACTIVATED' ? 'Chủ nhà chưa bật tính năng này. Hãy nhắn trực tiếp cho chủ nhà để xin mã.' : 'Không kết nối được máy chủ. Thử lại sau.');
+      }
+    };
     el('changePhone').onclick = () => { state.pendingPhone = null; state.data = null; go('#/login'); };
 
     let busy = false;
@@ -409,38 +528,32 @@
   }
 
   /* ---------- khung có header + nội dung ---------- */
-  // Hình chìm trang trí theo tên trang, cho các trang con đỡ trống trải
-  const HEAD_PIC = {
-    'Hóa đơn': 'receipt', 'Chi tiết hóa đơn': 'receipt', 'Thanh toán': 'wallet',
-    'Xác nhận chuyển khoản': 'card', 'Báo hỏng': 'wrench', 'Yêu cầu sửa chữa': 'clipboard',
-    'Gửi chỉ số điện': 'meter', 'Phòng của tôi': 'door', 'Hợp đồng': 'contract',
-    'Hợp đồng & điều khoản': 'contract', 'Lịch sử điện': 'chart', 'Bảng giá dịch vụ': 'concierge',
-    'Lịch sử thanh toán': 'coins', 'Tài khoản': 'user',
-  };
-
   function shell(title, body, opts) {
     opts = opts || {};
     const header = opts.home
       ? `<div class="t-header"><div class="brand"><span class="mark">${logoImg(24)}</span><span class="wordmark">happy home</span></div>
            <button class="iconbtn" id="reload" title="Tải lại">${HH.ic('refresh', 16)}</button></div>`
-      : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div>
-           <span class="h-art" aria-hidden="true">${HH.pic(HEAD_PIC[title] || 'house', 76)}</span></div>`;
+      : `<div class="t-header plain"><button class="back" id="back">←</button><div class="htitle">${esc(title)}</div></div>`;
     const tabs = opts.tab ? tabbar(opts.tab) : '';
     // Nút trợ lý ảo nổi — hiện ở các màn hình chính (điện thoại)
-    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">${HH.pic('chat', 30)}</button>` : '';
+    const fab = opts.tab ? `<button class="chat-fab" id="chatFab" title="Trợ lý ảo" aria-label="Trợ lý ảo">${ico('chat', 30)}</button>` : '';
     // Tiêu đề trang cho bố cục máy tính (điện thoại đã có thanh header riêng)
     const deskHead = opts.hero ? '' : `<div class="t-page-head"><h1>${esc(opts.deskTitle || title || 'Trang chủ')}</h1>
       ${opts.deskSub ? `<p>${esc(opts.deskSub)}</p>` : ''}</div>`;
+    const offBar = state.offline ? `<div class="t-offline" role="status">${HH.ic('alert', 16)}<span>Đang xem bản lưu ${HH.tenantHelpers.ageLabel(state.offline.ageMin)}. Chưa kết nối được máy chủ.</span><button id="retryNet">Thử lại</button></div>` : '';
     el('tapp').innerHTML = `<div class="t-app">${sidebar()}${header}
-      <div class="t-main">${deskHead}${body}
-        <footer class="t-foot" aria-hidden="true"><div class="t-foot-art">${HH.scene({ align: 'xMidYMax' })}</div>
-          <span>happy home, nhà của bạn</span></footer>
+      <div class="t-main">${offBar}${deskHead}${body}
       </div>${fab}${tabs}</div>`;
     const fb = el('chatFab'); if (fb) fb.onclick = () => go('#/chat');
     wireTabs();   // thanh bên dùng chung data-tab
     const slo = el('sideLogout');
     if (slo) slo.onclick = () => { if (!confirm('Đăng xuất khỏi ứng dụng?')) return; doLogout(); };
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
+    const rn = el('retryNet'); if (rn) rn.onclick = async () => {
+      rn.disabled = true; rn.textContent = 'Đang thử...';
+      try { state.data = await loadData(); if (!state.offline) toast('Đã kết nối lại'); } catch (e) { if (e.message === 'SESSION') return; toast('Vẫn chưa kết nối được'); }
+      render();
+    };
     const rl = el('reload'); if (rl) rl.onclick = async () => {
       rl.innerHTML = String(HH.ic('clock', 16)); rl.disabled = true;
       try { state.data = await loadData(); toast('Đã cập nhật'); } catch (e) { toast('Không tải được'); }
@@ -467,14 +580,17 @@
     const inv = currentUnpaid();
     let dueCard;
     if (!inv) {
-      dueCard = `<div class="due-card paid"><div class="label">Công nợ</div>
-        <div class="amount">${vnd(0)}</div><div class="meta">Bạn đã thanh toán đầy đủ</div></div>`;
+      dueCard = `<div class="due-card paid"><div class="due-top"><span class="label">Công nợ</span>
+        <span class="due-chip ok">${HH.ic('check', 13)} Đã thanh toán đủ</span></div>
+        <div class="amount">${vnd(0)}</div><div class="meta">Bạn không còn khoản nào cần thanh toán.</div></div>`;
     } else {
       const remain = inv.total - inv.paid; const dl = daysLeft(inv.dueDate);
       const cls = dl < 0 ? 'danger' : 'warn';
-      const meta = dl < 0 ? `Quá hạn ${Math.abs(dl)} ngày (hạn ${fmtDate(inv.dueDate)})` : `Hạn: ${fmtDate(inv.dueDate)} · Còn ${dl} ngày`;
-      dueCard = `<div class="due-card ${cls}"><div class="label">Cần thanh toán</div>
-        <div class="amount" data-count="${remain}" data-fmt="vnd">${vnd(remain)}</div><div class="meta">${meta}</div>
+      const tone = dl < 0 ? 'bad' : dl <= 3 ? 'warn' : 'soft';
+      const chip = dl < 0 ? `Quá hạn ${Math.abs(dl)} ngày` : dl === 0 ? 'Hạn hôm nay' : `Còn ${dl} ngày`;
+      dueCard = `<div class="due-card ${cls}"><div class="due-top"><span class="label">Cần thanh toán</span><span class="due-chip ${tone}">${chip}</span></div>
+        <div class="amount" data-count="${remain}" data-fmt="vnd">${vnd(remain)}</div>
+        <div class="meta">Hóa đơn ${vnPeriod(inv.period)} · hạn ${fmtDate(inv.dueDate)}</div>
         <button class="t-btn" id="payNow">Thanh toán ngay</button></div>`;
     }
     const notis = buildNotifications();
@@ -493,27 +609,27 @@
     const usageCard = usage ? `<div class="t-card">
       <div class="t-section-head" style="margin-bottom:4px"><h3>Tiêu thụ ${esc(usage.label)}</h3>
         <a href="#/usage">Xem lịch sử →</a></div>
-      <div class="t-row"><span class="k">${HH.pic('bolt', 26)} Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
+      <div class="t-row"><span class="k">${ico('bolt', 26)} Điện</span><span class="v mono">${num(usage.elec)} kWh</span></div>
     </div>` : '';
 
     const contractCardHtml = c ? contractCard(c) : '';
     shell('', `
-      <section class="t-hero">
-        <div class="t-hero-art" aria-hidden="true">${HH.scene()}</div>
-        <div class="t-hero-in"><p class="hi">${greet()}, <b>${esc((d.tenant.fullName || '').trim().split(/\s+/).slice(-1)[0])}</b></p>
-          <div class="rm">Phòng ${esc(d.room.code || d.tenant.roomCode)}</div>
-          <div class="bn">${HH.ic('pin', 14)} ${esc(d.building.name || '')}</div></div>
+      <section class="t-hello">
+        <p class="hi">${greet()}, <b>${esc((d.tenant.fullName || '').trim().split(/\s+/).slice(-1)[0])}</b></p>
+        <h2 class="rm">Phòng ${esc(d.room.code || d.tenant.roomCode)}</h2>
+        <div class="bn">${HH.ic('pin', 14)} ${esc(d.building.name || '')}</div>
       </section>
       ${ctWarn}
+      ${installCard()}
       <div class="t-grid2">
         <div>
           ${dueCard}
           <div class="section-title">Truy cập nhanh</div>
           <div class="quick-grid" style="grid-template-columns:repeat(4,1fr)">
-            <button class="quick-item" data-nav="#/invoices"><div class="qic t-sky">${HH.pic('receipt', 34)}</div><div class="qlabel">Hóa đơn</div></button>
-            <button class="quick-item" data-nav="#/readings"><div class="qic t-leaf">${HH.pic('camera', 34)}</div><div class="qlabel">Gửi chỉ số</div></button>
-            <button class="quick-item" data-nav="#/repair"><div class="qic t-coral">${HH.pic('wrench', 34)}</div><div class="qlabel">Báo hỏng</div></button>
-            <button class="quick-item" data-nav="#/chat"><div class="qic t-grape">${HH.pic('chat', 34)}</div><div class="qlabel">Trợ lý ảo</div></button>
+            <button class="quick-item" data-nav="#/invoices"><div class="qic">${ico('receipt', 34)}</div><div class="qlabel">Hóa đơn</div></button>
+            <button class="quick-item" data-nav="#/readings"><div class="qic">${ico('camera', 34)}</div><div class="qlabel">Gửi chỉ số</div></button>
+            <button class="quick-item" data-nav="#/repair"><div class="qic">${ico('wrench', 34)}</div><div class="qlabel">Báo hỏng</div></button>
+            <button class="quick-item" data-nav="#/chat"><div class="qic">${ico('chat', 34)}</div><div class="qlabel">Trợ lý ảo</div></button>
           </div>
           ${usageCard}
         </div>
@@ -527,6 +643,7 @@
          deskSub: `Phòng ${d.room.code || d.tenant.roomCode} · ${d.building.name || ''}` });
     const pn = el('payNow'); if (pn) pn.onclick = () => go('#/pay/' + inv.id);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+    wireInstall();
   }
 
   /* ---------- tính tiêu thụ ---------- */
@@ -572,7 +689,7 @@
         <span class="v mono" style="color:${unpaidTotal > 0 ? 'var(--danger)' : 'var(--success)'}">${vnd(unpaidTotal)}</span></div>
       <div class="t-row tap" data-nav="#/history"><span class="k">Lịch sử thanh toán</span><span class="v">›</span></div>
     </div>` : '';
-    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">${HH.pic('receipt', 64)}</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
+    shell('Hóa đơn', summary + (rows || `<div class="t-empty"><div class="eic">${ico('receipt', 64)}</div><p>Chưa có hóa đơn nào</p></div>`), { tab: 'invoices' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
   const vnPeriod = (p) => { if (!p) return ''; const [y, m] = p.split('-'); return 'T' + Number(m) + '/' + y; };
@@ -599,9 +716,13 @@
         <div class="inv-total grand"><span>Tổng cộng</span><span class="mono">${vnd(inv.total)}</span></div>
       </div>
       ${remain > 0 ? `<button class="t-btn" id="pay">Thanh toán ${vnd(remain)}</button>` : ''}
+      <div class="pay-acts" style="margin-top:10px">${remain > 0 && inv.dueDate ? `<button class="t-btn outline sm" id="calBtn">${HH.ic('calendar', 16)} Thêm hạn vào lịch</button>` : ''}
+        <button class="t-btn outline sm" id="shBtn">${HH.ic('send', 16)} Chia sẻ hóa đơn</button></div>
       ${splitCard(inv)}
     `);
     const p = el('pay'); if (p) p.onclick = () => go('#/pay/' + inv.id);
+    const cb = el('calBtn'); if (cb) cb.onclick = () => addToCalendar(inv);
+    el('shBtn').onclick = () => shareInvoice(inv);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
     wireSplit(inv);
   }
@@ -645,7 +766,7 @@
   /* ---------- màn hình: THANH TOÁN ---------- */
   function screenPay(id) {
     const inv = (state.data.invoices || []).find(i => i.id === id) || currentUnpaid();
-    if (!inv) { shell('Thanh toán', `<div class="t-empty"><div class="eic">${HH.pic('wallet', 64)}</div><p>Không có khoản cần thanh toán</p></div>`); return; }
+    if (!inv) { shell('Thanh toán', `<div class="t-empty"><div class="eic">${ico('wallet', 64)}</div><p>Không có khoản cần thanh toán</p></div>`); return; }
     const remain = inv.total - inv.paid;
     const content = payContent(inv);
     if (!BANK_OK) {
@@ -674,6 +795,8 @@
           Quét mã bằng <b>app ngân hàng bất kỳ</b>, số tiền và nội dung tự điền sẵn.<br>
           <span style="color:var(--success);font-weight:600">Chuyển xong là hệ thống tự trừ công nợ.</span></div>
       </div>
+      <div class="pay-acts"><button class="t-btn outline sm" id="saveQr">${HH.ic('download', 16)} Lưu ảnh QR</button>
+        <button class="t-btn outline sm" id="shareInv">${HH.ic('send', 16)} Chia sẻ</button></div>
       <div class="divider">hoặc</div>
       <div class="t-card">
         <div style="font-weight:700;margin-bottom:6px">Chuyển khoản thủ công</div>
@@ -689,6 +812,8 @@
     `);
     document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy, b.dataset.l));
     el('paid').onclick = () => { state.claim = { invoiceId: inv.id, amount: remain, note: content, photo: null }; go('#/proof'); };
+    el('saveQr').onclick = () => saveQr(vietQrUrl(remain, content), 'qr-' + content + '.png');
+    el('shareInv').onclick = () => shareInvoice(inv);
   }
 
   /* ---------- màn hình: GỬI CHỨNG TỪ CHUYỂN KHOẢN ---------- */
@@ -764,7 +889,7 @@
   }
 
   /* ---------- màn hình: BÁO HỎNG ---------- */
-  const CATS = [{ k: 'Điện', ic: HH.pic('bolt', 34) }, { k: 'Nước', ic: HH.pic('drop', 34) }, { k: 'Máy lạnh', ic: HH.pic('gear', 34) }, { k: 'Khác', ic: HH.pic('wrench', 34) }];
+  const CATS = [{ k: 'Điện', ic: ico('bolt', 34) }, { k: 'Nước', ic: ico('drop', 34) }, { k: 'Máy lạnh', ic: ico('gear', 34) }, { k: 'Khác', ic: ico('wrench', 34) }];
   const TIMES = ['Sáng', 'Chiều', 'Tối', 'Bất kỳ'];
   function screenRepair() {
     const r = state.repair;
@@ -855,7 +980,7 @@
         <div class="timeline">${steps.map(s => `<div class="tl-item ${s.xong ? 'done' : ''} ${s.dangLam ? 'active' : ''}"><div class="tl-title">${s.nhan}</div><div class="tl-time">${s.at ? fmtDate(s.at) : (s.xong ? '' : '-')}</div></div>`).join('')}</div>
         ${upHtml}
       </div>`;
-    }).join('') : `<div class="t-empty"><div class="eic">${HH.pic('clipboard', 64)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
+    }).join('') : `<div class="t-empty"><div class="eic">${ico('clipboard', 64)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
     shell('Yêu cầu sửa chữa', body + (incs.length ? `<button class="t-btn outline" id="newReq" style="margin-top:6px">${HH.ic('plus', 16)} Tạo yêu cầu mới</button>` : ''));
     const nr = el('newReq'); if (nr) nr.onclick = () => go('#/repair');
   }
@@ -868,7 +993,7 @@
     shell('Gửi chỉ số điện', `
       <p style="color:var(--neutral-600);margin-bottom:16px">Tự gửi chỉ số điện kỳ <b>${CUR_PERIOD_LABEL}</b>. Chủ trọ xem ảnh rồi duyệt.
         Tiền nước tính theo số người ở nên không cần gửi chỉ số nước.</p>
-      <div class="t-field"><label>${HH.pic('bolt', 26)} Chỉ số điện (kWh)</label><input class="t-input mono" id="elec" inputmode="numeric" placeholder="VD: 12680"></div>
+      <div class="t-field"><label>${ico('bolt', 26)} Chỉ số điện (kWh)</label><input class="t-input mono" id="elec" inputmode="numeric" placeholder="VD: 12680"><div id="aiNote" aria-live="polite"></div></div>
       <div class="t-field"><label>Ảnh đồng hồ điện</label>
         <div class="photo-grid" id="rdPhotos"></div>
         <div class="t-note" style="margin-top:8px">Chụp rõ dãy số trên đồng hồ. Ảnh này gửi thẳng cho chủ trọ.</div></div>
@@ -878,7 +1003,10 @@
     el('submitR').onclick = async (e) => {
       const elec = parseInt((el('elec').value || '').replace(/\D/g, ''), 10);
       if (!elec) { toast('Nhập chỉ số điện'); return; }
-      e.currentTarget.classList.add('loading');
+      const btnR = e.currentTarget, mc = meterContext(), chk = TH().meterCheck({ value: elec, prev: mc.prev, avg: mc.avg });
+      if (chk.level === 'error') { toast(chk.msg); return; }
+      if (chk.level === 'warn' && !(await confirmSheet('Anh/chị kiểm tra lại số này nhé', chk.msg, 'Số này đúng, vẫn gửi', 'Sửa lại'))) { el('elec').focus(); return; }
+      btnR.classList.add('loading');
       let matAnhRd = false;
       try {
         // Gửi kèm ảnh; máy chủ chưa cập nhật hàm thì gửi số không ảnh
@@ -897,9 +1025,21 @@
           ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.'
           : err.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: máy chủ thiếu hàm gửi chỉ số (chủ nhà cần chạy SQL).'
           : 'Không gửi được, thử lại');
-        e.currentTarget.classList.remove('loading');
+        btnR.classList.remove('loading');
       }
     };
+
+    async function readFromPhoto(photo) {
+      const note = el('aiNote'), inp = el('elec');
+      if (!note || !inp || !window.HHGemini || !window.HHGemini.configured() || inp.value) return;       // khách đã gõ rồi thì thôi
+      note.innerHTML = `<div class="t-ai"><span class="t-ai-dot"></span><span>Đang đọc số từ ảnh...</span></div>`;
+      const r = await aiReadMeter(photo);
+      if (!el('aiNote') || el('elec').value) return;                                       // đã rời màn hoặc khách vừa gõ
+      if (!r || r.value === null) { el('aiNote').innerHTML = `<div class="t-ai off">Chưa đọc được số từ ảnh. Anh/chị nhập tay giúp em nhé.</div>`; return; }
+      el('elec').value = String(r.value);
+      el('aiNote').innerHTML = `<div class="t-ai ${r.confidence === 'high' ? 'ok' : 'warn'}">${HH.ic('sparkles', 14)}<span>AI đọc được <b>${r.value}</b>. ${r.confidence === 'high' ? 'Anh/chị đối chiếu với đồng hồ rồi gửi nhé.' : 'Ảnh chưa thật rõ, anh/chị xem kỹ lại số này.'}</span></div>`;
+    }
+    el('elec').addEventListener('input', () => { const n = el('aiNote'); if (n) n.innerHTML = ''; });
 
     function drawRdPhotos() {
       const box = el('rdPhotos'); if (!box) return;
@@ -910,9 +1050,34 @@
         const f = ev.target.files[0]; if (!f) return;
         rd.photos.push(await compressImg(f, 1100, 0.7));
         drawRdPhotos();
+        if (rd.photos.length === 1) readFromPhoto(rd.photos[0]);
       };
       box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rd.photos.splice(+b.dataset.del, 1); drawRdPhotos(); });
     }
+  }
+
+  /* ---------- Soát số điện + AI đọc số từ ảnh đồng hồ ----------
+     AI chỉ ĐIỀN SẴN vào ô số điện để khách đỡ gõ; khách luôn tự xem lại rồi mới gửi. Ảnh mờ hay không thấy số thì để khách nhập tay. */
+  function meterContext() {
+    const rs = (state.data.readings || []).filter(r => r.elecCurr != null);
+    const cur = rs.find(r => r.period === CUR_PERIOD);
+    const other = rs.filter(r => r.period !== CUR_PERIOD);
+    const prev = cur && cur.elecPrev != null ? cur.elecPrev : (other[0] ? other[0].elecCurr : null);
+    const used = other.slice(0, 3).filter(r => r.elecPrev != null).map(r => r.elecCurr - r.elecPrev).filter(x => x >= 0);
+    return { prev, avg: used.length ? used.reduce((a, b) => a + b, 0) / used.length : 0 };
+  }
+  const METER_SYS = 'Bạn đọc đồng hồ điện (công tơ điện) trong ảnh. CHỈ đọc dãy số đang hiển thị, tuyệt đối không suy đoán. '
+    + 'Công tơ cơ thường có ô số cuối màu đỏ hoặc sau dấu phẩy: bỏ qua ô đó, chỉ lấy phần số nguyên kWh. '
+    + 'Trả JSON đúng dạng {"value": số nguyên hoặc null, "confidence": "high" | "medium" | "low"}. '
+    + 'Ảnh không phải đồng hồ điện, bị mờ, bị chói hoặc không thấy rõ dãy số thì value = null.';
+  async function aiReadMeter(dataUrl) {
+    const G = window.HHGemini;
+    if (!G || !G.configured()) return null;
+    try {
+      const out = await G.readDoc([{ mime: 'image/jpeg', data: String(dataUrl).split(',')[1] }], METER_SYS,
+        'Đọc số trên đồng hồ điện trong ảnh này.', { maxTokens: 120, timeout: 25000 });
+      return TH().parseMeterAnswer(JSON.stringify(out));
+    } catch (e) { return null; }
   }
 
   /* ---------- màn hình: PHÒNG CỦA TÔI ---------- */
@@ -940,9 +1105,9 @@
           ${a.icon || '📦'} ${esc(a.name)}${(a.quantity || 1) > 1 ? ' ×' + a.quantity : ''}</span>`).join('')}</div>
         <p style="color:var(--neutral-500);font-size:12px;margin-top:10px">Vui lòng giữ gìn tài sản. Hư hỏng do lỗi sử dụng sẽ bồi thường theo giá trị còn lại.</p></div>` : ''}
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/usage"><span class="aic t-leaf">${HH.pic('chart', 26)}</span>Lịch sử điện<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/services"><span class="aic t-sun">${HH.pic('concierge', 26)}</span>Bảng giá dịch vụ<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/track"><span class="aic t-coral">${HH.pic('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/usage"><span class="aic">${ico('chart', 26)}</span>Lịch sử điện<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/services"><span class="aic">${ico('concierge', 26)}</span>Bảng giá dịch vụ<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic">${ico('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
       </div>
     `, { tab: 'room' });
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -975,7 +1140,7 @@
   ];
   function screenContract() {
     const c = state.data.contract;
-    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">${HH.pic('contract', 64)}</div><p>Chưa có thông tin hợp đồng</p>
+    if (!c) { shell('Hợp đồng', `<div class="t-empty"><div class="eic">${ico('contract', 64)}</div><p>Chưa có thông tin hợp đồng</p>
       <p style="font-size:13px">Liên hệ chủ nhà để được cung cấp.</p></div>`); return; }
     const src = (c.terms && c.terms.length) ? c.terms : DEFAULT_TERMS;
     const terms = src.map(t => ({ title: t.title, body: (t.body || '')
@@ -1070,7 +1235,7 @@
   /* ---------- màn hình: LỊCH SỬ ĐIỆN ---------- */
   function screenUsage() {
     const list = usageList();
-    if (!list.length) { shell('Lịch sử điện', `<div class="t-empty"><div class="eic">${HH.pic('chart', 64)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
+    if (!list.length) { shell('Lịch sử điện', `<div class="t-empty"><div class="eic">${ico('chart', 64)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
     const recent = list.slice(0, 6).reverse();
     const maxE = Math.max(1, ...recent.map(x => x.elec || 0));
     const bars = recent.map(x => `<div class="usage-col">
@@ -1078,7 +1243,7 @@
       <div class="usage-bar" style="height:${Math.round(((x.elec || 0) / maxE) * 78)}%"></div>
       <div class="cap">${esc(x.label)}</div></div>`).join('');
     shell('Lịch sử điện', `
-      <div class="t-card"><div class="t-section-head"><h3>${HH.pic('bolt', 26)} Điện (kWh)</h3></div>
+      <div class="t-card"><div class="t-section-head"><h3>${ico('bolt', 26)} Điện (kWh)</h3></div>
         <div class="usage-chart">${bars}</div></div>
       <div class="t-card"><div class="t-section-head"><h3>Chi tiết theo kỳ</h3></div>
         ${list.map(x => `<div class="t-row"><span class="k">${esc(x.label)}</span>
@@ -1096,7 +1261,7 @@
           <span class="v mono">${num(s.unit)} ${esc((s.unitLabel || '').replace('₫', 'đ'))}</span></div>`).join('')}
       </div>
       <p style="color:var(--neutral-500);font-size:12px;text-align:center">Đơn giá do chủ nhà niêm yết, áp dụng cho kỳ hiện hành.</p>`
-      : `<div class="t-empty"><div class="eic">${HH.pic('concierge', 64)}</div><p>Chưa có bảng giá dịch vụ</p></div>`);
+      : `<div class="t-empty"><div class="eic">${ico('concierge', 64)}</div><p>Chưa có bảng giá dịch vụ</p></div>`);
   }
 
   /* ---------- màn hình: LỊCH SỬ THANH TOÁN ---------- */
@@ -1110,7 +1275,7 @@
         <span class="k"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
           <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div></span>
         <span class="v mono" style="color:var(--success)">+${vnd(p.amount)}</span></div>`).join('')}</div>`
-      : `<div class="t-empty"><div class="eic">${HH.pic('card', 64)}</div><p>Chưa có lịch sử thanh toán</p></div>`);
+      : `<div class="t-empty"><div class="eic">${ico('card', 64)}</div><p>Chưa có lịch sử thanh toán</p></div>`);
   }
 
   /* ---------- màn hình: TÀI KHOẢN ---------- */
@@ -1135,11 +1300,15 @@
           : '<span class="t-badge warning"><span class="d"></span>Chưa đăng ký</span>'}</span></div>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
-        <button class="t-action" data-nav="#/history"><span class="aic t-sky">${HH.pic('card', 26)}</span>Lịch sử thanh toán<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/contract"><span class="aic t-grape">${HH.pic('contract', 26)}</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/track"><span class="aic t-coral">${HH.pic('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
-        <button class="t-action" data-nav="#/chat"><span class="aic t-grape">${HH.pic('chat', 26)}</span>Trợ lý ảo<span class="chev">›</span></button>
-        <button class="t-action" id="helpBtn"><span class="aic t-sky">${HH.ic('help', 20)}</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
+        ${installMode() === 'prompt' || installMode() === 'ios' ? `<button class="t-action" id="installRow"><span class="aic">${HH.ic('download', 20)}</span>Cài app về màn hình chính<span class="chev">›</span></button>` : ''}
+        <button class="t-action" data-nav="#/history"><span class="aic">${ico('card', 26)}</span>Lịch sử thanh toán<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/contract"><span class="aic">${ico('contract', 26)}</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/track"><span class="aic">${ico('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
+        <button class="t-action" data-nav="#/chat"><span class="aic">${ico('chat', 26)}</span>Trợ lý ảo<span class="chev">›</span></button>
+        <div class="t-action t-theme" role="group" aria-label="Giao diện"><span class="aic">${HH.ic('sparkles', 20)}</span><span style="flex:1">Giao diện</span>
+          <span class="t-seg">${THEMES.map(([k, l]) => `<button type="button" class="${themeNow() === k ? 'on' : ''}" data-theme-set="${k}" aria-pressed="${themeNow() === k}">${l}</button>`).join('')}</span></div>
+        <button class="t-action" data-nav="#/changecode"><span class="aic">${ico('lock', 26)}</span>Đổi mã vào app<span class="chev">›</span></button>
+        <button class="t-action" id="helpBtn"><span class="aic">${HH.ic('help', 20)}</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
       </div>
       <div class="t-card" style="padding:0;overflow:hidden">
         <button class="t-action danger" id="logoutBtn"><span class="aic" style="background:var(--danger-bg)">${HH.ic('logout', 16)}</span>Đăng xuất<span class="chev">›</span></button>
@@ -1147,10 +1316,57 @@
       <p style="text-align:center;color:var(--neutral-400);font-size:12px;margin-top:12px">Happy Home · App khách thuê</p>
     `, { tab: 'account' });
     document.querySelectorAll('[data-nav]').forEach(x => x.onclick = () => go(x.dataset.nav));
+    const ir = el('installRow'); if (ir) ir.onclick = installNow;
+    document.querySelectorAll('[data-theme-set]').forEach(b => b.onclick = () => {
+      setTheme(b.dataset.themeSet);
+      document.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+    });
     el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     el('logoutBtn').onclick = () => {
       if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
       doLogout();
+    };
+  }
+
+  /* ---------- màn hình: ĐỔI MÃ VÀO APP ----------
+     Máy chủ (tenant_change_code, supabase/migration-tenant-code-self.sql) mới là nơi kiểm mã cũ và đếm lần sai;
+     ở đây chỉ chặn sớm những lỗi hiển nhiên cho khách đỡ chờ. Mã không bao giờ đi qua khung chat. */
+  function screenChangeCode() {
+    const field = (id, label) => `<div class="t-field"><label for="${id}">${label}</label>
+      <input class="t-input mono" id="${id}" type="password" inputmode="numeric" maxlength="6" autocomplete="off"
+        data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="6 chữ số"></div>`;
+    shell('Đổi mã vào app', `
+      <div class="t-card">
+        <p class="sp-note" style="margin-bottom:12px">Mã gồm 6 chữ số. Đổi xong, các máy khác đang dùng app sẽ phải nhập mã mới. Đừng dùng 6 số giống nhau hay dãy như 123456.</p>
+        <div id="ccErr"></div>
+        ${field('ccOld', 'Mã hiện tại')}${field('ccNew', 'Mã mới')}${field('ccNew2', 'Nhập lại mã mới')}
+        <label class="t-check"><input type="checkbox" id="ccShow"> Hiện mã đang gõ</label>
+        <button class="t-btn" id="ccGo" style="margin-top:14px">Đổi mã</button>
+        <p class="sp-note" style="margin-top:12px">Quên mã hiện tại? Hỏi <a href="#/chat">Trợ lý ảo</a> để nhờ nhân viên cấp lại.</p>
+      </div>`);
+    const inputs = ['ccOld', 'ccNew', 'ccNew2'].map(el);
+    inputs.forEach(i => { i.oninput = () => { i.value = i.value.replace(/\D/g, '').slice(0, 6); }; });
+    el('ccShow').onchange = (e) => inputs.forEach(i => { i.type = e.target.checked ? 'tel' : 'password'; });
+    inputs[0].focus();
+    const MSG = { wrong_old: 'Mã hiện tại chưa đúng. Nếu quên mã, nhờ nhân viên cấp lại qua Trợ lý ảo.',
+      invalid_new: 'Mã mới gồm đúng 6 chữ số.', weak: 'Mã mới quá dễ đoán (6 số giống nhau hoặc dãy liên tiếp).', same: 'Mã mới phải khác mã hiện tại.' };
+    el('ccGo').onclick = async () => {
+      const o = inputs[0].value, n = inputs[1].value, n2 = inputs[2].value, err = el('ccErr');
+      const bad = !/^\d{6}$/.test(o) ? 'Nhập mã hiện tại (6 chữ số).'
+        : TH().codeProblem(n, state.phone) || (n !== n2 ? 'Hai lần nhập mã mới chưa giống nhau.' : n === o ? MSG.same : null);
+      if (bad) { err.innerHTML = errBox(bad); return; }
+      const btn = el('ccGo'); btn.classList.add('loading'); btn.disabled = true; err.innerHTML = '';
+      try {
+        const r = await rpc('tenant_change_code', { p_old: o, p_new: n });
+        if (r.ok) { toast('Đã đổi mã vào app'); go('#/account'); return; }
+        const phut = Math.max(1, Math.ceil((r.retryAfterSec || 900) / 60));
+        err.innerHTML = errBox(r.error === 'locked' ? `Nhập sai nhiều lần nên tạm khóa. Thử lại sau ${phut} phút, hoặc nhờ chủ nhà cấp lại mã.` : (MSG[r.error] || 'Chưa đổi được, anh/chị thử lại giúp em.'));
+      } catch (e) {
+        if (e.message === 'SESSION') return;
+        err.innerHTML = errBox(e.message === 'NOT_ACTIVATED'
+          ? 'Tính năng đổi mã chưa được bật trên hệ thống (chủ nhà cần chạy migration-tenant-code-self.sql). Hãy nhờ nhân viên cấp mã mới.'
+          : 'Không kết nối được máy chủ. Thử lại sau.');
+      } finally { if (btn.isConnected) { btn.classList.remove('loading'); btn.disabled = false; } }
     };
   }
 
@@ -1569,6 +1785,19 @@
     },
   };
 
+  TI.appcode = {
+    desc: 'Đổi mã vào app, quên mã, mã đăng nhập (không nhận mã qua khung chat)',
+    kw: ['doi ma', 'quen ma', 'ma vao app', 'ma dang nhap', 'mat ma', 'cap lai ma', 'ma app', 'doi mat khau', 'quen mat khau', 'mat khau', 'ma 6 so'],
+    run() {
+      return { facts: {},
+        html: `Mã vào app gồm <b>6 chữ số</b> do chủ nhà cấp. Anh/chị tự đổi được ở <b>Tài khoản → Đổi mã vào app</b> (cần nhớ mã hiện tại).<br>
+          Anh/chị <b>đừng gõ mã vào khung chat này</b> nhé, tin nhắn ở đây nhân viên đọc được.<br>
+          Nếu quên mã hiện tại thì nhờ nhân viên cấp lại.`,
+        actions: [{ label: 'Đổi mã ngay', go: '#/changecode', solid: true },
+          { label: 'Nhờ nhân viên cấp lại mã', act: 'forward', data: 'Khách xin cấp lại mã vào app' }] };
+    },
+  };
+
   /* ---------- hiểu câu hỏi ---------- */
   const T_GREET = /^(xin chao|chao|hello|hi|alo|chao em|chao ban)( (em|ban|bot|tro ly|anh|chi))?$/;
 
@@ -1678,7 +1907,7 @@
     const sugg = (lastBot && lastBot.suggest && lastBot.suggest.length) ? lastBot.suggest : SUGGESTIONS;
     const body = chat.msgs.map((m, i) => `
       <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
-        <div class="bubble ${m.staff ? 'from-staff' : ''}">${m.staff ? `<div class="b-staff">${HH.pic('users', 18)} ${esc(m.staff)} trả lời</div>` : ''}${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}
+        <div class="bubble ${m.staff ? 'from-staff' : ''}">${m.staff ? `<div class="b-staff">${ico('users', 18)} ${esc(m.staff)} trả lời</div>` : ''}${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}
           ${m.ai ? '<span class="b-ai">' + HH.ic('sparkles', 16) + ' lời văn do Gemini soạn · số liệu lấy từ hệ thống</span>' : ''}
           ${(m.actions || []).length ? `<div class="b-actions">${m.actions.map((a, j) =>
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
@@ -1874,5 +2103,9 @@
       render();
     }
   }
+  window.addEventListener('online', async () => {
+    if (!state.offline || !state.token) return;
+    try { state.data = await loadData(); if (!state.offline) { toast('Đã kết nối lại'); render(); } } catch (e) { /* để khách bấm Thử lại */ }
+  });
   boot();
 })();

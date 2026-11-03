@@ -340,6 +340,20 @@ Trong tờ báo cáo:
 
 Ai thấy được: chủ trọ, và nhân viên nào được cấp quyền **Báo cáo & tổng quan** (ô này vốn có trong màn hình phân quyền nhưng trước đây chưa có trang nào dùng nó). Số liệu dựng ở `js/report.js` (thuần, không đụng DOM, 83 ca kiểm thử trong `tests/report.test.js`); trang xem và bản in dựng từ cùng một bản số liệu nên luôn giống nhau. Không cần chạy thêm SQL.
 
+## App khách thuê: tiện hơn, nhẹ mắt hơn
+
+**Giao diện.** Bỏ lớp "đồ chơi" (biểu tượng nhiều màu bóng, tranh hoạt hình, ô nợ tô đặc màu, dải chữ chạy ở màn đăng nhập). Nay là thẻ trắng viền mảnh, biểu tượng nét mảnh một màu xanh ngọc, trạng thái nằm ở nhãn nhỏ ("Còn 2 ngày", "Quá hạn 4 ngày"). Chạm vào có phản hồi, hiệu ứng ngắn; máy bật "giảm chuyển động" thì đứng yên. **Chế độ tối** tự theo máy, hoặc khách chọn tay ở Tài khoản → Giao diện (Tự động / Sáng / Tối); mã QR luôn nền trắng để quét được.
+
+**Cài về màn hình chính.** Có bộ biểu tượng PNG đúng cỡ (192, 512, "maskable" cho Android, 180 cho iPhone) và lối tắt khi nhấn giữ biểu tượng (Hóa đơn, Báo hỏng, Gửi chỉ số điện). Trang chủ gợi ý cài: Android cài một chạm, iPhone hiện hướng dẫn 2 bước. Đã cài rồi thì không gợi ý; bấm "×" thì im 14 ngày.
+
+**Thanh toán và hóa đơn.** Nút *Lưu ảnh QR* (trên điện thoại mở bảng chia sẻ để lưu vào ảnh), *Chia sẻ* nội dung chuyển khoản qua Zalo/tin nhắn, *Chia sẻ hóa đơn*, *Thêm hạn vào lịch* (tệp .ics, nhắc trước 1 ngày). Chủ nhà chưa khai tài khoản thì không in số tài khoản vào nội dung chia sẻ (không bịa số). Chưa làm nút "mở thẳng app ngân hàng": cách mở có điền sẵn tiền chưa kiểm chứng được với từng ngân hàng, nên chưa đưa vào.
+
+**Xem được khi mất mạng.** Mỗi lần tải xong, app lưu bản hóa đơn, hợp đồng, phòng ở máy khách (không lưu số CCCD và ngày sinh). Mất mạng hay máy chủ lỗi thì hiện bản đó kèm băng "Đang xem bản lưu 5 phút trước", có nút Thử lại và tự thử khi có mạng. Đăng xuất hoặc hết phiên thì xóa bản lưu; bản lưu chỉ dùng đúng cho số điện thoại đã lưu và quá 30 ngày thì bỏ.
+
+**Gửi chỉ số điện: AI đọc số từ ảnh.** Khách chụp đồng hồ, AI (cùng đường dẫn Gemini đang dùng để đọc CCCD) điền sẵn số vào ô; khách luôn tự xem lại rồi mới gửi. Ảnh mờ thì ghi chú "xem kỹ lại"; không đọc được thì để khách nhập tay. Khi gửi, app soát số: nhỏ hơn kỳ trước hoặc vọt hơn 3 lần mức thường thì hỏi lại ("Sửa lại" / "Số này đúng, vẫn gửi").
+
+**Đổi mã vào app, quên mã.** Tài khoản → *Đổi mã vào app* (nhập mã cũ, mã mới hai lần). Mã mới phải đủ 6 số, không phải 6 số giống nhau hay dãy liên tiếp (123456, 654321), không trùng 6 số cuối điện thoại. Máy chủ kiểm mã cũ, sai 5 lần thì khóa 15 phút (chung bộ đếm với đăng nhập), đổi xong các máy khác bị đăng xuất. Màn nhập mã có nút *Quên mã? Nhờ chủ nhà cấp lại*: yêu cầu hiện ở chủ trọ thành việc "N khách xin cấp lại mã vào app" trong *Hôm nay cần làm gì*, cấp mã là yêu cầu tự hết. Trợ lý ảo hiểu "đổi mã / quên mã" và dặn khách **đừng gõ mã vào khung chat** (tin chat nhân viên đọc được). Cần chạy `supabase/migration-tenant-code-self.sql` (sau `migration-tenant-auth.sql`); chưa chạy thì app báo rõ "chưa bật" chứ không hỏng. Kiểm thử trên Postgres thật: `tests/db/tenant-code-self.test.py` (41 ca, thử phá 15 chỗ đều bị bắt). Hàm thuần của app khách ở `tenant-app/js/helpers.js` (61 ca, thử phá 27 chỗ đều bị bắt).
+
 ## Trang giới thiệu có hiệu ứng cuộn
 
 Trang `gioi-thieu/` (địa chỉ `.../gioi-thieu/`, có link "Xem giới thiệu Happy Home" ở màn đăng nhập) giới thiệu Happy Home bằng một khu nhà trọ dựng bằng CSS 3D, có nút **Đăng nhập** (về web quản trị) và **Dành cho khách thuê** (về app khách).
@@ -453,6 +467,7 @@ tests/
   split.test.js       # kiểm thử chia hóa đơn: node tests/split.test.js
   closing.test.js     # kiểm thử phân loại chốt sổ: node tests/closing.test.js
   report.test.js      # kiểm thử báo cáo tháng: node tests/report.test.js
+  tenant-helpers.test.js  # kiểm thử hàm thuần của app khách: node tests/tenant-helpers.test.js
   today.test.js       # kiểm thử việc hôm nay: node tests/today.test.js
   dates.test.js       # kiểm thử ngày lịch: node tests/dates.test.js
   progress.test.js    # kiểm thử tiến độ sự cố: node tests/progress.test.js
@@ -474,6 +489,7 @@ node tests/validate.test.js
 node tests/split.test.js
 node tests/closing.test.js
 node tests/report.test.js
+node tests/tenant-helpers.test.js
 node tests/today.test.js
 node tests/dates.test.js
 node tests/progress.test.js
@@ -486,7 +502,7 @@ node tests/listing.test.js
 node tests/bank-webhook-auth.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười lăm đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (61 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười sáu đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -501,6 +517,7 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/constraints.test.py
 .venv-db/Scripts/python tests/db/renewal-history.test.py
 .venv-db/Scripts/python tests/db/public-room.test.py
+.venv-db/Scripts/python tests/db/tenant-code-self.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

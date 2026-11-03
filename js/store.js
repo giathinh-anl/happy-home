@@ -51,6 +51,7 @@ HH.store = (function () {
   const claims = [];
   const renewals = [];        // khách xin gia hạn hợp đồng (chờ chủ trọ chấp nhận hoặc từ chối)
   const invites = [];         // lời mời khách tự khai thông tin qua link / QR (chỉ đọc từ máy chủ, không đồng bộ ngược)
+  let codeReqs = [];          // khách xin cấp lại mã vào app (đọc từ máy chủ bằng owner_code_requests, không đồng bộ ngược)
   const invoiceBatches = [];  // mỗi lần "Chốt sổ tháng": gom hóa đơn của một đợt để phát hành / hoàn tác cả đợt
   const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
@@ -530,6 +531,7 @@ HH.store = (function () {
       } catch (e) { console.info('Đối soát tự động bỏ qua:', e && e.message); }
       // lời mời khách tự khai: nạp ngầm, có hồ sơ chờ duyệt thì vẽ lại để "Hôm nay cần làm gì" hiện ra
       api.loadInvites().then(r => { if (r.ok && invites.some(i => i.status === 'submitted') && HH.router) HH.router.render(); });
+      api.loadCodeRequests().then(n => { if (n && HH.router) HH.router.render(); });      // khách xin cấp lại mã vào app
       return 'loaded';
     },
 
@@ -554,6 +556,18 @@ HH.store = (function () {
       catch (e) { return { ok: false, message: e && e.message }; }
     },
 
+    /* Khách quên mã vào app thì bấm "Quên mã?" ở app khách; yêu cầu nằm ở máy chủ (migration-tenant-code-self.sql).
+       Chưa chạy migration hoặc lỗi mạng thì coi như chưa có yêu cầu nào, không làm hỏng trang. Trả số yêu cầu đang mở. */
+    codeRequests: () => codeReqs.slice(),
+    async loadCodeRequests() {
+      if (!usingBackend() || !api.isOwner()) { codeReqs = []; return 0; }
+      try {
+        const r = await HH.backend.rpc('owner_code_requests');
+        codeReqs = (r && !r.error && Array.isArray(r.data)) ? r.data : [];
+      } catch (e) { codeReqs = []; }
+      return codeReqs.length;
+    },
+
     /* Tải lại dữ liệu từ máy chủ.
        Khách gửi chỉ số, báo hỏng hay báo chuyển khoản trong lúc web đang mở thì
        phải tải lại mới thấy (dữ liệu chỉ nạp một lần lúc đăng nhập). */
@@ -573,6 +587,7 @@ HH.store = (function () {
       const gan = ganHangDoi(res.data.readings || []);
       if (gan && HH.offlineUI) HH.offlineUI.sauKhiGan(gan);
       await api.loadInvites();
+      await api.loadCodeRequests();
       api.refreshExpiryFlags(); api.refreshInvoiceStatus();
       return { ok: true, changed: before !== stamp() || !!gan };
     },
@@ -752,6 +767,12 @@ HH.store = (function () {
           const cho = invites.filter(i => i.buildingId === bid && i.status === 'submitted');
           if (cho.length) add({ id: 'khaitin:' + bid, loai: 'khaitin', muc: 2, n: cho.length, tieuDe: `${cho.length} khách đã tự khai thông tin, chờ bạn duyệt`,
             phuDe: cho.slice(0, 4).map(i => (i.data && i.data.fullName) || 'Khách').join(', ') + (cho.length > 4 ? '…' : ''), href: `#/b/${bid}/tenants?invites=1`, nhanNut: 'Xem và duyệt' });
+        }
+        if (api.isOwner() && usingBackend()) {
+          const xin = codeReqs.filter(r => r.buildingId === bid);
+          if (xin.length) add({ id: 'xinma:' + bid, loai: 'xinma', muc: 1, n: xin.length, tieuDe: `${xin.length} khách xin cấp lại mã vào app`,
+            phuDe: xin.slice(0, 4).map(r => `${r.name || 'Khách'} (P${String(r.roomCode || '').replace(/^P/i, '')})`).join(', ') + (xin.length > 4 ? '…' : ''),
+            href: `#/b/${bid}/tenants`, nhanNut: 'Cấp mã' });
         }
         if (api.isOwner() && usingBackend()) {
           const chua = tenants.filter(t => t.buildingId === bid && !t.appCodeSetAt && /^0\d{9}$/.test(HH.validate.chuanSdt(t.phone))).length;

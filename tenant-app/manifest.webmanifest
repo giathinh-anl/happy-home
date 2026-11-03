@@ -6,15 +6,80 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FBF7F0",
+  "background_color": "#F1F4F3",
   "theme_color": "#0F5C5B",
   "lang": "vi",
   "icons": [
+    {
+      "src": "../assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "../assets/logo-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    }
+  ],
+  "id": "./index.html",
+  "categories": [
+    "lifestyle",
+    "utilities"
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "shortcuts": [
+    {
+      "name": "Hóa đơn",
+      "short_name": "Hóa đơn",
+      "url": "./index.html#/invoices",
+      "icons": [
+        {
+          "src": "../assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Báo hỏng",
+      "short_name": "Báo hỏng",
+      "url": "./index.html#/repair",
+      "icons": [
+        {
+          "src": "../assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Gửi chỉ số điện",
+      "short_name": "Chỉ số điện",
+      "url": "./index.html#/readings",
+      "icons": [
+        {
+          "src": "../assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
