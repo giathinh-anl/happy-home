@@ -102,5 +102,24 @@ test('không phải JSON, rỗng, null: không ném lỗi', () => { ['không th�
 test('giá trị chữ hoặc quá dài bị loại', () => { assert.strictEqual(H.parseMeterAnswer('{"value":"abc","confidence":"high"}').value, null); assert.strictEqual(H.parseMeterAnswer('{"value":"123456789","confidence":"high"}').value, null); });
 test('độ chắc lạ thì coi là thấp', () => assert.strictEqual(H.parseMeterAnswer('{"value":100,"confidence":"chắc chắn"}').confidence, 'low'));
 
+console.log('Thông báo đẩy');
+const PE = (o) => Object.assign({ hasKey: true, hasSW: true, hasPush: true, hasNotification: true, permission: 'default', subscribed: false }, o || {});
+test('chưa có khóa VAPID: ẩn mục này', () => assert.strictEqual(H.pushMode(PE({ hasKey: false })), 'off-config'));
+test('thiếu cấu hình thắng cả khi mọi thứ khác ổn', () => assert.strictEqual(H.pushMode({ hasKey: false, hasSW: true, hasPush: true, hasNotification: true, subscribed: true }), 'off-config'));
+test('hỗ trợ đủ, chưa đăng ký: off', () => assert.strictEqual(H.pushMode(PE()), 'off'));
+test('đã đăng ký: on', () => assert.strictEqual(H.pushMode(PE({ subscribed: true, permission: 'granted' })), 'on'));
+test('khách đã chặn: denied (kể cả còn đăng ký cũ)', () => { assert.strictEqual(H.pushMode(PE({ permission: 'denied' })), 'denied'); assert.strictEqual(H.pushMode(PE({ permission: 'denied', subscribed: true })), 'denied'); });
+test('iPhone chưa thêm vào màn hình chính (không có PushManager): bảo cài app trước', () => assert.strictEqual(H.pushMode(PE({ hasPush: false, ios: true, standalone: false })), 'need-install'));
+test('iPhone đã cài và có API: dùng như bình thường', () => assert.strictEqual(H.pushMode(PE({ ios: true, standalone: true })), 'off'));
+test('trình duyệt cũ không hỗ trợ (không phải iPhone): ẩn', () => { assert.strictEqual(H.pushMode(PE({ hasPush: false })), 'unsupported'); assert.strictEqual(H.pushMode(PE({ hasSW: false })), 'unsupported'); assert.strictEqual(H.pushMode(PE({ hasNotification: false })), 'unsupported'); });
+test('iPhone đã cài nhưng vẫn thiếu API: không hiện, không bảo cài lại', () => assert.strictEqual(H.pushMode(PE({ hasPush: false, ios: true, standalone: true })), 'unsupported'));
+test('thiếu hết thông tin: không ném lỗi', () => assert.strictEqual(H.pushMode(), 'off-config'));
+test('đổi khóa VAPID base64 URL sang byte (65 byte, bắt đầu 0x04)', () => {
+  const key = 'BEl62iUYgUivxIkv69yViEuiBIa-ib37J8YMdyi2d8T4xQ9Hl1QJOQkVMW_Z8ZLZNGpZW3Ma2V8_Y6M9gW3Zs5I';
+  const b = H.urlBase64ToBytes(key); assert.ok(b instanceof Uint8Array && b.length === 65 && b[0] === 4, b.length + ' ' + b[0]);
+});
+test('ký tự - và _ được đổi đúng thành + và /', () => assert.deepStrictEqual(Array.from(H.urlBase64ToBytes('-_-_')), [251, 255, 191]));
+test('khóa rỗng cho mảng rỗng, không ném lỗi', () => { assert.strictEqual(H.urlBase64ToBytes('').length, 0); assert.strictEqual(H.urlBase64ToBytes(null).length, 0); });
+
 console.log('\n' + ok + ' đạt, ' + hong + ' hỏng');
 process.exit(hong ? 1 : 0);

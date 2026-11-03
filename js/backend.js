@@ -60,7 +60,8 @@ HH.backend = (function () {
   };
 
   // Cột do MÁY CHỦ ghi (supabase/migration-nightly.sql): trình duyệt đang mở lâu có bản cũ, gửi lại sẽ đè mất
-  const SERVER_FIELDS = { buildings: ['nightlyLastRun', 'nightlyLastNote'] };
+  // incidents: sao và nhận xét do KHÁCH chấm qua app khách (migration-incident-rating.sql), máy chủ ghi
+  const SERVER_FIELDS = { buildings: ['nightlyLastRun', 'nightlyLastNote'], incidents: ['rating', 'ratingNote', 'ratedAt'] };
 
   function jsToRow(kind, obj) {
     const alias = ALIAS[kind] || {};

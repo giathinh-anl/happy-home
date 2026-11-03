@@ -352,7 +352,24 @@ Ai thấy được: chủ trọ, và nhân viên nào được cấp quyền **B
 
 **Gửi chỉ số điện: AI đọc số từ ảnh.** Khách chụp đồng hồ, AI (cùng đường dẫn Gemini đang dùng để đọc CCCD) điền sẵn số vào ô; khách luôn tự xem lại rồi mới gửi. Ảnh mờ thì ghi chú "xem kỹ lại"; không đọc được thì để khách nhập tay. Khi gửi, app soát số: nhỏ hơn kỳ trước hoặc vọt hơn 3 lần mức thường thì hỏi lại ("Sửa lại" / "Số này đúng, vẫn gửi").
 
-**Đổi mã vào app, quên mã.** Tài khoản → *Đổi mã vào app* (nhập mã cũ, mã mới hai lần). Mã mới phải đủ 6 số, không phải 6 số giống nhau hay dãy liên tiếp (123456, 654321), không trùng 6 số cuối điện thoại. Máy chủ kiểm mã cũ, sai 5 lần thì khóa 15 phút (chung bộ đếm với đăng nhập), đổi xong các máy khác bị đăng xuất. Màn nhập mã có nút *Quên mã? Nhờ chủ nhà cấp lại*: yêu cầu hiện ở chủ trọ thành việc "N khách xin cấp lại mã vào app" trong *Hôm nay cần làm gì*, cấp mã là yêu cầu tự hết. Trợ lý ảo hiểu "đổi mã / quên mã" và dặn khách **đừng gõ mã vào khung chat** (tin chat nhân viên đọc được). Cần chạy `supabase/migration-tenant-code-self.sql` (sau `migration-tenant-auth.sql`); chưa chạy thì app báo rõ "chưa bật" chứ không hỏng. Kiểm thử trên Postgres thật: `tests/db/tenant-code-self.test.py` (41 ca, thử phá 15 chỗ đều bị bắt). Hàm thuần của app khách ở `tenant-app/js/helpers.js` (61 ca, thử phá 27 chỗ đều bị bắt).
+**Đổi mã vào app, quên mã.** Tài khoản → *Đổi mã vào app* (nhập mã cũ, mã mới hai lần). Mã mới phải đủ 6 số, không phải 6 số giống nhau hay dãy liên tiếp (123456, 654321), không trùng 6 số cuối điện thoại. Máy chủ kiểm mã cũ, sai 5 lần thì khóa 15 phút (chung bộ đếm với đăng nhập), đổi xong các máy khác bị đăng xuất. Màn nhập mã có nút *Quên mã? Nhờ chủ nhà cấp lại*: yêu cầu hiện ở chủ trọ thành việc "N khách xin cấp lại mã vào app" trong *Hôm nay cần làm gì*, cấp mã là yêu cầu tự hết. Trợ lý ảo hiểu "đổi mã / quên mã" và dặn khách **đừng gõ mã vào khung chat** (tin chat nhân viên đọc được). Cần chạy `supabase/migration-tenant-code-self.sql` (sau `migration-tenant-auth.sql`); chưa chạy thì app báo rõ "chưa bật" chứ không hỏng. Kiểm thử trên Postgres thật: `tests/db/tenant-code-self.test.py` (41 ca, thử phá 15 chỗ đều bị bắt). Hàm thuần của app khách ở `tenant-app/js/helpers.js` (74 ca, thử phá 31 chỗ đều bị bắt).
+
+**Chấm sao sau khi sửa xong.** Sự cố đã "Hoàn tất" thì app khách hiện "Việc sửa xong rồi. Anh/chị thấy thế nào?" với 1 đến 5 sao và một dòng nhận xét (không bắt buộc), chấm lại được. Chủ trọ thấy sao và nhận xét ngay ở cột Trạng thái của danh sách sự cố (bấm "Hiện cả đã xong"), sao thấp tô đỏ. Khách chỉ chấm được sự cố của phòng mình và chỉ khi đã hoàn tất; trình duyệt chủ trọ không ghi đè được sao khách đã chấm. Cần chạy `supabase/migration-incident-rating.sql`; chưa chạy thì phần chấm sao tự ẩn. Kiểm thử trên Postgres thật: `tests/db/incident-rating.test.py` (17 ca, thử phá 10 chỗ đều bị bắt).
+
+## Thông báo đẩy lên điện thoại khách (cần làm vài bước một lần)
+
+Khách bật ở Tài khoản → *Thông báo trên điện thoại*. Từ đó điện thoại báo khi **chủ nhà gửi nhắc hạn đóng tiền** (việc chạy ban đêm) và khi **nhân viên trả lời tin nhắn**; bấm vào thì mở đúng màn (Hóa đơn, Trợ lý ảo). Android chạy ngay; iPhone chỉ nhận sau khi khách đã thêm app vào màn hình chính (app tự nhắc). Mục này **tự ẩn cho tới khi cấu hình xong**, nên chưa làm các bước dưới đây thì mọi thứ khác vẫn chạy.
+
+Cách hoạt động: trigger trong CSDL (`supabase/migration-push.sql`) gom các máy đã đăng ký của đúng khách rồi gọi hàm Edge `push-send` qua `pg_net`; hàm đó giữ khóa VAPID bí mật, mã hóa nội dung theo chuẩn Web Push rồi gửi qua dịch vụ đẩy của Google, Mozilla, Apple hoặc Microsoft. Máy nào trả 404/410 (khách gỡ app) thì bị xóa khỏi bảng. Gửi hỏng không bao giờ làm hỏng việc ghi tin nhắn hay thông báo. Chỉ nhận địa chỉ đăng ký thuộc bốn dịch vụ đó (chặn nhét địa chỉ nội bộ), hàm Edge kiểm chuỗi bí mật trước khi làm gì.
+
+Các bước (chi tiết ở đầu `supabase/functions/push-send/index.ts`):
+1. Chạy `supabase/migration-push.sql` (sau `migration-tenant-auth.sql`, `migration-support-chat.sql`, `migration-nightly.sql`) và bật **Database → Extensions → pg_net**.
+2. `node tools/push/tao-khoa-vapid.js` tạo cặp khóa VAPID (chỉ in ra màn hình, không ghi tệp). Khóa **bí mật** chỉ đưa vào Supabase: `supabase secrets set VAPID_PRIVATE_KEY=... VAPID_PUBLIC_KEY=... VAPID_SUBJECT=mailto:<email> PUSH_SECRET=<chuỗi ngẫu nhiên dài>`.
+3. `supabase functions deploy push-send --no-verify-jwt`.
+4. SQL Editor: `update public.push_config set url = 'https://<project-ref>.supabase.co/functions/v1/push-send', secret = '<đúng PUSH_SECRET>' where id = 1;`
+5. Dán khóa **công khai** vào `js/config.js` (`vapidPublicKey`); khóa công khai thì commit được.
+
+Kiểm thử: SQL trên Postgres thật có `pg_net` giả (`tests/db/push.test.py`, 29 ca, thử phá 17 chỗ, 15 chỗ bị bắt và 2 chỗ còn lại là kiểu tương đương), phần kiểm của hàm Edge (`tests/push-send.test.js`, 25 ca gồm cả công cụ tạo khóa), service worker chạy trong "self" giả (`tests/tenant-sw.test.js`, 12 ca). **Chưa thử được:** gửi thật tới điện thoại (cần khóa VAPID thật và hàm đã triển khai), và Deno chưa có trên máy nên `index.ts` mới được đọc kỹ chứ chưa chạy thử.
 
 ## Trang giới thiệu có hiệu ứng cuộn
 
@@ -490,6 +507,8 @@ node tests/split.test.js
 node tests/closing.test.js
 node tests/report.test.js
 node tests/tenant-helpers.test.js
+node tests/push-send.test.js
+node tests/tenant-sw.test.js
 node tests/today.test.js
 node tests/dates.test.js
 node tests/progress.test.js
@@ -502,7 +521,7 @@ node tests/listing.test.js
 node tests/bank-webhook-auth.test.js
 ```
 
-Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (61 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười sáu đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
+Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
 
 **Kiểm thử cơ sở dữ liệu.** Các tệp `supabase/*.sql` được thử trên một Postgres thật chạy tại máy (không cần tài khoản Supabase), kèm bản giả của lớp `auth` và `pgcrypto`:
 
@@ -518,6 +537,8 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/renewal-history.test.py
 .venv-db/Scripts/python tests/db/public-room.test.py
 .venv-db/Scripts/python tests/db/tenant-code-self.test.py
+.venv-db/Scripts/python tests/db/incident-rating.test.py
+.venv-db/Scripts/python tests/db/push.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

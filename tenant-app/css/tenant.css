@@ -771,6 +771,27 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 .pay-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
 .pay-acts > :only-child { grid-column: 1 / -1; }
 
+/* --- Chấm sao sau khi sửa xong --- */
+.t-rate { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.t-rate-q { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+.t-stars { display: flex; gap: 4px; }
+.t-stars button { border: 0; background: transparent; padding: 4px; border-radius: 10px; line-height: 0; transition: transform .16s var(--ease); min-width: 40px; min-height: 40px; display: grid; place-items: center; }
+.t-stars button:active { transform: scale(.88); }
+.t-star { fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-linejoin: round; transition: fill .15s, stroke .15s; }
+.t-star.on { fill: var(--wood-500); stroke: var(--wood-500); }
+.t-stars.ro .t-star { width: 20px; height: 20px; }
+.t-rate-more { margin-top: 10px; display: grid; gap: 8px; }
+.t-rate-more[hidden] { display: none; }
+.t-rate.done .t-rate-top { display: flex; align-items: center; justify-content: space-between; }
+.t-rate-sub { margin-top: 4px; font-size: 13px; color: var(--ink-2); }
+.t-link { border: 0; background: transparent; color: var(--teal-700); font-weight: 600; font-size: 13px; padding: 6px 4px; }
+
+/* --- Dòng có nút nhỏ bên phải (Thông báo trên điện thoại) --- */
+.t-sub { display: block; font-size: 12px; font-weight: 400; color: var(--ink-3); line-height: 1.35; margin-top: 1px; }
+.t-pill { border: 0; background: var(--teal-600); color: #fff; font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 999px; min-height: 36px; transition: transform .16s var(--ease), opacity .18s; }
+.t-pill:active { transform: scale(.95); }
+.t-pill:disabled { opacity: .6; }
+
 /* --- Công tắc 3 nút (Giao diện: Tự động / Sáng / Tối) --- */
 .t-action.t-theme { cursor: default; }
 .t-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }

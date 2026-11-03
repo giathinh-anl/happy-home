@@ -453,7 +453,10 @@
               ? (x.cost != null ? `Chi phí ${U.currency(x.cost)}${x.costPayer === 'khach' ? ' (khách chịu)' : ''}` : '')
               : [x.assignee ? U.esc(x.assignee) : '', x.scheduledFor ? 'hẹn ' + U.fmtDate(x.scheduledFor) : '',
                  t.quaLau ? `<b class="ip-late">mở ${t.soNgayMo} ngày</b>` : ''].filter(Boolean).join(' · ');
-            return `<span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span>${sub ? `<div class="muted text-xs" style="margin-top:3px">${sub}</div>` : ''}`; } },
+            // khách chấm sao sau khi sửa xong (app khách): chủ trọ thấy ngay, thợ nào hay bị chê thì biết
+            const sao = x.rating ? `<div class="text-xs" style="margin-top:3px;color:var(--${x.rating <= 2 ? 'danger' : 'wood-700'})" title="${U.esc(x.ratingNote || '')}">`
+              + `${'★'.repeat(x.rating)}${'☆'.repeat(5 - x.rating)} <span class="muted">khách chấm${x.ratingNote ? ': ' + U.esc(x.ratingNote.length > 60 ? x.ratingNote.slice(0, 60) + '…' : x.ratingNote) : ''}</span></div>` : '';
+            return `<span class="badge s-${s.tone}"><span class="dot"></span>${s.label}</span>${sub ? `<div class="muted text-xs" style="margin-top:3px">${sub}</div>` : ''}${sao}`; } },
         ],
         actions: x => {
           const items = [{ icon: HH.icon('list', 16), label: 'Tiến độ & cập nhật', onClick: () => incidentProgress(ctx, x) }];

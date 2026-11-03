@@ -25,6 +25,8 @@ Nhập **số điện thoại** của một khách thuê có trong hệ thống 
 - Thanh toán: lưu ảnh QR, chia sẻ, thêm hạn vào lịch (.ics)
 - Gửi chỉ số điện: AI điền sẵn số từ ảnh đồng hồ, app soát số trước khi gửi
 - Đổi mã vào app, "Quên mã?" (cần `supabase/migration-tenant-code-self.sql`)
+- Chấm sao sau khi sửa xong (cần `supabase/migration-incident-rating.sql`)
+- Thông báo đẩy: nhắc hạn, nhân viên trả lời (cần `supabase/migration-push.sql` và hàm Edge `push-send`, xem README gốc)
 - Hàm thuần ở `js/helpers.js`, kiểm thử ở `tests/tenant-helpers.test.js`
 
 ## Cấu trúc

@@ -127,6 +127,67 @@
       <button class="t-btn" data-close>Xong</button>`);
   }
 
+  /* ---------- Thông báo đẩy (Web Push) ----------
+     Máy chủ gửi khi có nhắc hạn đóng tiền hoặc nhân viên trả lời (supabase/migration-push.sql + hàm Edge push-send).
+     Mục này chỉ hiện khi js/config.js có vapidPublicKey, tức là chủ nhà đã làm xong các bước triển khai. */
+  const VAPID = () => (window.HH_CONFIG && window.HH_CONFIG.vapidPublicKey) || '';
+  async function pushSub() {
+    try { const reg = await navigator.serviceWorker.getRegistration(); return reg ? await reg.pushManager.getSubscription() : null; } catch (e) { return null; }
+  }
+  async function pushState() {
+    const hasSW = 'serviceWorker' in navigator, hasPush = 'PushManager' in window, hasNot = 'Notification' in window;
+    return TH().pushMode({ hasKey: !!VAPID(), hasSW, hasPush, hasNotification: hasNot, permission: hasNot ? Notification.permission : 'default',
+      subscribed: hasSW && hasPush ? !!(await pushSub()) : false, ios: /iPhone|iPad|iPod/.test(navigator.userAgent),
+      standalone: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true });
+  }
+  async function enablePush() {
+    if ((await Notification.requestPermission()) !== 'granted') { toast('Chưa bật được: anh/chị cần cho phép thông báo'); return false; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription(), moi = false;
+    if (!sub) { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: TH().urlBase64ToBytes(VAPID()) }); moi = true; }
+    const j = sub.toJSON();
+    try {
+      await rpc('tenant_push_subscribe', { p_endpoint: j.endpoint, p_p256dh: j.keys && j.keys.p256dh, p_auth: j.keys && j.keys.auth, p_ua: navigator.userAgent.slice(0, 200) });
+    } catch (e) {
+      if (moi) { try { await sub.unsubscribe(); } catch (e2) {} }          // máy chủ không nhận thì đừng để trình duyệt giữ đăng ký lơ lửng
+      throw e;
+    }
+    return true;
+  }
+  async function disablePush() {
+    const sub = await pushSub(); if (!sub) return;
+    try { await rpc('tenant_push_unsubscribe', { p_endpoint: sub.endpoint }); } catch (e) { /* máy chủ sẽ tự xóa khi gửi thất bại */ }
+    try { await sub.unsubscribe(); } catch (e) {}
+  }
+  const PUSH_TXT = { on: ['Đang bật', 'Nhắc hạn đóng tiền và tin nhắn từ nhân viên'], off: ['Chưa bật', 'Báo ngay khi có nhắc hạn hoặc nhân viên trả lời'],
+    denied: ['Đã bị chặn', 'Bật lại trong cài đặt của trình duyệt'], 'need-install': ['Cần cài app', 'Thêm app vào màn hình chính rồi quay lại đây để bật'] };
+  async function drawPushRow() {
+    const box = el('pushRow'); if (!box) return;
+    const m = await pushState(); if (!el('pushRow')) return;
+    if (!PUSH_TXT[m]) { box.innerHTML = ''; return; }
+    const act = m === 'on' ? 'Tắt' : m === 'off' ? 'Bật' : m === 'need-install' ? 'Cài' : '';
+    box.innerHTML = `<div class="t-action t-theme"><span class="aic">${HH.ic('bell', 20)}</span>
+      <span style="flex:1;min-width:0"><span style="display:block">Thông báo trên điện thoại</span><small class="t-sub">${PUSH_TXT[m][0]}. ${PUSH_TXT[m][1]}.</small></span>
+      ${act ? `<button type="button" class="t-pill" id="pushBtn">${act}</button>` : ''}</div>`;
+    const b = el('pushBtn'); if (!b) return;
+    b.onclick = async () => {
+      if (m === 'need-install') { installNow(); return; }
+      b.disabled = true;
+      try {
+        if (m === 'on') { await disablePush(); toast('Đã tắt thông báo trên máy này'); }
+        else if (await enablePush()) toast('Đã bật thông báo trên máy này');
+      } catch (e) {
+        if (e.message === 'SESSION') return;
+        toast(e.message === 'NOT_ACTIVATED' ? 'Chưa bật được: chủ nhà cần bật tính năng thông báo' : 'Chưa bật được, anh/chị thử lại giúp em');
+      }
+      drawPushRow();
+    };
+  }
+  // bấm vào thông báo: tab đang mở nhận lệnh đi tới đúng màn (không phải tải lại app)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = e.data; if (d && d.type === 'go' && /^#\/[A-Za-z0-9/_-]{1,40}$/.test(d.hash || '') && state.data) go(d.hash);
+  });
+
   /* ---------- Giao diện sáng / tối: tự theo máy, hoặc khách chọn tay (lưu ở máy này) ---------- */
   const THEMES = [['auto', 'Tự động'], ['light', 'Sáng'], ['dark', 'Tối']];
   function themeNow() { try { const t = localStorage.getItem('hh_theme'); return t === 'dark' || t === 'light' ? t : 'auto'; } catch (e) { return 'auto'; } }
@@ -216,7 +277,7 @@
     const { data, error } = res;
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); return fromCache(new Error(error.message)); }
     if (data == null) { sessionLost(); throw new Error('SESSION'); }
-    await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents)]);
+    await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents), loadIncidentRatings(data.incidents)]);
     state.offline = null;
     saveCache(data);
     return data;
@@ -234,6 +295,17 @@
       (Array.isArray(r.data) ? r.data : []).forEach(u => { by[u.id] = (u.history || []).map(e => Object.assign({ congKhai: true, by: 'Chủ nhà' }, e)); });
       incs.forEach(x => { if (by[x.id]) x.history = by[x.id]; });
     } catch (e) { /* giữ trạng thái chung */ }
+  }
+  /* Sao khách đã chấm sau khi sửa xong (supabase/migration-incident-rating.sql). Chưa chạy migration hay lỗi mạng thì coi như chưa chấm. */
+  let noRatings = false;
+  async function loadIncidentRatings(incs) {
+    if (noRatings || !incs || !incs.length) return;
+    try {
+      const r = await client.rpc('tenant_incident_ratings', { p_token: state.token });
+      if (r.error) { if (rpcMissing(r.error)) noRatings = true; return; }
+      const by = {}; (Array.isArray(r.data) ? r.data : []).forEach(x => { by[x.id] = x; });
+      incs.forEach(x => { if (by[x.id]) { x.rating = by[x.id].rating; x.ratingNote = by[x.id].ratingNote; } });
+    } catch (e) { /* chưa chấm */ }
   }
   /* Thông báo nhắc hạn do máy chủ tự gửi ban đêm (supabase/migration-nightly.sql). Chưa chạy migration, mất mạng hay
      lỗi gì cũng chỉ là không có thông báo, không được làm hỏng trang chủ. Hàm chưa có thì thôi gọi lại cho đỡ tốn lượt. */
@@ -266,6 +338,7 @@
   async function doLogout() {
     const tok = state.token, chatK = chatKey();
     stopStaffPoll(); clearCache();
+    if (VAPID()) { try { await Promise.race([disablePush(), new Promise(r => setTimeout(r, 1500))]); } catch (e) {} }
     try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(PHONE_KEY); sessionStorage.removeItem(chatK); } catch (e) {}
     state.token = null; state.phone = null; state.data = null;
     go('#/login');
@@ -979,10 +1052,56 @@
         ${henHtml}
         <div class="timeline">${steps.map(s => `<div class="tl-item ${s.xong ? 'done' : ''} ${s.dangLam ? 'active' : ''}"><div class="tl-title">${s.nhan}</div><div class="tl-time">${s.at ? fmtDate(s.at) : (s.xong ? '' : '-')}</div></div>`).join('')}</div>
         ${upHtml}
+        ${rateBlock(x)}
       </div>`;
     }).join('') : `<div class="t-empty"><div class="eic">${ico('clipboard', 64)}</div><p>Chưa có yêu cầu nào</p><button class="t-btn" style="margin-top:16px;max-width:200px" id="newReq">Tạo yêu cầu</button></div>`;
     shell('Yêu cầu sửa chữa', body + (incs.length ? `<button class="t-btn outline" id="newReq" style="margin-top:6px">${HH.ic('plus', 16)} Tạo yêu cầu mới</button>` : ''));
     const nr = el('newReq'); if (nr) nr.onclick = () => go('#/repair');
+    wireRate();
+  }
+
+  /* ---------- chấm sao sau khi sửa xong ---------- */
+  const star = (on) => `<svg class="t-star${on ? ' on' : ''}" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.2 2.7 5.6 6.1.8-4.4 4.3 1.1 6.1L12 17.1 6.5 20l1.1-6.1L3.2 9.6l6.1-.8L12 3.2z"/></svg>`;
+  function rateBlock(x) {
+    if (x.status !== 'done' || noRatings && !x.rating) return '';
+    if (x.rating) {
+      return `<div class="t-rate done"><div class="t-rate-top"><span class="t-stars ro" aria-label="${x.rating} trên 5 sao">${[1, 2, 3, 4, 5].map(n => star(n <= x.rating)).join('')}</span>
+        <button type="button" class="t-link" data-rate-again="${esc(x.id)}">Chấm lại</button></div>
+        <div class="t-rate-sub">Cảm ơn anh/chị đã đánh giá.${x.ratingNote ? ' "' + esc(x.ratingNote) + '"' : ''}</div></div>`;
+    }
+    return `<div class="t-rate" data-rate-box="${esc(x.id)}"><div class="t-rate-q">Việc sửa xong rồi. Anh/chị thấy thế nào?</div>
+      <div class="t-stars" role="radiogroup" aria-label="Chấm sao">${[1, 2, 3, 4, 5].map(n => `<button type="button" role="radio" aria-checked="false" aria-label="${n} sao" data-star="${n}">${star(false)}</button>`).join('')}</div>
+      <div class="t-rate-more" hidden><input class="t-input" maxlength="300" placeholder="Nhận xét ngắn (không bắt buộc)" data-rate-note>
+        <button type="button" class="t-btn sm" data-rate-send>Gửi đánh giá</button></div></div>`;
+  }
+  function wireRate() {
+    document.querySelectorAll('[data-rate-again]').forEach(b => b.onclick = () => {
+      const inc = (state.data.incidents || []).find(i => i.id === b.dataset.rateAgain); if (inc) { inc.rating = null; inc.ratingNote = null; screenTrack(); }
+    });
+    document.querySelectorAll('[data-rate-box]').forEach(box => {
+      let n = 0;
+      const stars = Array.from(box.querySelectorAll('[data-star]'));
+      stars.forEach(b => b.onclick = () => {
+        n = +b.dataset.star;
+        stars.forEach(x => { const on = +x.dataset.star <= n; x.querySelector('.t-star').classList.toggle('on', on); x.setAttribute('aria-checked', String(+x.dataset.star === n)); });
+        box.querySelector('.t-rate-more').hidden = false;
+      });
+      box.querySelector('[data-rate-send]').onclick = async (ev) => {
+        const btn = ev.currentTarget; if (!n) return;
+        btn.classList.add('loading'); btn.disabled = true;
+        try {
+          const r = await rpc('tenant_rate_incident', { p_incident_id: box.dataset.rateBox, p_stars: n, p_note: box.querySelector('[data-rate-note]').value.trim() });
+          if (!r.ok) throw new Error(r.error || 'x');
+          const inc = (state.data.incidents || []).find(i => i.id === box.dataset.rateBox);
+          if (inc) { inc.rating = n; inc.ratingNote = box.querySelector('[data-rate-note]').value.trim() || null; }
+          toast('Cảm ơn anh/chị đã đánh giá'); screenTrack();
+        } catch (e) {
+          if (e.message === 'SESSION') return;
+          toast(e.message === 'NOT_ACTIVATED' ? 'Chưa gửi được: chủ nhà cần bật tính năng đánh giá' : 'Chưa gửi được, anh/chị thử lại giúp em');
+          if (btn.isConnected) { btn.classList.remove('loading'); btn.disabled = false; }
+        }
+      };
+    });
   }
 
   /* ---------- màn hình: GHI CHỈ SỐ ĐIỆN ----------
@@ -1305,6 +1424,7 @@
         <button class="t-action" data-nav="#/contract"><span class="aic">${ico('contract', 26)}</span>Hợp đồng & điều khoản<span class="chev">›</span></button>
         <button class="t-action" data-nav="#/track"><span class="aic">${ico('clipboard', 26)}</span>Yêu cầu sửa chữa<span class="chev">›</span></button>
         <button class="t-action" data-nav="#/chat"><span class="aic">${ico('chat', 26)}</span>Trợ lý ảo<span class="chev">›</span></button>
+        <div id="pushRow"></div>
         <div class="t-action t-theme" role="group" aria-label="Giao diện"><span class="aic">${HH.ic('sparkles', 20)}</span><span style="flex:1">Giao diện</span>
           <span class="t-seg">${THEMES.map(([k, l]) => `<button type="button" class="${themeNow() === k ? 'on' : ''}" data-theme-set="${k}" aria-pressed="${themeNow() === k}">${l}</button>`).join('')}</span></div>
         <button class="t-action" data-nav="#/changecode"><span class="aic">${ico('lock', 26)}</span>Đổi mã vào app<span class="chev">›</span></button>
@@ -1317,6 +1437,7 @@
     `, { tab: 'account' });
     document.querySelectorAll('[data-nav]').forEach(x => x.onclick = () => go(x.dataset.nav));
     const ir = el('installRow'); if (ir) ir.onclick = installNow;
+    drawPushRow();
     document.querySelectorAll('[data-theme-set]').forEach(b => b.onclick = () => {
       setTheme(b.dataset.themeSet);
       document.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });

@@ -8,6 +8,7 @@
      - codeProblem   luật chọn mã vào app mới
      - meterCheck    soát số điện khách nhập hoặc AI đọc
      - parseMeterAnswer  lấy số điện từ câu trả lời của AI
+     - pushMode / urlBase64ToBytes  thông báo đẩy: nên hiện nút nào, đổi khóa VAPID sang byte
    ============================================================ */
 (function (root) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -137,7 +138,28 @@
     return { value: num, confidence: num === null ? 'low' : conf };
   }
 
-  const api = { installMode, buildIcs, shareText, cacheEnvelope, readCache, ageLabel, codeProblem, meterCheck, parseMeterAnswer, CACHE_VERSION };
+  /* ---------- Thông báo đẩy ----------
+     env = { hasKey, hasSW, hasPush, hasNotification, permission, subscribed, ios, standalone }
+     off-config: chưa có khóa VAPID trong cấu hình, ẩn hẳn mục này.
+     need-install: iPhone chỉ nhận thông báo đẩy sau khi đã thêm app vào màn hình chính.
+     unsupported: trình duyệt không hỗ trợ, ẩn. denied: khách đã chặn trong cài đặt. on / off: đang bật / tắt. */
+  function pushMode(env) {
+    env = env || {};
+    if (!env.hasKey) return 'off-config';
+    if (!(env.hasSW && env.hasPush && env.hasNotification)) return env.ios && !env.standalone ? 'need-install' : 'unsupported';
+    if (env.permission === 'denied') return 'denied';
+    return env.subscribed ? 'on' : 'off';
+  }
+  /* Khóa VAPID công khai (base64 an toàn cho URL) -> mảng byte cho pushManager.subscribe */
+  function urlBase64ToBytes(b64) {
+    const pad = '='.repeat((4 - (String(b64 || '').length % 4)) % 4);
+    const raw = (typeof atob === 'function' ? atob : (x) => Buffer.from(x, 'base64').toString('binary'))(String(b64 || '').replace(/-/g, '+').replace(/_/g, '/') + pad);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  const api = { pushMode, urlBase64ToBytes, installMode, buildIcs, shareText, cacheEnvelope, readCache, ageLabel, codeProblem, meterCheck, parseMeterAnswer, CACHE_VERSION };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.tenantHelpers = api; }
 })(typeof window !== 'undefined' ? window : globalThis);
