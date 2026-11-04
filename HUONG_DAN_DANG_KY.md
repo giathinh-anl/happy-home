@@ -65,7 +65,12 @@ Ngân hàng không mở API cho tài khoản cá nhân, nên phải qua một d�
 - Thông tin để hiện trên tin nhắc nợ và mã VietQR (không phải mật khẩu): **tên ngân hàng, số tài khoản, tên chủ tài khoản**. Tôi điền vào `js/config.js` (mục `bank`). Số tài khoản nhận tiền vốn là thông tin khách phải biết, nhưng tệp này nằm trên web công khai, nên chỉ điền khi bạn đồng ý.
 - **Không** gửi mật khẩu, OTP, hay mã bí mật của SePay/Casso qua tin nhắn.
 
-### Tôi làm
+### Tình trạng phía Supabase (4/11/2026): ĐÃ XONG, chỉ còn bước bên SePay
+Bạn đã đồng ý rõ trong chat, và mình đã làm trên Supabase thật: chạy `migration-bank-reconcile.sql` (so mã băm với tệp trước khi chạy), tạo mã bí mật cho tài khoản chủ trọ `ch***@happyhome.vn` (tạo ngay trong Supabase, không đi qua chat), đặt biến `BANK_WEBHOOK_SECRET` cho hàm, triển khai hàm `bank-webhook` (đủ hai tệp `index.ts` và `auth.ts`) và **tắt "Verify JWT" chỉ cho hàm này** (SePay không gửi được thẻ đăng nhập của Supabase; hàm tự bảo vệ bằng mã bí mật). Đã thử từ CSDL qua `pg_net`: đúng mã trả 200, sai mã hoặc không mã trả 401, mã đặt trong `?key=` được nhận, giao dịch tiền ra bị bỏ qua; đường ghi vào `bank_transactions` thử bằng khối lệnh tự hoàn tác (trùng mã giao dịch chỉ ghi một dòng, sai mã và số tiền 0 bị chặn), không để lại dòng nào.
+
+**Việc còn lại của bạn:** (1) Đăng nhập app bằng đúng tài khoản chủ trọ ở trên, vào *Khách chuyển khoản → Đối soát ngân hàng → Nối ngân hàng* và bấm **Tạo secret** (mã đã có sẵn nên nút này chỉ hiện lại mã, không tạo mã mới), bấm sao chép. (2) Vào SePay → Webhooks → Thêm webhook: URL `https://xkfpwqzmqwhjqwyeyodr.supabase.co/functions/v1/bank-webhook`, chỉ tiền vào, kiểu xác thực *API Key*, dán mã vừa sao chép. (3) Bấm *Gửi thử* rồi chuyển thử 10.000 ₫.
+
+### Tôi làm (bản gốc)
 Kiểm và chạy `migration-bank-reconcile.sql` (nếu chưa chạy), tạo mã bí mật trong app, triển khai hàm `bank-webhook` và đặt biến môi trường trên Supabase (qua trang Supabase trong Chrome của bạn, chỉ khi bạn đồng ý), đưa bạn link + mã, rồi cùng thử một giao dịch.
 
 **Bảo mật:** hàm nhận webhook **bắt buộc có đúng mã bí mật**; không có mã là từ chối. (Bản cũ có lỗ hổng: nếu yêu cầu không kèm gì thì vẫn nhận, nên ai biết link có thể bơm giao dịch giả; đã vá, có kiểm thử.)

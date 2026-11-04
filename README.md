@@ -319,7 +319,7 @@ Ngân hàng Việt Nam không mở API cho tài khoản cá nhân, nên có 3 đ
 
 | Cách | Độ tự động | Cần gì |
 |---|---|---|
-| Webhook **SePay** / **Casso** | Tiền về là tự ghi thu | Chạy `migration-bank-reconcile.sql`, triển khai `functions/bank-webhook`, dán webhook vào SePay/Casso (đều có gói miễn phí) |
+| Webhook **SePay** / **Casso** | Tiền về là tự ghi thu | Chạy `migration-bank-reconcile.sql`, triển khai `functions/bank-webhook` (tắt Verify JWT riêng cho hàm này), dán webhook vào SePay/Casso (đều có gói miễn phí). **Phía Supabase đã làm xong ngày 4/11/2026**, chỉ còn dán webhook bên SePay |
 | **Dán sao kê** | Đối soát cả tháng trong vài giây | Không cần gì — copy các dòng tiền vào rồi dán |
 | **Khách tự báo** | Chủ trọ bấm duyệt | Không cần gì — có sẵn |
 
