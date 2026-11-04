@@ -29,12 +29,14 @@ create index if not exists tenant_push_subs_tenant_idx on public.tenant_push_sub
 alter table public.tenant_push_subs enable row level security;
 revoke all on public.tenant_push_subs from public, anon, authenticated;     -- không có policy: chỉ hàm security definer đụng tới
 
--- Một dòng duy nhất: địa chỉ hàm push-send và chuỗi bí mật chung. Điền tay sau khi triển khai hàm (xem README).
+-- Một dòng duy nhất: địa chỉ hàm push-send, chuỗi bí mật chung và khóa CÔNG KHAI (anon) của dự án. Điền tay sau khi triển khai hàm (xem README).
+-- Khóa anon gửi kèm để hàm Edge giữ nguyên xác thực JWT mặc định của Supabase (không phải tắt); hàm vẫn kiểm thêm chuỗi bí mật riêng.
 create table if not exists public.push_config (
   id     int primary key default 1 check (id = 1),
   url    text,
   secret text
 );
+alter table public.push_config add column if not exists anon_key text;
 insert into public.push_config(id) values (1) on conflict (id) do nothing;
 alter table public.push_config enable row level security;
 revoke all on public.push_config from public, anon, authenticated;
@@ -89,7 +91,8 @@ begin
   if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'net' and p.proname = 'http_post') then return; end if;
   perform net.http_post(url := v_cfg.url,
     body := jsonb_build_object('subs', v_subs, 'title', left(coalesce(p_title, ''), 80), 'body', left(coalesce(p_body, ''), 160), 'url', coalesce(p_url, '#/home')),
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-push-secret', v_cfg.secret));
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-push-secret', v_cfg.secret)
+      || case when coalesce(v_cfg.anon_key, '') <> '' then jsonb_build_object('Authorization', 'Bearer ' || v_cfg.anon_key, 'apikey', v_cfg.anon_key) else '{}'::jsonb end);
 exception when others then
   null;           -- gửi thông báo hỏng không được làm hỏng việc ghi tin nhắn / thông báo
 end $$;

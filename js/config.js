@@ -7,4 +7,8 @@ window.HH_CONFIG = {
      GEMINI_API_KEY), trình duyệt chỉ gọi tới địa chỉ này nên commit được.
      TUYỆT ĐỐI không đặt geminiApiKey ở đây: tệp này có lên GitHub. */
   aiProxyUrl: 'https://xkfpwqzmqwhjqwyeyodr.supabase.co/functions/v1/ai',
+
+  /* Thông báo đẩy lên điện thoại khách (Web Push): khóa VAPID CÔNG KHAI, commit được. Khóa bí mật nằm ở bí mật Supabase
+     (VAPID_PRIVATE_KEY), không bao giờ ở đây. Có dòng này thì app khách mới hiện mục Thông báo trên điện thoại. */
+  vapidPublicKey: 'BEIVKSU472v7WjnLCvlwwbT9WwjhSl5N6Nkhgh_CSZcZRE_D0_ctdyyzO0BrTe2QaAwVHPCYvlc6yK8nUepfFJU',
 };

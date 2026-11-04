@@ -14,7 +14,7 @@ Giá và điều kiện của các dịch vụ này **hay đổi**; những gì 
 | `migration-tenant-code-self.sql` | Khách tự đổi mã vào app, nút "Quên mã?", việc "khách xin cấp lại mã" cho chủ trọ |
 | `migration-incident-rating.sql` | Khách chấm sao sau khi sửa xong, chủ trọ thấy sao trong danh sách sự cố |
 
-**B. Thông báo đẩy lên điện thoại khách: không cần tài khoản trả tiền**, nhưng cần bạn cho phép tôi thao tác trên trang Supabase của bạn (qua Chrome đang đăng nhập sẵn) và cho một **địa chỉ email** làm người liên hệ của dịch vụ đẩy. Tôi bật `pg_net`, tạo khóa VAPID (khóa bí mật chỉ đi từ máy tôi vào Supabase, không qua chat), chạy `migration-push.sql`, triển khai hàm `push-send`, rồi thử trên điện thoại của bạn. Chi tiết các bước ở README, mục "Thông báo đẩy". iPhone chỉ nhận thông báo sau khi đã thêm app vào màn hình chính.
+**B. Thông báo đẩy lên điện thoại khách (đã làm xong ngày 4/11/2026, chỉ còn thử trên điện thoại thật): không cần tài khoản trả tiền**, nhưng cần bạn cho phép tôi thao tác trên trang Supabase của bạn (qua Chrome đang đăng nhập sẵn) và cho một **địa chỉ email** làm người liên hệ của dịch vụ đẩy. Tôi bật `pg_net`, tạo khóa VAPID (khóa bí mật chỉ đi từ máy tôi vào Supabase, không qua chat), chạy `migration-push.sql`, triển khai hàm `push-send`, rồi thử trên điện thoại của bạn. Chi tiết các bước ở README, mục "Thông báo đẩy". iPhone chỉ nhận thông báo sau khi đã thêm app vào màn hình chính.
 
 **C. Cần tài khoản ngoài đứng tên bạn** (bảng dưới). Bạn đăng ký, báo tôi, tôi làm phần kết nối:
 

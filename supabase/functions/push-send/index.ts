@@ -11,10 +11,12 @@
      2. Tạo cặp khóa VAPID:   node tools/push/tao-khoa-vapid.js   (khóa BÍ MẬT chỉ in ra máy bạn, không lưu vào dự án)
      3. supabase secrets set VAPID_PUBLIC_KEY=<khóa công khai> VAPID_PRIVATE_KEY=<khóa bí mật> VAPID_SUBJECT=mailto:<email của bạn>
         supabase secrets set PUSH_SECRET=<một chuỗi ngẫu nhiên dài>
-     4. supabase functions deploy push-send --no-verify-jwt
-        (triển khai bằng CLI tự gói cả push.ts; dán tay trong trang Supabase thì phải tạo đủ HAI tệp index.ts và push.ts)
+     4. supabase functions deploy push-send
+        (KHÔNG cần --no-verify-jwt: CSDL gửi kèm khóa anon nên xác thực JWT mặc định vẫn bật.
+         Triển khai bằng CLI tự gói cả push.ts; dán tay trong trang Supabase thì phải tạo đủ HAI tệp index.ts và push.ts)
      5. Trong SQL Editor:  update public.push_config set url = 'https://<project-ref>.supabase.co/functions/v1/push-send',
-                                                       secret = '<đúng chuỗi PUSH_SECRET ở bước 3>' where id = 1;
+                                                       secret = '<đúng chuỗi PUSH_SECRET ở bước 3>',
+                                                       anon_key = '<khóa anon của dự án, đúng giá trị trong js/config.js>' where id = 1;
      6. Dán khóa CÔNG KHAI vào js/config.js: vapidPublicKey: '<khóa công khai>'  (khóa công khai thì commit được)
    Chưa làm đủ các bước thì app khách ẩn mục Thông báo trên điện thoại, mọi thứ khác vẫn chạy.
    ============================================================ */

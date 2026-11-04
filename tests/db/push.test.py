@@ -124,6 +124,11 @@ role("postgres"); conn.execute("update public.push_config set secret = 'bi-mat-c
 
 # khách của chủ trọ B có CÙNG mã khách 'tn-a1' với khách của A (khóa chính là cặp chủ trọ + mã): không được lẫn sang nhau
 role("postgres"); conn.execute("insert into public.tenant_push_subs(endpoint, owner_id, tenant_id, p256dh, auth) values ('https://fcm.googleapis.com/fcm/send/b-cung-ma', %s, 'tn-a1', %s, %s)", (B, K256, KAUTH))
+test("không có khóa anon thì không gửi header Authorization / apikey", lambda: (reset(), notice(A, "P101"), (lambda h: expect("Authorization" not in h and "apikey" not in h, h))(calls()[0][2])))
+role("postgres"); conn.execute("update public.push_config set anon_key = 'anon.cong.khai' where id = 1")
+test("có khóa anon thì gửi kèm Authorization: Bearer và apikey (giữ xác thực JWT mặc định của Supabase)", lambda: (reset(), notice(A, "P101"), (lambda h: expect(h["Authorization"] == "Bearer anon.cong.khai" and h["apikey"] == "anon.cong.khai" and h["x-push-secret"] == "bi-mat-chung", h))(calls()[0][2])))
+role("postgres"); conn.execute("update public.push_config set anon_key = '' where id = 1")
+test("khóa anon rỗng thì coi như không có", lambda: (reset(), notice(A, "P101"), (lambda h: expect("Authorization" not in h, h))(calls()[0][2])))
 print("\nNhắc hạn đóng tiền (theo phòng)")
 def t_room():
     reset(); notice(A, "P101", "Hóa đơn T10 sắp đến hạn"); c = calls()

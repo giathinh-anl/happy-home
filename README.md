@@ -365,11 +365,13 @@ Cách hoạt động: trigger trong CSDL (`supabase/migration-push.sql`) gom cá
 Các bước (chi tiết ở đầu `supabase/functions/push-send/index.ts`):
 1. Chạy `supabase/migration-push.sql` (sau `migration-tenant-auth.sql`, `migration-support-chat.sql`, `migration-nightly.sql`) và bật **Database → Extensions → pg_net**.
 2. `node tools/push/tao-khoa-vapid.js` tạo cặp khóa VAPID (chỉ in ra màn hình, không ghi tệp). Khóa **bí mật** chỉ đưa vào Supabase: `supabase secrets set VAPID_PRIVATE_KEY=... VAPID_PUBLIC_KEY=... VAPID_SUBJECT=mailto:<email> PUSH_SECRET=<chuỗi ngẫu nhiên dài>`.
-3. `supabase functions deploy push-send --no-verify-jwt`.
-4. SQL Editor: `update public.push_config set url = 'https://<project-ref>.supabase.co/functions/v1/push-send', secret = '<đúng PUSH_SECRET>' where id = 1;`
+3. `supabase functions deploy push-send` (**không** tắt xác thực JWT: CSDL gửi kèm khóa anon công khai, hàm vẫn kiểm thêm chuỗi bí mật riêng; dán tay trong trang Supabase thì tạo đủ hai tệp `index.ts` và `push.ts`).
+4. SQL Editor: `update public.push_config set url = 'https://<project-ref>.supabase.co/functions/v1/push-send', secret = '<đúng PUSH_SECRET>', anon_key = '<khóa anon trong js/config.js>' where id = 1;`
 5. Dán khóa **công khai** vào `js/config.js` (`vapidPublicKey`); khóa công khai thì commit được.
 
-Kiểm thử: SQL trên Postgres thật có `pg_net` giả (`tests/db/push.test.py`, 29 ca, thử phá 17 chỗ, 15 chỗ bị bắt và 2 chỗ còn lại là kiểu tương đương), phần kiểm của hàm Edge (`tests/push-send.test.js`, 25 ca gồm cả công cụ tạo khóa), service worker chạy trong "self" giả (`tests/tenant-sw.test.js`, 12 ca). **Chưa thử được:** gửi thật tới điện thoại (cần khóa VAPID thật và hàm đã triển khai), và Deno chưa có trên máy nên `index.ts` mới được đọc kỹ chứ chưa chạy thử.
+**Tình trạng (4/11/2026): đã triển khai trên Supabase thật**, gồm `migration-push.sql`, bật `pg_net`, bốn bí mật (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `PUSH_SECRET`), hàm `push-send` và khóa công khai trong `js/config.js`. Đã thử từ CSDL qua `pg_net`: đúng bí mật trả 200, sai bí mật trả 401, thiếu JWT bị Supabase chặn, và một đăng ký giả tới Google FCM được hàm mã hóa, ký, gửi rồi nhận phản hồi "không còn tồn tại" (đúng hành vi mong đợi). **Chưa thử với một điện thoại thật nhận thông báo.**
+
+Kiểm thử: SQL trên Postgres thật có `pg_net` giả (`tests/db/push.test.py`, 32 ca, thử phá 17 chỗ, 15 chỗ bị bắt và 2 chỗ còn lại là kiểu tương đương), phần kiểm của hàm Edge (`tests/push-send.test.js`, 25 ca gồm cả công cụ tạo khóa), service worker chạy trong "self" giả (`tests/tenant-sw.test.js`, 12 ca). **Chưa thử được:** gửi thật tới điện thoại (cần khóa VAPID thật và hàm đã triển khai), và Deno chưa có trên máy nên `index.ts` mới được đọc kỹ chứ chưa chạy thử.
 
 ## Trang giới thiệu có hiệu ứng cuộn
 
