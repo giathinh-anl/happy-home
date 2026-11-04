@@ -4,7 +4,19 @@ Các mục dưới đây cần **tài khoản đứng tên bạn** (ngân hàng,
 
 Giá và điều kiện của các dịch vụ này **hay đổi**; những gì ghi dưới đây lấy từ tài liệu công khai lúc viết (30/10/2026), chỗ nào chưa kiểm chứng được tôi ghi rõ. Luôn đối chiếu trang chính thức trước khi trả tiền.
 
-## Thứ tự nên làm
+## Việc nào cần gì từ bạn (cập nhật 4/11/2026)
+
+**A. Không cần tài khoản ngoài, chỉ cần bạn nhắn "OK chạy" trong chat** (tôi chạy từng tệp SQL trên Supabase của bạn, một tệp một lần, đọc kỹ trước khi chạy):
+
+| Tệp | Mở ra chức năng gì |
+|---|---|
+| `migration-public-rooms.sql` | Link và mã QR giới thiệu phòng trống (trang `phong/`) |
+| `migration-tenant-code-self.sql` | Khách tự đổi mã vào app, nút "Quên mã?", việc "khách xin cấp lại mã" cho chủ trọ |
+| `migration-incident-rating.sql` | Khách chấm sao sau khi sửa xong, chủ trọ thấy sao trong danh sách sự cố |
+
+**B. Thông báo đẩy lên điện thoại khách: không cần tài khoản trả tiền**, nhưng cần bạn cho phép tôi thao tác trên trang Supabase của bạn (qua Chrome đang đăng nhập sẵn) và cho một **địa chỉ email** làm người liên hệ của dịch vụ đẩy. Tôi bật `pg_net`, tạo khóa VAPID (khóa bí mật chỉ đi từ máy tôi vào Supabase, không qua chat), chạy `migration-push.sql`, triển khai hàm `push-send`, rồi thử trên điện thoại của bạn. Chi tiết các bước ở README, mục "Thông báo đẩy". iPhone chỉ nhận thông báo sau khi đã thêm app vào màn hình chính.
+
+**C. Cần tài khoản ngoài đứng tên bạn** (bảng dưới). Bạn đăng ký, báo tôi, tôi làm phần kết nối:
 
 | # | Việc | Vì sao | Mất bao lâu |
 |---|---|---|---|
@@ -12,6 +24,9 @@ Giá và điều kiện của các dịch vụ này **hay đổi**; những gì 
 | 2 | **Zalo OA** (và ZNS nếu muốn tự gửi tin) | Duyệt mất vài ngày nên nộp sớm; chưa cần thì có thể chờ | Chờ duyệt khoảng 7 ngày |
 | 3 | SMS (nhà cung cấp tin nhắn) | Chỉ cần nếu muốn nhắc nợ qua SMS | Tùy nhà cung cấp |
 | 4 | Zalo Mini App | Không gấp; app khách thuê đã cài được như ứng dụng | Làm sau cùng |
+| 5 | Khóa thông minh TTLock | Trang "Khóa thông minh" hiện chỉ là màn hình mô phỏng; muốn mở khóa thật cần khóa TTLock thật và tài khoản nhà phát triển của họ | Tùy bạn có khóa chưa |
+
+**Vì sao chưa làm sẵn hàng đợi gửi Zalo/SMS:** nội dung gửi ZNS phụ thuộc vào **mẫu tin Zalo duyệt cho bạn** (mã mẫu và các biến trong mẫu), SMS phụ thuộc nhà cung cấp bạn chọn. Viết trước khi biết hai thứ đó là viết mò, dễ sai mà không thử được. Khi bạn có mã mẫu và chọn xong nhà cung cấp, tôi làm hàng đợi (gửi, thử lại khi lỗi, lịch sử gửi) đúng theo đó và thử cùng bạn bằng một tin thật.
 
 Hiện app **đã soạn sẵn tin nhắc nợ** và mở Zalo cá nhân để bạn bấm gửi (miễn phí). Mục 2 và 3 chỉ cần khi bạn muốn **tự gửi hàng loạt**.
 
