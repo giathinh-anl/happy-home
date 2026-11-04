@@ -413,6 +413,23 @@ a { color: inherit; }
 }
 .foot nav { display: flex; flex-wrap: wrap; gap: 4px 22px; }
 .foot a { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* Khi cảnh cuộn chạy: chân trang KHÔNG nằm trong dòng chảy nữa. Nếu nằm, đoạn cuộn cuối cùng (bằng đúng chiều cao chân trang)
+   đẩy cả khung cảnh lên theo, chữ kết bị thanh trên che mất đầu và khu nhà bị cắt đỉnh. Cho nó nổi ở đáy, hiện ra cùng lời mời cuối;
+   trang dừng đúng ở khung đêm có bảng hiệu. Trình duyệt chưa hỗ trợ hoặc bật "giảm chuyển động" thì giữ chân trang như thường. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .foot {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; font-size: 14px;
+      padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      background: rgba(8, 11, 30, .9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      animation: foot-in linear both; animation-timeline: scroll(root); animation-range: calc(262 * var(--sv)) calc(296 * var(--sv));
+    }
+    .foot a { min-height: 36px; }
+    @keyframes foot-in { 0% { opacity: 0; visibility: hidden; transform: translateY(14px); } 6%, 100% { opacity: 1; visibility: visible; transform: none; } }
+    @media (max-width: 640px) { .foot { justify-content: center; } .foot > span { display: none; } }
+  }
+}
 '''
 
 css = CSS.replace('@@PALETTE@@', palette).replace('@@BUILDINGS@@', buildings)
