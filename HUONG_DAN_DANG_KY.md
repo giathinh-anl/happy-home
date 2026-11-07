@@ -62,7 +62,7 @@ Ngân hàng không mở API cho tài khoản cá nhân, nên phải qua một d�
 
 ### Bạn gửi tôi
 - Tên dịch vụ đã chọn, và "đã nối ngân hàng xong".
-- Thông tin để hiện trên tin nhắc nợ và mã VietQR (không phải mật khẩu): **tên ngân hàng, số tài khoản, tên chủ tài khoản**. Tôi điền vào `js/config.js` (mục `bank`). Số tài khoản nhận tiền vốn là thông tin khách phải biết, nhưng tệp này nằm trên web công khai, nên chỉ điền khi bạn đồng ý.
+- Thông tin để hiện trên tin nhắc nợ và mã VietQR (không phải mật khẩu): **tên ngân hàng, số tài khoản, tên chủ tài khoản**. Từ 7/11/2026 bạn tự nhập ngay trong app (**Cấu hình tòa nhà → Tài khoản nhận tiền**, cần chạy `migration-bank-info.sql` một lần), không phải gửi tôi và không nằm trong tệp công khai nữa. Mục `bank` trong `js/config.js` vẫn dùng được như cách cũ.
 - **Không** gửi mật khẩu, OTP, hay mã bí mật của SePay/Casso qua tin nhắn.
 
 ### Tình trạng phía Supabase (4/11/2026): ĐÃ XONG, chỉ còn bước bên SePay

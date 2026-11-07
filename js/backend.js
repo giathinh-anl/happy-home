@@ -68,8 +68,12 @@ HH.backend = (function () {
     const dateKeys = DATE_FIELDS[kind] || [];
     const serverKeys = SERVER_FIELDS[kind] || [];
     const row = { owner_id: ownerId, updated_at: new Date().toISOString() };
+    // Tài khoản nhận tiền của tòa chỉ CHỦ được ghi (DB chặn nhân viên, supabase/migration-bank-info.sql). Nhân viên lưu tòa nhà thì
+    // đừng gửi lại cột này: bản trong máy họ có thể cũ hơn bản chủ vừa đổi, gửi lên là bị chặn và cả lần lưu hỏng.
+    const laChu = !(HH.store && HH.store.isOwner) || HH.store.isOwner();
     Object.keys(obj).forEach((k) => {
       if (k === 'ownerId' || k === 'updatedAt' || serverKeys.indexOf(k) >= 0) return;
+      if (kind === 'buildings' && k === 'bankInfo' && !laChu) return;
       let v = obj[k];
       if (v != null && v !== '' && dateKeys.indexOf(k) >= 0) v = HH.dates.chuoiNgay(v) || v;   // không đổi được thì để nguyên cho DB báo lỗi
       row[alias[k] || toSnake(k)] = v;

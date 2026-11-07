@@ -18,9 +18,10 @@ Hệ thống hiện chạy cho **một chủ trọ**. Dữ liệu (phòng, khác
 - Nếu muốn **đổi mã bí mật** (nghi bị lộ): phải đổi cùng lúc ở hai nơi, bảng `bank_hooks` trong Supabase và biến `BANK_WEBHOOK_SECRET` của hàm `bank-webhook`, rồi dán mã mới vào SePay. Chỉ đổi một nơi thì SePay bị 401.
 
 ### 3. Số tài khoản hiện cho khách (VietQR, tin nhắc nợ)
-- Sửa mục `bank` trong `js/config.js` (tên ngân hàng, số tài khoản, tên chủ tài khoản), rồi đẩy lên GitHub. **Tệp này công khai**, chỉ điền thông tin mà khách cần biết.
-- Chưa điền thì app khách tự ẩn số tài khoản và mã QR (không hiện số bịa).
-- Hiện chưa có màn hình trong app để đổi mục này.
+- Chủ trọ mới tự nhập trong app: **Cấu hình tòa nhà → Tài khoản nhận tiền** (mỗi tòa một tài khoản). Không phải sửa mã, không phải đẩy lên GitHub. Dùng nút **Xem thử mã QR** để quét kiểm tra tên chủ tài khoản trước khi lưu.
+- Cần đã chạy `supabase/migration-bank-info.sql` trên Supabase (một lần). Chưa chạy thì tài khoản nhập trong app chỉ lưu tạm trong máy và khách chưa thấy.
+- Cách cũ (mục `bank` trong `js/config.js`) vẫn chạy, và là phương án dự phòng cho tòa chưa nhập. Tệp này công khai; sau khi giao xong nên bỏ mục `bank` cũ của bạn đi để số của bạn không còn hiện cho khách của người mới.
+- Chưa có tài khoản nào (cả hai nơi) thì app khách tự ẩn số tài khoản và mã QR, không hiện số bịa.
 
 ### 4. Các khóa gắn với cá nhân bạn (người mới thay bằng của họ)
 Supabase → **Edge Functions → Secrets**:

@@ -82,6 +82,33 @@
       const types = Object.entries(S.ROOM_TYPES).map(([k, v]) =>
         `<tr><td><b>${v.label}</b></td><td class="num mono">${U.currency(v.price)}</td><td class="num">${v.area} m²</td><td class="num">${v.max} người</td></tr>`).join('');
       const rooms = S.roomsOf(ctx.bid);
+      const BI = HH.bankInfo, tkRaw = S.bankInfoRaw(ctx.bid), tkDung = S.bankInfoOf(ctx.bid), laChu = S.isOwner();
+      const canh = (loai, ic, txt) => `<div class="alert alert-${loai}" style="margin:10px 0"><span class="ic">${HH.ic(ic, 16)}</span><div>${txt}</div></div>`;
+      const nguon = !tkDung
+        ? canh('warning', 'alert', 'Tòa này <b>chưa có tài khoản nhận tiền</b>. App khách đang ẩn số tài khoản và mã QR, tin nhắc nợ không có dòng số tài khoản. Nhập bên dưới để hiện cho khách.')
+        : (tkDung.nguon === 'tep' ? canh('info', 'info', 'Đang dùng tài khoản khai trong tệp <code>js/config.js</code> (cách cũ). Nhập bên dưới thì tài khoản này của tòa sẽ được ưu tiên.') : '');
+      const optNH = BI.NGAN_HANG.map(n => `<option value="${n.bin}"${tkRaw && tkRaw.bin === n.bin ? ' selected' : ''}>${U.esc(n.ten)}</option>`).join('');
+      const bankForm = laChu ? `
+          <div class="field"><label for="bkBank">Ngân hàng</label>
+            <select class="input" id="bkBank"><option value="">— Chọn ngân hàng —</option>${optNH}</select></div>
+          <div class="grid-2" style="margin-top:12px">
+            <div class="field"><label for="bkAcc">Số tài khoản</label>
+              <input class="input mono" id="bkAcc" inputmode="numeric" autocomplete="off" placeholder="Chỉ gồm chữ số" value="${U.esc(tkRaw ? tkRaw.account : '')}"></div>
+            <div class="field"><label for="bkName">Tên chủ tài khoản</label>
+              <input class="input" id="bkName" autocomplete="off" placeholder="NGUYEN VAN A" value="${U.esc(tkRaw ? tkRaw.holder : '')}">
+              <span class="hint">Tự đổi thành chữ in hoa không dấu, giống tên ngân hàng ghi.</span></div>
+          </div>
+          <p class="field-error" id="bkErr" style="color:var(--danger);margin-top:8px"></p>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" id="bkSave">Lưu tài khoản</button>
+            <button class="btn btn-outline" id="bkQr" type="button">Xem thử mã QR</button>
+            ${tkRaw ? '<button class="btn btn-outline" id="bkDel" type="button">Gỡ tài khoản</button>' : ''}
+          </div>
+          <div id="bkQrBox" style="margin-top:12px"></div>`
+        : (tkDung
+          ? `<table class="dt"><tbody><tr><td class="muted">Ngân hàng</td><td><b>${U.esc(tkDung.name)}</b></td></tr><tr><td class="muted">Số tài khoản</td><td class="mono b">${U.esc(tkDung.account)}</td></tr><tr><td class="muted">Chủ tài khoản</td><td><b>${U.esc(tkDung.holder)}</b></td></tr></tbody></table>
+             <p class="muted text-sm" style="margin-top:8px">Chỉ chủ trọ đổi được tài khoản nhận tiền.</p>`
+          : '<p class="muted text-sm">Chỉ chủ trọ nhập được tài khoản nhận tiền.</p>');
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Cấu hình tòa nhà</div><div class="page-sub">${b.name}</div></div></div>
       </div>
@@ -101,6 +128,11 @@
             <tbody>${raw(types)}</tbody></table></div>
         </div>
       </div>
+      <div class="card" id="bankCard" style="margin-top:16px;max-width:760px"><div class="card-head"><h3>Tài khoản nhận tiền</h3></div><div class="card-pad">
+        <p class="muted text-sm">Khách thấy tài khoản này trong app khách, ở mã VietQR và trong tin nhắc nợ của tòa này. Mỗi tòa có thể dùng một tài khoản riêng.</p>
+        ${raw(nguon)}<div id="bankWarn"></div>
+        ${raw(bankForm)}
+      </div></div>
       <div class="card" style="border-color:#fecaca;margin-top:16px;max-width:520px"><div class="card-pad">
         <h3 style="color:var(--danger)">Vùng nguy hiểm</h3>
         <p class="muted text-sm" style="margin:6px 0 12px">Xóa tòa nhà sẽ xóa vĩnh viễn toàn bộ phòng, khách thuê, hợp đồng, hóa đơn… của tòa này.</p>
@@ -130,6 +162,49 @@
           HH.router.render();
         }, 300);
       };
+      /* ---- Tài khoản nhận tiền (chỉ chủ trọ thấy form; luật ở js/bank-info.js) ---- */
+      const bkBank = document.getElementById('bkBank');
+      if (bkBank) {
+        const BI = HH.bankInfo;
+        const bkAcc = document.getElementById('bkAcc'), bkName = document.getElementById('bkName'), bkErr = document.getElementById('bkErr');
+        const doc = () => ({ bin: bkBank.value, account: bkAcc.value, holder: bkName.value });
+        // Chưa chạy migration-bank-info.sql thì máy chủ chưa có cột: báo rõ thay vì để chủ trọ tưởng đã lưu
+        if (HH.backend && HH.backend.hasColumn) {
+          HH.backend.hasColumn('buildings', 'bank_info').then((co) => {
+            const w = document.getElementById('bankWarn');
+            if (!co && w) w.innerHTML = `<div class="alert alert-warning" style="margin:10px 0"><span class="ic">${HH.ic('alert', 16)}</span><div>Máy chủ chưa chạy <code>migration-bank-info.sql</code> nên tài khoản nhập ở đây chỉ lưu tạm trong máy này, khách chưa thấy được.</div></div>`;
+          }).catch(() => {});
+        }
+        [bkBank, bkAcc, bkName].forEach((el) => { el.addEventListener('input', () => { bkErr.textContent = ''; }); el.addEventListener('change', () => { bkErr.textContent = ''; }); });
+        document.getElementById('bkQr').onclick = () => {
+          const loi = BI.kiemTra(doc()); bkErr.textContent = loi; if (loi) return;
+          const c = BI.chuanHoa(doc());
+          document.getElementById('bkQrBox').innerHTML = `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+            <img src="${U.esc(BI.vietQrUrl(c, 10000, 'HAPPYHOME THU'))}" alt="Mã VietQR thử" width="180" height="180" style="background:#fff;border-radius:8px;border:1px solid var(--line)">
+            <div class="text-sm" style="max-width:360px"><b>Kiểm tra trước khi lưu:</b> mở app ngân hàng của bạn, quét mã này. Màn hình chuyển tiền phải hiện đúng tên <b>${U.esc(c.holder)}</b> và ngân hàng <b>${U.esc(c.name)}</b>. Đừng bấm chuyển tiền, chỉ xem rồi thoát.<br><span class="muted">Mã được vẽ bởi vietqr.io, có gửi số tài khoản này sang họ để dựng ảnh.</span></div></div>`;
+        };
+        document.getElementById('bkSave').onclick = () => {
+          const loi = BI.kiemTra(doc()); bkErr.textContent = loi; if (loi) return;
+          const r = S.setBankInfo(ctx.bid, doc());
+          if (!r.ok) { bkErr.textContent = r.loi; return; }
+          UI.toast('Đã lưu tài khoản nhận tiền', { type: 'ok' });
+          HH.router.render();
+        };
+        const del = document.getElementById('bkDel');
+        if (del) del.onclick = () => {
+          UI.dangerDialog({
+            title: `Gỡ tài khoản nhận tiền của "${ctx.building.name}"`,
+            description: 'Khách của tòa này sẽ không còn thấy số tài khoản và mã VietQR (trừ khi tệp js/config.js có khai tài khoản dùng chung).',
+            consequences: ['Tin nhắc nợ của tòa này không còn dòng số tài khoản', 'Thao tác được ghi vào nhật ký'],
+            confirmLabel: 'Gỡ tài khoản', reasonLabel: 'Lý do gỡ',
+            onConfirm: async () => {
+              const r = S.setBankInfo(ctx.bid, null);
+              UI.toast(r.ok ? 'Đã gỡ tài khoản nhận tiền' : r.loi, { type: r.ok ? 'ok' : 'warning' });
+              HH.router.render();
+            },
+          });
+        };
+      }
       document.getElementById('delBuilding').onclick = () => {
         UI.dangerDialog({
           title: `Xóa tòa nhà "${ctx.building.name}"`,

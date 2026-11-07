@@ -52,12 +52,11 @@ HH.ai = (function () {
     ? `${pctChange(now, before)} so với ${plabel(basePer)}`
     : `chưa so được vì ${plabel(basePer)} chưa có số liệu`;
 
-  /* Tài khoản nhận tiền dùng trong tin nhắc nợ (giống app khách thuê) */
-  const BANK = Object.assign({ name: 'MB Bank', account: '0912345678', holder: 'CTY HAPPY HOME' },
-    (window.HH_CONFIG && window.HH_CONFIG.bank) || {});
-  // Bản demo (không nối máy chủ) giữ tài khoản mẫu cho đẹp. Bản chạy thật mà chưa khai báo bank thì
-  // KHÔNG đưa số mẫu vào tin gửi khách: khách chuyển nhầm vào số bịa là mất tiền thật.
-  const BANK_OK = !!(window.HH_CONFIG && window.HH_CONFIG.bank && window.HH_CONFIG.bank.account) || !(HH.backend && HH.backend.enabled);
+  /* Tài khoản nhận tiền dùng trong tin nhắc nợ: của đúng tòa (chủ trọ nhập ở Cấu hình tòa nhà), rơi về js/config.js.
+     Bản demo (không nối máy chủ) giữ tài khoản mẫu cho đẹp. Bản chạy thật mà chưa có tài khoản nào thì trả null:
+     KHÔNG đưa số mẫu vào tin gửi khách, khách chuyển nhầm vào số bịa là mất tiền thật. */
+  const BANK_DEMO = { name: 'MB Bank', account: '0912345678', holder: 'CTY HAPPY HOME' };
+  const bankFor = (bid) => S.bankInfoOf(bid) || ((HH.backend && HH.backend.enabled) ? null : BANK_DEMO);
 
   /* ============================================================
      BÓC THAM SỐ TỪ CÂU HỎI
@@ -309,11 +308,12 @@ HH.ai = (function () {
         const sum = invs.reduce((t, i) => t + i.total - i.paid, 0);
         const late = Math.max(...invs.map(lateDays));
         const lines = invs.map((i) => `- ${plabel(i.period)}: ${money(i.total - i.paid)} (nội dung CK: ${S.transferContent(i)})`);
+        const bank = bankFor(first.buildingId);
         const text = [
           `Chào anh/chị ${first.tenantName || ''}, Happy Home xin nhắc phòng ${first.roomCode} còn ${money(sum)} chưa thanh toán`
             + (late ? `, đã trễ hạn ${late} ngày.` : `, hạn ${U.fmtDate(first.dueDate)}.`),
           ...lines,
-          BANK_OK ? `Anh/chị chuyển khoản giúp em: ${BANK.name} - STK ${BANK.account} - ${BANK.holder}.` : '',
+          bank ? `Anh/chị chuyển khoản giúp em: ${bank.name} - STK ${bank.account} - ${bank.holder}.` : '',
           `Ghi đúng nội dung ở trên thì hệ thống tự cập nhật. Cảm ơn anh/chị!`,
         ].filter(Boolean).join('\n');
         return { room: first.roomCode, buildingId: first.buildingId, tenant: first.tenantName,

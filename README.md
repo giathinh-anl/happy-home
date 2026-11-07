@@ -328,6 +328,17 @@ ngân hàng. Xem ở **Khách chuyển khoản → Đối soát ngân hàng**.
 
 **Webhook bắt buộc có mã bí mật.** Hàm `bank-webhook` từ chối (401) mọi lời gọi không mang đúng mã, nhận mã từ header `Authorization: Apikey <mã>` (SePay), header `secure-token` (Casso V1) hoặc `?key=<mã>` trên link. Bản cũ chỉ kiểm khi lời gọi có kèm header `Authorization`, nên yêu cầu không kèm gì vẫn lọt: ai biết link đều bơm được giao dịch "tiền vào" giả để app tự xóa công nợ. Đã vá; phần kiểm mã tách ở `supabase/functions/bank-webhook/auth.ts`, 21 ca `tests/bank-webhook-auth.test.js`, thử phá 13 chỗ (chỉ còn một kiểu tương đương, chỉ khác thời gian chạy). Các bước đăng ký SePay / Casso / Zalo OA / SMS: xem `HUONG_DAN_DANG_KY.md`.
 
+## Tài khoản nhận tiền của từng tòa (nhập ngay trong app)
+
+Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọn ngân hàng, nhập số tài khoản và tên chủ tài khoản rồi **Lưu**. Nút **Xem thử mã QR** vẽ một mã VietQR để quét bằng app ngân hàng của chính mình và đối chiếu tên chủ tài khoản **trước khi lưu** (đừng bấm chuyển tiền). Mỗi tòa có thể một tài khoản riêng.
+
+- Khách thấy đúng tài khoản của tòa mình trong app khách (số tài khoản, mã VietQR, tin nhắn chia sẻ hóa đơn); tin nhắc nợ của chủ trọ và trợ lý ảo cũng lấy từ đây.
+- Thứ tự ưu tiên: tài khoản nhập cho tòa → mục `bank` trong `js/config.js` (cách cũ, vẫn chạy) → bản demo thì số mẫu. Bản chạy thật mà chưa có tài khoản nào thì **không hiện số và mã QR** (không bao giờ bịa số: khách chuyển nhầm là mất tiền thật).
+- Tên chủ tài khoản tự đổi thành chữ in hoa không dấu; số tài khoản bỏ khoảng trắng và dấu gạch, phải 6 đến 19 chữ số. Danh sách ngân hàng và mã (bin) lấy từ danh sách công khai của VietQR, không gõ tay (`js/bank-info.js`).
+- **Chỉ chủ trọ đổi được.** Nhân viên có quyền ghi bảng tòa nhà nên DB chặn riêng cột này bằng trigger (đổi số nhận tiền là hướng tiền thuê về đâu). Mỗi lần đổi hay gỡ đều vào nhật ký, chỉ ghi 4 số cuối.
+- Cần chạy **một lần** `supabase/migration-bank-info.sql` (thêm cột `buildings.bank_info`, trigger chặn nhân viên và kiểm dạng dữ liệu, hàm `tenant_bank` cho khách; chạy lại được, không đụng dữ liệu có sẵn). Chưa chạy thì trang cấu hình báo rõ và khách chưa thấy tài khoản nhập mới.
+- Kiểm thử: `node tests/bank-info.test.js` (26 ca) và `tests/db/bank-info.test.py` trên Postgres thật (55 ca, gồm nhân viên bị chặn, dữ liệu sai dạng, hai chủ trùng mã tòa, đối chiếu cả danh sách ngân hàng với quy tắc của DB). Thử phá 8 chỗ trong migration, cả 8 bị bắt.
+
 ## Báo cáo tháng (xem, in ra PDF, xuất Excel)
 
 Vào **Tổng quan → Báo cáo tháng** (hoặc `#/reports`). Chọn tháng ở dải tháng, chọn **toàn công ty hay một tòa**, thấy ngay một tờ báo cáo trắng đúng như bản in. Bấm **In / Lưu PDF** để mở hộp in của trình duyệt (chọn "Lưu thành PDF" là có tệp gửi người góp vốn hoặc kế toán), hoặc **Xuất Excel** để có tệp CSV mở bằng Excel (số tiền để dạng số, cộng được).

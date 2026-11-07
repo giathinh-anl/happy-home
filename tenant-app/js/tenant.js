@@ -12,12 +12,14 @@
   const TODAY = new Date();
   const CUR_PERIOD = TODAY.getFullYear() + '-' + String(TODAY.getMonth() + 1).padStart(2, '0');
   const CUR_PERIOD_LABEL = 'T' + (TODAY.getMonth() + 1) + '/' + TODAY.getFullYear();
-  // Tài khoản nhận tiền. bin = mã ngân hàng theo chuẩn NAPAS (MB Bank = 970422,
-  // Vietcombank 970436, Techcombank 970407, ACB 970416, BIDV 970418, VietinBank 970415).
-  // Đổi ở đây (hoặc đặt HH_CONFIG.bank trong js/config.js) là mã VietQR đổi theo.
-  const BANK = Object.assign(
-    { name: 'MB Bank', bin: '970422', account: '0912345678', holder: 'CTY HAPPY HOME' },
-    (window.HH_CONFIG && HH_CONFIG.bank) || {});
+  // Tài khoản nhận tiền. bin = mã ngân hàng theo chuẩn NAPAS (danh sách ở ../js/bank-info.js).
+  // Thứ tự ưu tiên: tài khoản chủ nhà nhập cho đúng tòa của khách (hàm tenant_bank, nhớ lại để xem khi mất mạng)
+  // → mục bank trong js/config.js (cách cũ) → bản demo thì số mẫu.
+  const BANK_DEMO = { name: 'MB Bank', bin: '970422', account: '0912345678', holder: 'CTY HAPPY HOME' };
+  const BI = window.HH && HH.bankInfo;
+  const BANK_CFG = BI ? BI.uuTien(null, window.HH_CONFIG)
+    : ((window.HH_CONFIG && HH_CONFIG.bank && HH_CONFIG.bank.account) ? Object.assign({}, BANK_DEMO, HH_CONFIG.bank) : null);
+  const BANK = Object.assign({}, BANK_CFG || BANK_DEMO);
 
   /* Nội dung chuyển khoản chuẩn để web quản trị tự khớp hóa đơn: "HD2608013".
      Không dùng dấu/khoảng trắng vì nhiều ngân hàng cắt bỏ ký tự lạ. */
@@ -25,14 +27,22 @@
 
   /* Mã VietQR thật — quét bằng app ngân hàng là tự điền số tiền + nội dung */
   function vietQrUrl(amount, content) {
+    if (BI) return BI.vietQrUrl(BANK, amount, content);
     return `https://img.vietqr.io/image/${encodeURIComponent(BANK.bin)}-${encodeURIComponent(BANK.account)}-compact2.png`
-      + `?amount=${encodeURIComponent(Math.round(amount || 0))}`
+      + `?amount=${encodeURIComponent(Math.max(0, Math.round(Number(amount) || 0)))}`
       + `&addInfo=${encodeURIComponent(content || '')}`
       + `&accountName=${encodeURIComponent(BANK.holder)}`;
   }
-  // Bản demo (không nối máy chủ) giữ tài khoản mẫu cho đẹp. Bản chạy thật mà chủ nhà chưa khai báo
-  // HH_CONFIG.bank thì KHÔNG hiện số mẫu và mã QR: khách chuyển vào số bịa là mất tiền thật.
-  const BANK_OK = !!(window.HH_CONFIG && HH_CONFIG.bank && HH_CONFIG.bank.account) || !enabled;
+  // Bản demo (không nối máy chủ) giữ tài khoản mẫu cho đẹp. Bản chạy thật mà chưa có tài khoản nào (chủ nhà chưa nhập,
+  // js/config.js cũng không khai) thì KHÔNG hiện số mẫu và mã QR: khách chuyển vào số bịa là mất tiền thật.
+  let BANK_OK = !!BANK_CFG || !enabled;
+  function applyBank(b) {
+    Object.assign(BANK, BANK_CFG || BANK_DEMO); BANK_OK = !!BANK_CFG || !enabled;      // về mặc định rồi mới ghi đè
+    if (b && /^[0-9]{6}$/.test(b.bin || '') && /^[0-9]{6,19}$/.test(b.account || '') && b.holder && b.name) {
+      Object.assign(BANK, { name: String(b.name), bin: String(b.bin), account: String(b.account), holder: String(b.holder) });
+      BANK_OK = true;
+    }
+  }
   const PHONE_KEY = 'hh_tenant_phone';
   const TOKEN_KEY = 'hh_tenant_token';     // token phiên do máy chủ cấp sau khi nhập đúng mã vào app
   // Logo dùng chung với web quản trị (thư mục assets ở gốc dự án)
@@ -267,6 +277,7 @@
     let c = null; try { c = HH.tenantHelpers.readCache(localStorage.getItem(CACHE_KEY), state.phone, new Date()); } catch (e) {}
     if (!c) throw err;
     state.offline = { ageMin: c.ageMin };
+    applyBank(c.data.bank);       // tài khoản nhận tiền lần xem gần nhất
     return c.data;
   }
   async function loadData() {
@@ -277,10 +288,24 @@
     const { data, error } = res;
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); return fromCache(new Error(error.message)); }
     if (data == null) { sessionLost(); throw new Error('SESSION'); }
-    await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents), loadIncidentRatings(data.incidents)]);
+    await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents), loadIncidentRatings(data.incidents),
+      loadBank().then(b => { if (b !== undefined) data.bank = b; })]);
     state.offline = null;
+    applyBank(data.bank);
     saveCache(data);
     return data;
+  }
+  /* Tài khoản nhận tiền của tòa mình (supabase/migration-bank-info.sql). undefined = chưa biết (chưa chạy migration, mất mạng, lỗi):
+     giữ tài khoản cũ; null = chủ nhà chưa nhập cho tòa này (rơi về js/config.js); có object = tài khoản đã nhập. */
+  let noBank = false;
+  async function loadBank() {
+    if (noBank) return undefined;
+    try {
+      const r = await client.rpc('tenant_bank', { p_token: state.token });
+      if (r.error) { if (rpcMissing(r.error)) noBank = true; return undefined; }
+      if (r.data == null) return undefined;       // phiên hết hạn: tenant_data đã xử lý
+      return r.data.bank || null;
+    } catch (e) { return undefined; }
   }
   /* Tiến độ sửa chữa chủ nhà đã chọn cho khách thấy (supabase/migration-incident-tracking.sql). Chưa chạy migration hay lỗi
      mạng thì vẫn hiện trạng thái chung của yêu cầu như trước. */
@@ -873,9 +898,9 @@
       <div class="divider">hoặc</div>
       <div class="t-card">
         <div style="font-weight:700;margin-bottom:6px">Chuyển khoản thủ công</div>
-        <div class="bank-row"><span class="bk">Ngân hàng</span><span class="bv">${BANK.name}</span></div>
-        <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${BANK.account}</span><button class="copybtn" data-copy="${BANK.account}" data-l="số tài khoản">${HH.ic('copy', 16)}</button></span></div>
-        <div class="bank-row"><span class="bk">Chủ tài khoản</span><span class="bv">${BANK.holder}</span></div>
+        <div class="bank-row"><span class="bk">Ngân hàng</span><span class="bv">${esc(BANK.name)}</span></div>
+        <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(BANK.account)}</span><button class="copybtn" data-copy="${esc(BANK.account)}" data-l="số tài khoản">${HH.ic('copy', 16)}</button></span></div>
+        <div class="bank-row"><span class="bk">Chủ tài khoản</span><span class="bv">${esc(BANK.holder)}</span></div>
         <div class="bank-row"><span class="bk">Số tiền</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${num(remain)}</span><button class="copybtn" data-copy="${remain}" data-l="số tiền">${HH.ic('copy', 16)}</button></span></div>
         <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div>
       </div>

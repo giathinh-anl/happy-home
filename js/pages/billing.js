@@ -641,7 +641,7 @@
     const text = (id) => {
       const p = kq.nguoi.find(x => x.id === id);
       return HH.split.soanTin(p, { phong: inv.roomCode, ky: inv.period, noiDungCK: S.transferContent(inv),
-        taiKhoan: HH.reminders.taiKhoan(window.HH_CONFIG), nguoiGui: S.prefs.userName });
+        taiKhoan: S.taiKhoanNhac(inv.buildingId), nguoiGui: S.prefs.userName });
     };
     const chep = (id) => (navigator.clipboard && navigator.clipboard.writeText)
       ? navigator.clipboard.writeText(text(id)).then(() => UI.toast('Đã chép tin nhắn', { type: 'ok' }),

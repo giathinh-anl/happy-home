@@ -833,6 +833,32 @@ HH.store = (function () {
       return HH.scoring.tinh(inv, (i) => payments.filter(p => p.invoiceId === i.id), U.today());
     },
 
+    /* ---------- Tài khoản nhận tiền của từng tòa (luật ở js/bank-info.js, lưu ở buildings.bank_info, supabase/migration-bank-info.sql) ----------
+       Tòa chưa nhập thì dùng mục bank trong js/config.js (bản cũ); chưa có cả hai thì null: không bao giờ hiện số "mẫu" cho khách. */
+    bankInfoOf(bid) { const b = buildings.find(x => x.id === bid); return HH.bankInfo.uuTien(b && b.bankInfo, window.HH_CONFIG); },
+    // Riêng phần chủ trọ đã nhập cho tòa này (không tính tệp cấu hình), để điền sẵn vào ô sửa
+    bankInfoRaw(bid) { const b = buildings.find(x => x.id === bid); return HH.bankInfo.chuanHoa(b && b.bankInfo); },
+    // Dạng { ten, so, chu } dùng trong tin nhắc nợ, hoặc null
+    taiKhoanNhac(bid) { const t = api.bankInfoOf(bid); return t ? { ten: t.name, so: t.account, chu: t.holder } : null; },
+    /** raw = null thì gỡ tài khoản của tòa. Chỉ chủ trọ được đổi (nhân viên bị chặn cả ở DB): đổi số nhận tiền là hướng tiền thuê về đâu. */
+    setBankInfo(bid, raw) {
+      if (!api.isOwner()) return { ok: false, loi: 'Chỉ chủ trọ được đổi tài khoản nhận tiền' };
+      const b = buildings.find(x => x.id === bid); if (!b) return { ok: false, loi: 'Không tìm thấy tòa nhà' };
+      const cu = HH.bankInfo.chuanHoa(b.bankInfo);
+      const dang = (t) => t ? `${t.name} ****${t.account.slice(-4)} (${t.holder})` : 'chưa có';
+      if (raw == null) {
+        api.updateBuilding(bid, { bankInfo: null });
+        api.log('bank.config', `Gỡ tài khoản nhận tiền của tòa ${b.name} (trước đó: ${dang(cu)})`);
+        return { ok: true, taiKhoan: null };
+      }
+      const loi = HH.bankInfo.kiemTra(raw); if (loi) return { ok: false, loi };
+      const c = HH.bankInfo.chuanHoa(raw);
+      api.updateBuilding(bid, { bankInfo: c });
+      // Nhật ký chỉ ghi 4 số cuối: đủ để truy lại ai đổi từ số nào sang số nào mà không để lộ cả số tài khoản trong nhật ký
+      api.log('bank.config', `Đổi tài khoản nhận tiền của tòa ${b.name}: ${dang(cu)} → ${dang(c)}`);
+      return { ok: true, taiKhoan: c };
+    },
+
     /* ---------- Điểm thưởng đóng tiền đúng hạn (luật ở js/rewards.js) ----------
        Điểm KHÔNG lưu riêng: tính lại từ hóa đơn + phiếu thu của hợp đồng đang hiệu lực, trừ điểm đã đổi (dòng 'reward' trên hóa đơn).
        Cấu hình lưu theo tòa nhà (buildings.reward_config, supabase/migration-rewards.sql), mặc định tắt. */

@@ -11,7 +11,8 @@
   const TONE = { 'sap-han': 'info', 'nhac-nhe': 'warning', 'nhac-phi': 'danger', 'khan': 'danger' };
   const levelBadge = (m) => `<span class="badge s-${TONE[m.ma]}${m.ma === 'khan' ? ' rm-khan' : ''}">${U.esc(m.nhan)}</span>`;
 
-  const taiKhoan = () => R.taiKhoan(window.HH_CONFIG);
+  // Tài khoản nhận tiền của đúng tòa (chủ trọ nhập ở Cấu hình tòa nhà), rơi về js/config.js, không có thì null: không bịa số
+  const taiKhoan = (bid) => S.taiKhoanNhac(bid);
 
   const trangThai = (bid, g) => R.trangThaiNhac(S.lastReminder(bid, g.roomCode), g.muc, U.today());
 
@@ -112,7 +113,7 @@
     const g = S.remindGroups(ctx.bid).find(x => x.key === key);
     if (!g) { UI.toast('Phòng này không còn khoản cần nhắc', { type: 'ok' }); HH.router.render(); return; }
     const policy = S.lateFeePolicy(ctx.bid), now = U.today();
-    const tk = taiKhoan();
+    const tk = taiKhoan(ctx.bid);
     const tenant = S.tenantById(g.tenantId) || {};
     const phone = String(tenant.phone || '').replace(/\D/g, '');
     const text = R.soanTin(g, { taiKhoan: tk, chinhSach: policy, noiDungCK: i => S.transferContent(i), homNay: now });
