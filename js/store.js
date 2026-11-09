@@ -453,6 +453,21 @@ HH.store = (function () {
     },
     prefs,
     setPref(k, v) { prefs[k] = v; savePrefs(); },
+    /* Ảnh đại diện: lưu trên thiết bị này, theo từng tài khoản (máy dùng chung không lẫn ảnh). Chuỗi lấy ra luôn được kiểm lại trước khi đưa vào trang. */
+    avatarKey() { return 'hh_avatar:' + ((HH.backend && HH.backend.currentUserId && HH.backend.currentUserId()) || 'local'); },
+    avatar() {
+      try { const a = localStorage.getItem(api.avatarKey()); return HH.account.avatarHopLe(a) ? a : ''; } catch (e) { return ''; }
+    },
+    setAvatar(dataUrl) {
+      try {
+        if (!dataUrl) { localStorage.removeItem(api.avatarKey()); return { ok: true }; }
+        if (!HH.account.avatarHopLe(dataUrl)) return { ok: false, loi: 'Ảnh không hợp lệ' };
+        localStorage.setItem(api.avatarKey(), dataUrl); return { ok: true };
+      } catch (e) { return { ok: false, loi: 'Bộ nhớ trình duyệt đầy hoặc bị chặn, không lưu được ảnh' }; }
+    },
+    // Nhóm việc đã tắt ở "Hôm nay cần làm gì" (js/account.js), lưu trên thiết bị này
+    anViec() { return HH.account.chuanHoaAn(prefs.anViec); },
+    setAnViec(arr) { api.setPref('anViec', HH.account.chuanHoaAn(arr)); },
     usingBackend,
     login(role) { prefs.auth = true; prefs.role = role || 'owner';
       prefs.permissions = role === 'staff' ? DEFAULT_STAFF_PERMS.slice() : null;
@@ -783,7 +798,7 @@ HH.store = (function () {
         const un = api.supportUnread();
         if (un) items.push({ id: 'hoidap', loai: 'hoidap', bid: buildings[0].id, tenToa: '', muc: 2, n: un, tieuDe: `${un} câu khách hỏi chưa trả lời`, href: `#/b/${buildings[0].id}/support`, nhanNut: 'Trả lời' });
       }
-      return items;
+      return HH.account.loc(items, prefs.anViec);       // bỏ các nhóm việc mà người dùng đã tắt (Cài đặt chung)
     },
 
     // Tổng hợp cho 3 thẻ trang phòng (kiểu LOZIDO)

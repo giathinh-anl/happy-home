@@ -209,9 +209,11 @@ HH.pages = HH.pages || {};
           ? `<button class="btn btn-sm btn-outline" data-unhoan="${U.esc(it.id)}">Hiện lại</button>`
           : `<a class="btn btn-sm btn-primary" href="${U.esc(it.href)}">${U.esc(it.nhanNut || 'Làm ngay')}</a>
              <button class="btn btn-sm btn-ghost" data-hoan="${U.esc(it.id)}" title="Ẩn việc này đến hết hôm nay. Nặng thêm thì tự hiện lại">Hoãn</button>`}</div></li>`;
+    const nAn = S.anViec().length;       // nhóm việc người dùng đã tắt ở Cài đặt chung: nói rõ, đừng để tưởng là hết việc
     let html = r.hien.length
       ? `<ol class="td-list">${r.hien.map((it, i) => row(it, false, i)).join('')}</ol>`
-      : `<div class="dh-calm">${pic('house', 46)}<p>${r.daHoan.length ? 'Hết việc cho hôm nay (còn các việc đã hoãn).' : 'Mọi việc đã xong, không có gì tồn đọng.'}</p></div>`;
+      : `<div class="dh-calm">${pic('house', 46)}<p>${r.daHoan.length ? 'Hết việc cho hôm nay (còn các việc đã hoãn).' : nAn ? 'Không có việc nào ở các nhóm đang bật.' : 'Mọi việc đã xong, không có gì tồn đọng.'}</p></div>`;
+    if (nAn) html += `<div class="td-hoan"><a class="link-sm" href="#/config">Đang ẩn ${nAn} nhóm việc (đổi ở Cài đặt chung)</a></div>`;
     if (r.daHoan.length) html += `<div class="td-hoan"><button class="link-sm" id="tdShowHoan">${tdShowHoan ? 'Ẩn' : 'Xem'} ${r.daHoan.length} việc đã hoãn</button>
         ${tdShowHoan ? `<ol class="td-list td-list-hoan">${r.daHoan.map((it, i) => row(it, true, i)).join('')}</ol>` : ''}</div>`;
     return { html, sum };

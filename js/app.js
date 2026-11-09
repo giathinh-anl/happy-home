@@ -47,6 +47,9 @@ HH.app = (function () {
      ============================================================ */
   let lastBid = null;   // tòa đang làm việc, giữ lại khi sang trang cấp công ty
 
+  /* Bên trong ô tròn đại diện: ảnh nếu có (đã kiểm ở S.avatar), không thì hai chữ cái đầu của tên */
+  const avInner = (name) => { const a = S.avatar ? S.avatar() : ''; return a ? `<img src="${a}" alt="">` : U.esc(U.initials(name || 'H')); };
+
   const cntBadge = (n, cls) => n ? `<span class="${cls}">${n > 99 ? '99+' : n}</span>` : '';
 
   function counts(bid) {
@@ -85,7 +88,7 @@ HH.app = (function () {
         <a class="hd-bell pic-hop ${path === '/noti' ? 'active' : ''}" href="#/noti" aria-label="Thông báo${c.noti ? ', ' + c.noti + ' mục' : ''}">
           ${pic('bell', 28)}${cntBadge(c.noti > 9 ? '9+' : c.noti, 'hd-cnt')}</a>
         <button class="hd-user" data-act="account" aria-haspopup="menu" aria-label="Tài khoản">
-          <span class="av">${U.esc(U.initials(name || 'H'))}</span>
+          <span class="av">${avInner(name)}</span>
           <span class="u-txt"><b>${U.esc(name)}</b><small>${S.isOwner() ? 'Chủ trọ' : 'Nhân viên'}</small></span>
           ${ic('chevron', 14)}</button>
       </div>
@@ -126,7 +129,7 @@ HH.app = (function () {
         <small>Đang quản lý</small><span><b>${U.esc(b ? b.name : 'Chưa có tòa nhà')}</b>${ic('chevron', 14)}</span></button>
       <button class="mt-btn" id="btnSyncM" aria-label="Tải lại dữ liệu khách gửi">${pic('refresh2', 26)}</button>
       <a class="mt-btn" href="#/noti" aria-label="Thông báo${c.noti ? ', ' + c.noti + ' mục' : ''}">${pic('bell', 26)}${cntBadge(c.noti > 9 ? '9+' : c.noti, 'hd-cnt')}</a>
-      <button class="av" data-act="account" aria-haspopup="menu" aria-label="Tài khoản">${U.esc(U.initials(name || 'H'))}</button>
+      <button class="av" data-act="account" aria-haspopup="menu" aria-label="Tài khoản">${avInner(name)}</button>
     </header>`;
   }
 
@@ -171,7 +174,7 @@ HH.app = (function () {
         <em>${rooms.length} phòng, ${rooms.length ? Math.round(occ / rooms.length * 100) : 0}%</em></button>
       <h4>Tòa nhà</h4><div class="sheet-grid">${bTiles}</div>` : ''}
       <h4>Công ty</h4><div class="sheet-grid">${cTiles}</div>
-      <div class="sheet-user"><span class="av">${U.esc(U.initials(name || 'H'))}</span>
+      <div class="sheet-user"><span class="av">${avInner(name)}</span>
         <span><b>${U.esc(name)}</b><small>${S.isOwner() ? 'Chủ trọ' : 'Nhân viên'}</small></span>
         <button class="btn btn-outline btn-sm" id="shAcct">Tài khoản</button></div>
     </div>`;

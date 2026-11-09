@@ -1246,15 +1246,59 @@
     </div>`;
   }
 
+  /* Đọc ảnh người dùng chọn, cắt vuông giữa ảnh, thu về 160 px, nén JPEG cho đủ nhỏ để lưu. Hình học ở HH.account.cat (có kiểm thử). */
+  function docAnhVuong(file) {
+    return new Promise((resolve, reject) => {
+      const A = HH.account, loi = A.kiemTepAnh(file);
+      if (loi) { reject(new Error(loi)); return; }
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        try {
+          const g = A.cat(img.naturalWidth, img.naturalHeight);
+          if (!g) throw new Error('Không đọc được kích thước ảnh');
+          const cv = document.createElement('canvas'); cv.width = g.dw; cv.height = g.dh;
+          const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, g.dw, g.dh);     // ảnh PNG trong suốt không bị nền đen
+          cx.drawImage(img, g.sx, g.sy, g.sw, g.sh, 0, 0, g.dw, g.dh);
+          let q = 0.85, out = cv.toDataURL('image/jpeg', q);
+          while (out.length > A.AVATAR_TOI_DA_KY_TU && q > 0.4) { q -= 0.15; out = cv.toDataURL('image/jpeg', q); }
+          if (!A.avatarHopLe(out)) throw new Error('Không thu nhỏ được ảnh này, hãy thử ảnh khác');
+          resolve(out);
+        } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Không mở được ảnh này, hãy thử ảnh khác')); };
+      img.src = url;
+    });
+  }
+
   HH.pages.companyConfig = {
     render() {
+      const avatar = S.avatar(), backend = S.usingBackend(), an = S.anViec(), laChu = S.isOwner();
+      const avHtml = avatar ? `<img src="${avatar}" alt="Ảnh đại diện">` : U.esc(U.initials(S.prefs.userName || 'H'));
+      const nhomViec = HH.account.NHOM_VIEC.map(g => `<label class="hs-nv"><input type="checkbox" data-nv="${g.ma}"${an.indexOf(g.ma) < 0 ? ' checked' : ''}>
+          <span><b>${U.esc(g.ten)}</b><br><span class="muted text-xs">${U.esc(g.mo)}</span></span></label>`).join('');
       return h`<div class="page-head">
         <div><div><div class="page-title-lg">Cài đặt chung</div><div class="page-sub">Thiết lập tài khoản & ứng dụng</div></div></div>
       </div>
       <div class="grid-2" style="align-items:start">
-        <div class="card"><div class="card-head"><h3>Tài khoản</h3></div><div class="card-pad">
-          <div class="field"><label>Tên hiển thị</label><input class="input" id="cfgName" value="${U.esc(S.prefs.userName)}"></div>
-          <div style="margin-top:16px"><button class="btn btn-primary" id="cfgSave">Lưu</button></div>
+        <div class="card"><div class="card-head"><h3>Hồ sơ</h3></div><div class="card-pad">
+          <div class="hs-avrow">
+            <span class="av hs-av" id="hsAv">${raw(avHtml)}</span>
+            <div>
+              <div class="hs-btns">
+                <label class="btn btn-outline btn-sm" for="hsFile">${HH.ic('camera', 16)} Đổi ảnh</label>
+                <input type="file" id="hsFile" accept="image/jpeg,image/png,image/webp" hidden>
+                ${raw(avatar ? '<button class="btn btn-outline btn-sm" id="hsDel" type="button">Gỡ ảnh</button>' : '')}
+              </div>
+              <span class="hint">Ảnh được cắt vuông, thu nhỏ và lưu trên thiết bị này.</span>
+              <p class="hs-err" id="hsErr"></p>
+            </div>
+          </div>
+          <div class="field"><label for="cfgName">Tên hiển thị</label>
+            <input class="input" id="cfgName" value="${U.esc(S.prefs.userName)}" maxlength="60"${backend && !laChu ? ' disabled' : ''}>
+            ${raw(backend && !laChu ? '<span class="hint">Tên của nhân viên do chủ trọ đặt ở Công ty/nhóm.</span>' : '')}</div>
+          ${raw(backend ? '<div class="field" style="margin-top:12px"><label>Email đăng nhập</label><div class="mono" id="cfgEmail">…</div></div>' : '')}
+          <div class="field" style="margin-top:12px"><label>Ngôn ngữ</label><div>Tiếng Việt <span class="hint">· chưa có bản tiếng Anh</span></div></div>
+          <div style="margin-top:16px"><button class="btn btn-primary" id="cfgSave"${backend && !laChu ? ' disabled' : ''}>Lưu</button></div>
         </div></div>
         <div class="card"><div class="card-head"><h3>Vai trò & quyền của bạn</h3></div><div class="card-pad">
           <div class="field"><label>Vai trò</label><div>${raw(S.isOwner()
@@ -1268,16 +1312,92 @@
           <div class="field" style="margin-top:12px"><label>Phiên bản</label><div class="mono">Happy Home v1.0</div></div>
           ${raw(S.isOwner() ? '<div style="margin-top:16px"><button class="btn btn-outline" id="cfgReset" style="color:var(--danger)">' + HH.ic('refresh', 16) + (S.usingBackend() ? ' Xóa toàn bộ dữ liệu' : ' Khôi phục dữ liệu mẫu') + '</button></div>' : '')}
         </div></div>
+        ${raw(backend ? `<div class="card"><div class="card-head"><h3>Đổi mật khẩu</h3></div><div class="card-pad">
+          <div class="field"><label for="pwOld">Mật khẩu hiện tại</label>
+            <input class="input" id="pwOld" type="password" autocomplete="current-password"><p class="hs-err" id="pwOldErr"></p></div>
+          <div class="field" style="margin-top:12px"><label for="pwNew">Mật khẩu mới</label>
+            <input class="input" id="pwNew" type="password" autocomplete="new-password"><p class="hs-err" id="pwNewErr"></p>
+            <div class="hs-meter" id="pwMeter" data-n="0"><i></i><i></i><i></i><i></i></div><div class="hs-meter-txt" id="pwMeterTxt"></div></div>
+          <div class="field" style="margin-top:12px"><label for="pwNew2">Nhập lại mật khẩu mới</label>
+            <input class="input" id="pwNew2" type="password" autocomplete="new-password"><p class="hs-err" id="pwNew2Err"></p></div>
+          <label class="check" style="margin-top:8px"><input type="checkbox" id="pwShow"><span>Hiện mật khẩu</span></label>
+          <p class="hint" style="margin-top:8px">Tối thiểu 8 ký tự, có cả chữ và số, không dùng mật khẩu dễ đoán.</p>
+          <div style="margin-top:12px"><button class="btn btn-primary" id="pwSave">Đổi mật khẩu</button></div>
+        </div></div>` : '')}
+        <div class="card"><div class="card-head"><h3>Việc hiện ở "Hôm nay cần làm gì"</h3></div><div class="card-pad">
+          <p class="muted text-sm" style="margin-bottom:8px">Bỏ chọn nhóm nào thì trang Tổng quan không nhắc nhóm đó nữa (chỉ áp dụng trên thiết bị này). Việc vẫn còn đó, bạn vẫn vào từng trang để xem.</p>
+          ${raw(nhomViec)}
+          <p class="hint" id="nvHint" style="margin-top:8px"></p>
+        </div></div>
         <div class="card" style="grid-column:1/-1"><div class="card-head"><h3>Trợ lý ảo (AI)</h3></div>
           <div class="card-pad">${raw(aiStatusHtml())}</div></div>
       </div>`;
     },
     mount() {
-      document.getElementById('cfgSave').onclick = () => {
-        const name = document.getElementById('cfgName').value.trim();
-        if (name) { S.setPref('userName', name); UI.toast('Đã lưu', { type: 'ok' }); HH.router.render(); }
+      const el = (id) => document.getElementById(id), A = HH.account;
+      let emailNow = '';
+      if (el('cfgEmail')) HH.backend.currentEmail().then((e) => { emailNow = e; const t = el('cfgEmail'); if (t) t.textContent = e || 'không rõ'; });
+
+      /* ---- Hồ sơ ---- */
+      el('cfgSave').onclick = async () => {
+        const name = el('cfgName').value.trim().replace(/\s+/g, ' ');
+        if (!name) { UI.toast('Nhập tên hiển thị', { type: 'warning' }); return; }
+        if (name.length > 60) { UI.toast('Tên tối đa 60 ký tự', { type: 'warning' }); return; }
+        S.setPref('userName', name);
+        let note = 'Đã lưu';
+        if (S.usingBackend() && S.isOwner()) {
+          const r = await HH.backend.updateDisplayName(name);
+          if (r.error) note = 'Đã lưu trên máy này, nhưng chưa lưu được lên máy chủ (đăng nhập lại có thể quay về tên cũ)';
+        }
+        UI.toast(note, { type: note === 'Đã lưu' ? 'ok' : 'warning' }); HH.router.render();
       };
-      const rst = document.getElementById('cfgReset');
+      el('hsFile').onchange = async () => {
+        const f = el('hsFile').files && el('hsFile').files[0], err = el('hsErr'); err.textContent = '';
+        if (!f) return;
+        try {
+          const r = S.setAvatar(await docAnhVuong(f));
+          if (!r.ok) { err.textContent = r.loi; return; }
+          UI.toast('Đã đổi ảnh đại diện', { type: 'ok' }); HH.router.render();
+        } catch (e) { err.textContent = e.message || 'Không đổi được ảnh'; }
+        finally { el('hsFile').value = ''; }
+      };
+      const hd = el('hsDel');
+      if (hd) hd.onclick = () => { S.setAvatar(null); UI.toast('Đã gỡ ảnh đại diện', { type: 'ok' }); HH.router.render(); };
+
+      /* ---- Đổi mật khẩu (chỉ khi nối máy chủ) ---- */
+      const pwSave = el('pwSave');
+      if (pwSave) {
+        const v = (id) => el(id).value;
+        const showErr = (loi) => { ['Old', 'New', 'New2'].forEach((k) => { el('pw' + k + 'Err').textContent = ''; });
+          if (loi.cu) el('pwOldErr').textContent = loi.cu; if (loi.moi) el('pwNewErr').textContent = loi.moi; if (loi.nhapLai) el('pwNew2Err').textContent = loi.nhapLai; };
+        el('pwNew').oninput = () => { const m = A.doManh(v('pwNew')); el('pwMeter').dataset.n = m.diem; el('pwMeterTxt').textContent = m.nhan ? 'Độ mạnh: ' + m.nhan : ''; };
+        el('pwShow').onchange = () => { ['pwOld', 'pwNew', 'pwNew2'].forEach((id) => { el(id).type = el('pwShow').checked ? 'text' : 'password'; }); };
+        pwSave.onclick = async () => {
+          const d = { cu: v('pwOld'), moi: v('pwNew'), nhapLai: v('pwNew2'), email: emailNow };
+          const r = A.kiemMatKhau(d); showErr(r.loi);
+          if (!r.ok) { const first = r.loi.cu ? 'pwOld' : r.loi.moi ? 'pwNew' : 'pwNew2'; el(first).focus(); return; }
+          pwSave.disabled = true; pwSave.classList.add('loading');
+          let res; try { res = await HH.backend.changePassword(d.cu, d.moi); } catch (e) { res = { error: 'khac', message: String(e.message || e) }; }
+          pwSave.disabled = false; pwSave.classList.remove('loading');
+          if (res.ok) {
+            ['pwOld', 'pwNew', 'pwNew2'].forEach((id) => { el(id).value = ''; el(id).type = 'password'; }); el('pwShow').checked = false; el('pwMeter').dataset.n = 0; el('pwMeterTxt').textContent = ''; showErr({});
+            UI.toast('Đã đổi mật khẩu', { type: 'ok' });
+          } else if (res.error === 'sai-mat-khau-cu') { showErr({ cu: 'Mật khẩu hiện tại chưa đúng' }); el('pwOld').focus(); }
+          else if (res.error === 'trung-mat-khau-cu') showErr({ moi: 'Mật khẩu mới phải khác mật khẩu hiện tại' });
+          else if (res.error === 'khong-co-phien') UI.toast('Phiên đăng nhập đã hết, hãy đăng nhập lại rồi đổi mật khẩu', { type: 'warning' });
+          else UI.toast('Chưa đổi được mật khẩu' + (res.message ? ': ' + res.message : '') + '. Thử lại sau.', { type: 'danger' });
+        };
+      }
+
+      /* ---- Nhóm việc ở "Hôm nay cần làm gì" ---- */
+      const hintNv = () => { const n = S.anViec().length; el('nvHint').textContent = n === A.NHOM_VIEC.length ? 'Bạn đã tắt hết: trang Tổng quan sẽ không nhắc việc nào.' : n ? `Đang ẩn ${n} nhóm.` : ''; };
+      hintNv();
+      document.querySelectorAll('[data-nv]').forEach((cb) => cb.onchange = () => {
+        const tat = [...document.querySelectorAll('[data-nv]')].filter((x) => !x.checked).map((x) => x.dataset.nv);
+        S.setAnViec(tat); hintNv(); UI.toast('Đã lưu', { type: 'ok' });
+      });
+
+      const rst = el('cfgReset');
       if (rst) rst.onclick = () => HH.app.resetDialog();
     },
   };

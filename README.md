@@ -339,6 +339,15 @@ Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọ
 - Cần chạy **một lần** `supabase/migration-bank-info.sql` (thêm cột `buildings.bank_info`, trigger chặn nhân viên và kiểm dạng dữ liệu, hàm `tenant_bank` cho khách; chạy lại được, không đụng dữ liệu có sẵn). Chưa chạy thì trang cấu hình báo rõ và khách chưa thấy tài khoản nhập mới.
 - Kiểm thử: `node tests/bank-info.test.js` (26 ca) và `tests/db/bank-info.test.py` trên Postgres thật (55 ca, gồm nhân viên bị chặn, dữ liệu sai dạng, hai chủ trùng mã tòa, đối chiếu cả danh sách ngân hàng với quy tắc của DB). Thử phá 8 chỗ trong migration, cả 8 bị bắt.
 
+## Hồ sơ và cài đặt cá nhân (Cài đặt chung)
+
+- **Ảnh đại diện:** bấm *Đổi ảnh*, ảnh được cắt vuông giữa ảnh, thu về 160 px, nén JPEG (vài KB) rồi hiện ở đầu trang và trong hồ sơ. Chỉ nhận JPG, PNG, WebP (không nhận SVG vì SVG chạy được mã), tối đa 8 MB trước khi thu nhỏ. Ảnh **lưu trên từng thiết bị**, theo từng tài khoản (máy dùng chung không lẫn ảnh); chưa đồng bộ giữa các máy.
+- **Tên hiển thị:** chủ trọ sửa được và được lưu lên hồ sơ đăng nhập (đăng nhập lại không quay về tên cũ). Tên nhân viên do chủ trọ đặt ở Công ty/nhóm nên ô này khóa với nhân viên.
+- **Đổi mật khẩu** (khi nối máy chủ): bắt nhập mật khẩu hiện tại và đăng nhập lại bằng nó trước khi đặt mật khẩu mới. Mật khẩu mới tối thiểu 8 ký tự, tối đa 72 (giới hạn của bcrypt), có cả chữ và số, khác mật khẩu cũ, không chứa tên đăng nhập, và không nằm trong danh sách mật khẩu dễ đoán (có `demo1234` vì chuỗi này nằm trong mã nguồn công khai). Có thanh độ mạnh và nút hiện mật khẩu.
+- **Việc hiện ở "Hôm nay cần làm gì":** tắt từng nhóm việc (tiền và công nợ, hợp đồng, sự cố, điện nước và hóa đơn, khách thuê, hỏi đáp). Lưu trên thiết bị này. Trang Tổng quan nói rõ "Đang ẩn N nhóm" để không ai tưởng là hết việc; việc có mã loại mới chưa được xếp nhóm thì luôn hiện.
+- **Ngôn ngữ:** hiện chỉ có tiếng Việt; chưa có bản tiếng Anh nên chưa có ô chọn.
+- Luật nằm ở `js/account.js` (thuần, `node tests/account.test.js`, 29 ca; thử phá 18 chỗ, cả 18 bị bắt). Không cần chạy SQL nào.
+
 ## Báo cáo tháng (xem, in ra PDF, xuất Excel)
 
 Vào **Tổng quan → Báo cáo tháng** (hoặc `#/reports`). Chọn tháng ở dải tháng, chọn **toàn công ty hay một tòa**, thấy ngay một tờ báo cáo trắng đúng như bản in. Bấm **In / Lưu PDF** để mở hộp in của trình duyệt (chọn "Lưu thành PDF" là có tệp gửi người góp vốn hoặc kế toán), hoặc **Xuất Excel** để có tệp CSV mở bằng Excel (số tiền để dạng số, cộng được).

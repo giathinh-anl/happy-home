@@ -120,6 +120,30 @@ HH.backend = (function () {
   }
   function currentUserId() { return ownerId; }
 
+  /** Email của phiên đang đăng nhập (rỗng nếu chưa có phiên hoặc chưa nối máy chủ) */
+  async function currentEmail() {
+    if (!enabled || !client) return '';
+    try { const { data } = await client.auth.getSession(); return (data && data.session && data.session.user && data.session.user.email) || ''; } catch (e) { return ''; }
+  }
+  /** Đổi mật khẩu. Bắt đăng nhập lại bằng mật khẩu hiện tại trước (người ngồi nhầm máy đang mở sẵn app không đổi được mật khẩu của chủ),
+      rồi mới đặt mật khẩu mới. Trả { ok: true } hoặc { error: 'sai-mat-khau-cu' | 'trung-mat-khau-cu' | 'khong-co-phien' | 'khong-co-may-chu' | 'khac', message }. */
+  async function changePassword(cu, moi) {
+    if (!enabled || !client) return { error: 'khong-co-may-chu' };
+    const email = await currentEmail();
+    if (!email) return { error: 'khong-co-phien' };
+    const re = await client.auth.signInWithPassword({ email, password: cu });
+    if (re.error) return { error: /invalid login|invalid credentials/i.test(re.error.message || '') ? 'sai-mat-khau-cu' : 'khac', message: re.error.message };
+    const up = await client.auth.updateUser({ password: moi });
+    if (up.error) return { error: /different from the old|same.*password/i.test(up.error.message || '') ? 'trung-mat-khau-cu' : 'khac', message: up.error.message };
+    return { ok: true };
+  }
+  /** Lưu tên hiển thị vào hồ sơ đăng nhập (user_metadata.full_name), để đăng nhập lại không quay về tên cũ */
+  async function updateDisplayName(name) {
+    if (!enabled || !client) return { error: 'khong-co-may-chu' };
+    try { const r = await client.auth.updateUser({ data: { full_name: name } }); return r.error ? { error: r.error.message } : { ok: true }; }
+    catch (e) { return { error: String((e && e.message) || e) }; }
+  }
+
   /** Tìm bản ghi nhân viên theo email đang đăng nhập (nếu người này được chủ trọ thêm vào) */
   async function findStaffByEmail(email) {
     if (!enabled || !email) return null;
@@ -278,7 +302,7 @@ HH.backend = (function () {
     return { error: { message: msg } };
   }
 
-  return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, findStaffByEmail,
+  return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail,
     loadAll, loadKind, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
     client: () => client, KINDS };
 })();
