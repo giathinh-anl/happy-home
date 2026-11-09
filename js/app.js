@@ -321,6 +321,7 @@ HH.app = (function () {
     });
     const more = document.getElementById('moreBtn');
     if (more) more.onclick = () => openMoreMenu(more, params.bid);
+    if (HH.tourUI) setTimeout(() => HH.tourUI.goiY(), 900);       // lần đầu dùng: gợi ý xem hướng dẫn nhanh (thẻ nhỏ, không chặn)
     const mm = document.getElementById('mMenu');
     if (mm) mm.onclick = () => openSheet(params.bid);
     ['btnSync', 'btnSyncM'].forEach(id => {
@@ -385,7 +386,9 @@ HH.app = (function () {
       { icon: ic(S.isOwner() ? 'check' : 'user', 16), label: 'Xem thử: Chủ trọ', onClick: () => switchRole('owner') },
       { icon: ic(!S.isOwner() ? 'check' : 'user', 16), label: 'Xem thử: Nhân viên', onClick: () => switchRole('staff') },
       { sep: true });
-    if (S.isOwner()) items.push({ icon: ic('users', 16), label: 'Quản lý nhân viên', onClick: () => HH.router.go('/group') }, { sep: true });
+    items.push({ icon: ic('help', 16), label: 'Trợ giúp và hướng dẫn', onClick: () => HH.router.go('/help') });
+    if (S.isOwner()) items.push({ icon: ic('users', 16), label: 'Quản lý nhân viên', onClick: () => HH.router.go('/group') });
+    items.push({ sep: true });
     return HH.ui.openMenu(anchor, items.concat(userMenuTail()));
   }
   /* Xóa dữ liệu. Có máy chủ: xóa HẾT dữ liệu của tài khoản trên máy chủ (bắt gõ chữ xác nhận, vì không hoàn tác được); tài khoản về trạng thái trống như mới.

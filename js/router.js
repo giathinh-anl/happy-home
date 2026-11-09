@@ -15,6 +15,7 @@ HH.router = (function () {
     { pat: '/post', page: 'post', meta: { perm: 'rooms' } },
     { pat: '/group', page: 'group', meta: { title: 'Công ty / nhóm', owner: true } },
     { pat: '/noti', page: 'noti' },
+    { pat: '/help', page: 'help', meta: { title: 'Trợ giúp' } },
     // Tầng tòa nhà
     { pat: '/b/:bid/units', page: 'units', meta: { perm: 'rooms' } },
     { pat: '/b/:bid/tenants', page: 'tenants', meta: { perm: 'tenants' } },

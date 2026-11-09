@@ -339,6 +339,13 @@ Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọ
 - Cần chạy **một lần** `supabase/migration-bank-info.sql` (thêm cột `buildings.bank_info`, trigger chặn nhân viên và kiểm dạng dữ liệu, hàm `tenant_bank` cho khách; chạy lại được, không đụng dữ liệu có sẵn). Chưa chạy thì trang cấu hình báo rõ và khách chưa thấy tài khoản nhập mới.
 - Kiểm thử: `node tests/bank-info.test.js` (26 ca) và `tests/db/bank-info.test.py` trên Postgres thật (55 ca, gồm nhân viên bị chặn, dữ liệu sai dạng, hai chủ trùng mã tòa, đối chiếu cả danh sách ngân hàng với quy tắc của DB). Thử phá 8 chỗ trong migration, cả 8 bị bắt.
 
+## Trợ giúp và hướng dẫn làm quen
+
+- **Trung tâm trợ giúp** (menu tài khoản, mục "Trợ giúp và hướng dẫn", đường dẫn `#/help`): 18 bài chia 4 nhóm (Bắt đầu, Thu tiền, Khách thuê, Tài khoản và bảo mật), mỗi bài là các bước làm bằng đúng tên nút trong giao diện, kèm nút mở thẳng trang liên quan. Ô tìm gõ không dấu cũng được ("doi soat" ra "Đối soát ngân hàng"); mọi từ trong câu tìm đều phải khớp. Bài nào cần quyền mà người dùng không có (nhân viên) hoặc chỉ dành cho chủ trọ thì tự ẩn.
+- **Hướng dẫn nhanh từng bước** (11 bước, khoảng một phút): làm sáng từng mục trên thanh điều hướng (tòa nhà, Phòng, Khách thuê, Hóa đơn, Thêm, Tổng báo cáo, Khách chuyển khoản, chuông, tài khoản) kèm một thẻ giải thích. Dùng được bằng chuột, bàn phím (mũi tên, Esc) và trên điện thoại (chỉ vào thanh tab dưới đáy; bước nào không có chỗ để chỉ thì thẻ nằm giữa màn hình). Nhân viên chỉ thấy các bước thuộc quyền của mình. Đang ở trang cấp công ty thì app tự chuyển sang một trang của tòa đầu tiên trước khi chạy.
+- **Lần đầu dùng:** sau khi đăng nhập hiện một thẻ nhỏ ở góc "Xem ngay / Để sau", không chặn thao tác. Chọn "Để sau" hay xem xong thì không hỏi lại (lưu trên thiết bị này); vẫn xem lại được bằng nút "Xem hướng dẫn nhanh" ở trang Trợ giúp.
+- Nội dung ở `js/help.js`, giao diện ở `js/pages/help.js`. `node tests/help.test.js` (29 ca) đối chiếu bài viết với mã nguồn: mọi đường dẫn phải là route có thật trong `js/router.js`, mọi quyền phải có trong `js/store.js`, mọi bộ chọn của hướng dẫn phải chỉ vào phần tử có thật trong `js/app.js`; đổi tên route hay nút mà quên sửa bài thì báo hỏng. Thử phá 16 chỗ, cả 16 bị bắt. Không cần chạy SQL nào.
+
 ## Hồ sơ và cài đặt cá nhân (Cài đặt chung)
 
 - **Ảnh đại diện:** bấm *Đổi ảnh*, ảnh được cắt vuông giữa ảnh, thu về 160 px, nén JPEG (vài KB) rồi hiện ở đầu trang và trong hồ sơ. Chỉ nhận JPG, PNG, WebP (không nhận SVG vì SVG chạy được mã), tối đa 8 MB trước khi thu nhỏ. Ảnh **lưu trên từng thiết bị**, theo từng tài khoản (máy dùng chung không lẫn ảnh); chưa đồng bộ giữa các máy.
