@@ -19,7 +19,7 @@ Hệ thống hiện chạy cho **một chủ trọ**. Dữ liệu (phòng, khác
 
 ### 3. Số tài khoản hiện cho khách (VietQR, tin nhắc nợ)
 - Chủ trọ mới tự nhập trong app: **Cấu hình tòa nhà → Tài khoản nhận tiền** (mỗi tòa một tài khoản). Không phải sửa mã, không phải đẩy lên GitHub. Dùng nút **Xem thử mã QR** để quét kiểm tra tên chủ tài khoản trước khi lưu.
-- Cần đã chạy `supabase/migration-bank-info.sql` trên Supabase (một lần). Chưa chạy thì tài khoản nhập trong app chỉ lưu tạm trong máy và khách chưa thấy.
+- Cần đã chạy `supabase/migration-bank-info.sql` trên Supabase (một lần; hệ thống hiện tại đã chạy ngày 10/11/2026). Chưa chạy thì tài khoản nhập trong app chỉ lưu tạm trong máy và khách chưa thấy.
 - Cách cũ (mục `bank` trong `js/config.js`) vẫn chạy, và là phương án dự phòng cho tòa chưa nhập. Tệp này công khai; sau khi giao xong nên bỏ mục `bank` cũ của bạn đi để số của bạn không còn hiện cho khách của người mới.
 - Chưa có tài khoản nào (cả hai nơi) thì app khách tự ẩn số tài khoản và mã QR, không hiện số bịa.
 
