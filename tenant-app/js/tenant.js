@@ -1381,14 +1381,30 @@
     const list = usageList();
     if (!list.length) { shell('Lịch sử điện', `<div class="t-empty"><div class="eic">${ico('chart', 64)}</div><p>Chưa có dữ liệu chỉ số</p></div>`); return; }
     const recent = list.slice(0, 6).reverse();
-    const maxE = Math.max(1, ...recent.map(x => x.elec || 0));
-    const bars = recent.map(x => `<div class="usage-col">
+    // Dự báo kỳ tới (ước tính): đơn giá lấy từ dịch vụ tính theo chỉ số điện của chính khách này
+    const svc = (state.data.services || []).find(s => s.method === 'per_kwh');
+    const fc = TH().usageForecast(list, svc ? Number(svc.unit) : null);
+    const maxE = Math.max(1, ...recent.map(x => x.elec || 0), fc.ok ? fc.kwh : 0);
+    const cao = (v) => Math.round(((v || 0) / maxE) * 60);       // chừa chỗ cho số ở trên và nhãn kỳ ở dưới
+    const bars = recent.map((x, i) => `<div class="usage-col${i === recent.length - 1 ? ' now' : ''}">
       <div class="val">${x.elec != null ? num(x.elec) : ''}</div>
-      <div class="usage-bar" style="height:${Math.round(((x.elec || 0) / maxE) * 78)}%"></div>
-      <div class="cap">${esc(x.label)}</div></div>`).join('');
+      <div class="usage-bar" style="height:${cao(x.elec)}%"></div>
+      <div class="cap">${esc(x.label)}</div></div>`).join('')
+      + (fc.ok ? `<div class="usage-col fc" title="Ước tính"><div class="val">~${num(fc.kwh)}</div>
+        <div class="usage-bar" style="height:${cao(fc.kwh)}%"></div><div class="cap">${esc(fc.nhan)}*</div></div>` : '');
+    const soSanh = !fc.ok ? '' : `<p class="fc-cmp">${esc(fc.moiNhan)}: <b>${num(fc.moi)} kWh</b>, ` + (fc.pct == null
+      ? `kỳ trước (${esc(fc.truocNhan)}) chưa ghi điện nên chưa so sánh được.`
+      : fc.huong === 'dung' ? `bằng ${esc(fc.truocNhan)} (${num(fc.truoc)} kWh).`
+      : `<span class="fc-${fc.huong}">${fc.huong === 'tang' ? 'tăng' : 'giảm'} ${Math.abs(fc.pct)}%</span> so với ${esc(fc.truocNhan)} (${num(fc.truoc)} kWh).`) + '</p>';
+    const duBao = fc.ok
+      ? `<div class="t-card fc-card"><div class="t-section-head"><h3>Dự báo ${esc(fc.nhan)} <span class="fc-tag">ước tính</span></h3></div>
+          <div class="fc-main"><span class="mono">~${num(fc.kwh)} kWh</span>${fc.tien != null ? `<span class="mono">~${vnd(fc.tien)} tiền điện</span>` : ''}</div>
+          <p class="fc-note">* Ước tính theo trung bình ${fc.coSo} kỳ gần nhất${fc.tien != null ? ' nhân đơn giá điện hiện hành' : ''}. Đây không phải số chính thức: hóa đơn thật tính theo chỉ số chủ nhà chốt.</p></div>`
+      : `<div class="t-card fc-card"><p class="fc-note" style="margin:0">Cần ít nhất 2 kỳ có chỉ số điện để dự báo tháng tới.</p></div>`;
     shell('Lịch sử điện', `
       <div class="t-card"><div class="t-section-head"><h3>${ico('bolt', 26)} Điện (kWh)</h3></div>
-        <div class="usage-chart">${bars}</div></div>
+        <div class="usage-chart">${bars}</div>${soSanh}</div>
+      ${duBao}
       <div class="t-card"><div class="t-section-head"><h3>Chi tiết theo kỳ</h3></div>
         ${list.map(x => `<div class="t-row"><span class="k">${esc(x.label)}</span>
           <span class="v mono" style="font-size:13px">${x.elec != null ? num(x.elec) + ' kWh' : '-'}</span></div>`).join('')}
@@ -1417,9 +1433,36 @@
         <div style="color:var(--neutral-500);font-size:13px">${pays.length} lần thanh toán</div></div>
       <div class="t-card">${pays.map(p => `<div class="t-row">
         <span class="k"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
-          <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div></span>
+          <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div>
+          <button type="button" class="link-btn" data-bl="${esc(p.id)}">Xem biên lai</button></span>
         <span class="v mono" style="color:var(--success)">+${vnd(p.amount)}</span></div>`).join('')}</div>`
       : `<div class="t-empty"><div class="eic">${ico('card', 64)}</div><p>Chưa có lịch sử thanh toán</p></div>`);
+    document.querySelectorAll('[data-bl]').forEach(b => b.onclick = () => bienLaiSheet(b.dataset.bl));
+  }
+
+  /* Biên lai: bản XÁC NHẬN thanh toán lập từ dòng lịch sử (hàm thuần TH().bienLai, có kiểm thử), in hoặc lưu PDF bằng hộp thoại in của máy.
+     Không phải phiếu thu có số của chủ nhà (số phiếu thu không gửi sang app khách), và ghi rõ điều đó trên biên lai. */
+  function bienLaiSheet(id) {
+    const d = state.data, p = (d.payments || []).find(x => String(x.id) === String(id));
+    const inv = p && (d.invoices || []).find(i => i.id === p.invoiceId);
+    const b = p && TH().bienLai(p, { khach: d.tenant && d.tenant.fullName, phong: (d.room && d.room.code) || (d.tenant && d.tenant.roomCode),
+      toa: d.building && d.building.name, ky: inv ? vnPeriod(inv.period) : '' });
+    if (!b) { toast('Không lập được biên lai cho khoản này'); return; }
+    const row = (k, v) => v ? `<div class="rc-row"><span>${esc(k)}</span><b>${esc(v)}</b></div>` : '';
+    sheet(`<div class="rc" id="rcDoc">
+      <div class="rc-head">${logoImg(34)}<div><b>Happy Home</b><small>${esc(b.toa)}</small></div></div>
+      <div class="rc-title">XÁC NHẬN THANH TOÁN</div>
+      <div class="rc-amt mono">${vnd(b.soTien)}</div>
+      <div class="rc-words">${esc(b.soTienChu)}</div>
+      ${row('Ngày thanh toán', b.ngay ? fmtDate(b.ngay) : '')}${row('Hình thức', b.hinhThuc)}${row('Hóa đơn', b.hoaDon + (b.ky ? ' (kỳ ' + b.ky + ')' : ''))}${row('Người nộp', b.khach)}${row('Phòng', b.phong)}${row('Mã giao dịch', b.ma)}
+      <p class="rc-note">Bản xác nhận này do ứng dụng lập từ khoản thanh toán chủ nhà đã ghi nhận. Cần phiếu thu có số của chủ nhà, vui lòng liên hệ chủ nhà.</p>
+      <div class="rc-acts"><button class="t-btn" id="rcPrint">In hoặc lưu PDF</button><button class="t-btn outline" data-close>Đóng</button></div></div>`);
+    el('rcPrint').onclick = () => {
+      document.body.classList.add('rc-printing');
+      const xong = () => { document.body.classList.remove('rc-printing'); window.removeEventListener('afterprint', xong); };
+      window.addEventListener('afterprint', xong);
+      try { window.print(); } catch (e) { xong(); toast('Máy này không mở được hộp thoại in'); }
+    };
   }
 
   /* ---------- màn hình: TÀI KHOẢN ---------- */

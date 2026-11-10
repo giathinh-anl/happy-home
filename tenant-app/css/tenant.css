@@ -344,7 +344,7 @@ img { max-width: 100%; display: block; }
 
 /* Biểu đồ tiêu thụ */
 .usage-chart { display: flex; align-items: flex-end; gap: 8px; height: 110px; padding-top: 8px; }
-.usage-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.usage-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
 .usage-bar { width: 100%; max-width: 34px; border-radius: 5px 5px 0 0; min-height: 3px; background: var(--teal-500); }
 .usage-bar.water { background: var(--wood-300); }
 .usage-col .cap { font-size: 10px; color: var(--neutral-400); }
@@ -921,4 +921,37 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   .skeleton-card { animation: none; }
+}
+
+
+/* ---------- Dự báo điện và biên lai ---------- */
+.usage-col.now .val { color: var(--ink); }
+.usage-col.now .usage-bar { background: var(--teal-600, var(--teal-500)); }
+.usage-col.fc .usage-bar { background: transparent; border: 2px dashed var(--teal-500); border-bottom: none; }
+.usage-col.fc .val, .usage-col.fc .cap { color: var(--teal-600, var(--teal-500)); font-weight: 700; }
+.fc-cmp { margin: 10px 0 0; font-size: 13px; color: var(--neutral-600); line-height: 1.5; }
+.fc-tang { color: var(--danger, #c0392b); font-weight: 700; }
+.fc-giam { color: var(--success); font-weight: 700; }
+.fc-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--neutral-100); color: var(--neutral-600); vertical-align: middle; }
+.fc-main { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; font-size: 22px; font-weight: 800; }
+.fc-main span:nth-child(2) { font-size: 16px; color: var(--neutral-600); font-weight: 700; }
+.fc-note { margin: 8px 0 0; font-size: 12px; color: var(--neutral-500); line-height: 1.5; }
+.link-btn { background: none; border: none; padding: 4px 0; margin-top: 2px; font: inherit; font-size: 12px; font-weight: 700; color: var(--teal-600, var(--teal-500)); cursor: pointer; text-decoration: underline; }
+
+.rc { padding: 2px 2px 6px; }
+.rc-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.rc-head small { display: block; color: var(--neutral-500); font-size: 12px; }
+.rc-title { text-align: center; font-weight: 800; letter-spacing: .06em; font-size: 13px; color: var(--neutral-600); }
+.rc-amt { text-align: center; font-size: 30px; font-weight: 800; margin: 8px 0 2px; color: var(--success); }
+.rc-words { text-align: center; font-size: 13px; color: var(--neutral-600); margin-bottom: 14px; font-style: italic; }
+.rc-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--neutral-200); font-size: 14px; }
+.rc-row span { color: var(--neutral-500); }
+.rc-row b { text-align: right; word-break: break-word; }
+.rc-note { font-size: 12px; color: var(--neutral-500); line-height: 1.5; margin: 12px 0; }
+.rc-acts { display: grid; gap: 8px; }
+@media print {
+  body.rc-printing > *:not(#tSheet) { display: none !important; }
+  body.rc-printing .t-sheet { position: static; display: block; }
+  body.rc-printing .t-sheet-bg, body.rc-printing .rc-acts { display: none !important; }
+  body.rc-printing .t-sheet-box { position: static; transform: none; box-shadow: none; max-width: none; border-radius: 0; padding: 0; }
 }

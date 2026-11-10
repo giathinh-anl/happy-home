@@ -159,7 +159,66 @@
     return out;
   }
 
-  const api = { pushMode, urlBase64ToBytes, installMode, buildIcs, shareText, cacheEnvelope, readCache, ageLabel, codeProblem, meterCheck, parseMeterAnswer, CACHE_VERSION };
+  /* ---------- Dự báo điện tháng tới ----------
+     list: các kỳ có chỉ số, MỚI NHẤT TRƯỚC: [{ period: 'YYYY-MM', label, elec (kWh hoặc null) }]. donGia: đơn giá điện (đ/kWh) hoặc null.
+     Dự báo = trung bình của tối đa 3 kỳ gần nhất có số (cần ít nhất 2 kỳ), nhân đơn giá. Đây là ƯỚC TÍNH để khách chủ động tiền, không phải số chính thức:
+     hóa đơn thật tính theo chỉ số chủ trọ chốt. Trả { ok:false } khi chưa đủ dữ liệu. */
+  function usageForecast(list, donGia) {
+    const co = (Array.isArray(list) ? list : []).filter((x) => x && typeof x.elec === 'number' && isFinite(x.elec) && x.elec >= 0 && /^\d{4}-\d{2}$/.test(String(x.period || '')));
+    if (co.length < 2) return { ok: false, ly: 'chua-du', coSo: co.length };
+    const dung = co.slice(0, 3);
+    const kwh = Math.round(dung.reduce((s, x) => s + x.elec, 0) / dung.length);
+    const gia = typeof donGia === 'number' && isFinite(donGia) && donGia > 0 ? donGia : null;
+    const [y, m] = co[0].period.split('-').map(Number);
+    const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+    const moi = co[0].elec, truoc = co[1].elec;
+    const pct = truoc > 0 ? Math.round(((moi - truoc) / truoc) * 100) : null;
+    return { ok: true, kwh, tien: gia == null ? null : Math.round(kwh * gia), coSo: dung.length, thang: ny + '-' + String(nm).padStart(2, '0'), nhan: 'T' + nm + '/' + ny,
+      moi, truoc, moiNhan: co[0].label || '', truocNhan: co[1].label || '', pct, huong: pct == null || pct === 0 ? 'dung' : pct > 0 ? 'tang' : 'giam' };
+  }
+
+  /* ---------- Đọc số tiền thành chữ (tiếng Việt) ----------
+     0 đến dưới 1.000 tỷ. Các chỗ hay sai: "mười" (không "một mươi"), "mốt" sau hàng chục từ hai trở lên, "lăm" sau hàng chục, "linh" khi hàng chục là 0
+     mà còn hàng đơn vị, "không trăm" khi đứng sau một nhóm lớn hơn. Không kèm chữ "đồng"; số âm, không phải số, quá lớn thì trả chuỗi rỗng. */
+  const CHU_SO = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  function nhomBaSo(n, coNhomTruoc) {
+    const tram = Math.floor(n / 100), chuc = Math.floor(n / 10) % 10, dv = n % 10, out = [];
+    if (tram > 0) out.push(CHU_SO[tram] + ' trăm'); else if (coNhomTruoc) out.push('không trăm');
+    if (chuc > 1) out.push(CHU_SO[chuc] + ' mươi'); else if (chuc === 1) out.push('mười'); else if (dv > 0 && (tram > 0 || coNhomTruoc)) out.push('linh');
+    if (dv > 0) out.push(chuc > 1 && dv === 1 ? 'mốt' : chuc > 0 && dv === 5 ? 'lăm' : CHU_SO[dv]);
+    return out.join(' ');
+  }
+  function docSoThanhChu(so) {
+    const x = Math.round(Number(so));
+    if (!isFinite(x) || x < 0 || x >= 1e12) return '';
+    if (x === 0) return 'không';
+    const DV = ['', ' nghìn', ' triệu', ' tỷ'], nhom = [];
+    let r = x;
+    while (r > 0) { nhom.push(r % 1000); r = Math.floor(r / 1000); }
+    const out = [];
+    for (let i = nhom.length - 1; i >= 0; i--) {
+      if (!nhom[i]) continue;
+      out.push(nhomBaSo(nhom[i], out.length > 0) + DV[i]);
+    }
+    return out.join(' ');
+  }
+
+  /* ---------- Biên lai (xác nhận thanh toán) ----------
+     p: một dòng lịch sử thanh toán { id, amount, method, date, invoiceId }; ctx: { khach, phong, toa, ky (nhãn kỳ của hóa đơn, nếu biết) }.
+     Đây là bản xác nhận do app lập từ dữ liệu thanh toán chủ trọ đã ghi, KHÔNG phải phiếu thu có số của chủ trọ (số phiếu thu không gửi sang app khách).
+     Số tiền không hợp lệ (không phải số, bằng 0, âm) thì trả null: không in biên lai cho khoản không có thật. */
+  function bienLai(p, ctx) {
+    const c = ctx || {};
+    const tien = p && Number(p.amount);
+    if (!p || !isFinite(tien) || tien <= 0) return null;
+    const chu = docSoThanhChu(tien);
+    return { ma: String(p.id == null ? '' : p.id), ngay: p.date || null, soTien: Math.round(tien),
+      soTienChu: chu ? chu.charAt(0).toUpperCase() + chu.slice(1) + ' đồng' : '',
+      hinhThuc: String(p.method || ''), hoaDon: String(p.invoiceId || ''), ky: String(c.ky || ''),
+      khach: String(c.khach || ''), phong: String(c.phong || ''), toa: String(c.toa || '') };
+  }
+
+  const api = { pushMode, urlBase64ToBytes, installMode, buildIcs, shareText, cacheEnvelope, readCache, ageLabel, codeProblem, meterCheck, parseMeterAnswer, usageForecast, docSoThanhChu, bienLai, CACHE_VERSION };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.tenantHelpers = api; }
 })(typeof window !== 'undefined' ? window : globalThis);
