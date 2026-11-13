@@ -355,6 +355,27 @@ Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọ
 - **Ngôn ngữ:** hiện chỉ có tiếng Việt; chưa có bản tiếng Anh nên chưa có ô chọn.
 - Luật nằm ở `js/account.js` (thuần, `node tests/account.test.js`, 29 ca; thử phá 18 chỗ, cả 18 bị bắt). Không cần chạy SQL nào.
 
+## Ảnh trong tin nhắn (chủ trọ và khách nhắn nhau)
+
+- **Khách** (app khách thuê, khi nhắn cho nhân viên) bấm nút kẹp giấy để đính kèm **tối đa 3 ảnh mỗi tin**; **chủ trọ** trả lời kèm ảnh ngay trong trang *Hỏi đáp*. Ảnh hiện thành hình nhỏ trong khung chat, bấm vào để xem lớn. Danh sách cuộc trò chuyện ghi dạng *"[2 ảnh]"* cho tin có ảnh.
+- **Ảnh được nén ngay trên máy trước khi gửi**: thử cạnh dài 1000 px chất lượng 0,7, vẫn nặng thì giảm dần (800, 640, 480 px) cho tới khi một ảnh dưới khoảng 220 KB. Chỉ nhận JPG, PNG, WebP (không nhận SVG vì SVG chạy được mã).
+- **Giới hạn do máy chủ giữ** (không tin trình duyệt): 3 ảnh mỗi tin, mỗi ảnh tối đa 300.000 ký tự, tổng 700.000, và một khách gửi **tối đa 20 tin có ảnh mỗi giờ**. Tin không có chữ lẫn ảnh (chỉ khoảng trắng hay xuống dòng) bị từ chối. Cùng số điện thoại ở hai chủ trọ khác nhau vẫn tách bạch, ảnh của khách này không lọt sang người khác.
+- **Vì sao ảnh nằm bảng riêng:** trang Hỏi đáp hỏi máy chủ mỗi 3,5 giây và tải cả bảng tin nhắn; để ảnh cùng bảng thì mỗi lượt hỏi nặng thêm hàng MB. Tin nhắn chỉ ghi *số ảnh* (`photo_count`); ảnh chỉ tải khi mở đúng cuộc trò chuyện (tối đa 20 tin một lần).
+- Cần chạy **một lần** `supabase/migration-chat-photos.sql` (thêm cột `support_messages.photo_count`, bảng `support_message_photos`, đổi `tenant_send_message` thêm tham số ảnh, thêm `tenant_message_photos`). **Chưa chạy trên Supabase thật.** Trước khi chạy, mã mới vẫn dùng bình thường: tin chữ gửi và nhận như cũ (cột thiếu thì bị bỏ qua), chỉ phần ảnh chưa hoạt động và trang Hỏi đáp báo rõ *"Máy chủ chưa bật gửi ảnh trong chat nên khách CHƯA thấy ảnh"* thay vì âm thầm mất ảnh.
+- Luật ảnh ở `js/chat-photos.js` (thuần, `node tests/chat-photos.test.js`, 17 ca) dùng chung cho cả hai app; bài kiểm thử đối chiếu giới hạn trong tệp này với tệp SQL. `tests/db/chat-photos.test.py` thử SQL trên Postgres thật (44 ca; thử phá 25 chỗ trong SQL, cả 25 bị bắt).
+
+## Khi máy chủ AI của Google chậm hoặc quá tải
+
+Đọc CCCD và trợ lý ảo gọi Gemini của Google. Ngày 12 và 13/11/2026 Google có lúc **treo hẳn mô hình chính** (`gemini-3.8-flash`, không trả lời cả phút) hoặc trả lỗi 503 "đang có nhiều người dùng" sau chừng 21 giây, trong khi trang thêm khách chỉ báo *"Máy chủ AI phản hồi chậm quá"*. Cách xử lý hiện nay (`js/gemini.js`, `node tests/gemini.test.js`, 23 ca):
+
+- **Treo, hết lượt hoặc quá tải thì tự sang mô hình dự phòng** (`gemini-3.5-flash`). Trước đây chỉ đổi khi hết lượt (lỗi 429), còn treo hay 503 thì chờ hết giờ rồi báo lỗi.
+- Lỗi tạm tới nhanh (500, 502, 503, 504, rớt mạng) thì thử lại tối đa 3 lần trên mô hình đó; lỗi tạm mà tới **chậm** (từ 8 giây) thì không thử lại, sang ngay mô hình sau, để tổng thời gian chờ không cộng dồn.
+- Mô hình vừa hỏng được **nhớ 5 phút**: các lần đọc sau đi thẳng mô hình đang ổn, không bắt khách chờ lại từ đầu.
+- Sai khóa hoặc yêu cầu sai thì báo ngay, không đổi mô hình (mô hình nào cũng sai như nhau).
+- **Ảnh CCCD được thu về cạnh dài 1600 px (JPEG) trước khi gửi AI**: ảnh điện thoại nguyên cỡ nặng vài MB gửi vừa chậm vừa dễ quá giờ, mà chữ trên thẻ ở 1600 px vẫn rõ. Ảnh hiện trên màn hình và ảnh lưu vẫn là ảnh gốc.
+- **Trang thêm khách thuê không để người dùng kẹt:** chờ quá 8 giây hiện thêm nút **Nhập tay luôn** (ảnh được giữ lại; kết quả AI về muộn sau đó bị bỏ, không đè lên chữ đã gõ). Đọc lỗi thì có nút **Đọc lại bằng AI**, khỏi chọn lại ảnh.
+- Khi cả hai mô hình đều hỏng, câu báo lỗi nói rõ là do máy chủ AI của Google và đã thử cả mô hình dự phòng, không để người dùng tưởng máy mình hỏng. Đó là chỗ app không sửa được: nếu Google vẫn treo cả hai, chờ ít phút hoặc nhập tay.
+
 ## Báo cáo tháng (xem, in ra PDF, xuất Excel)
 
 Vào **Tổng quan → Báo cáo tháng** (hoặc `#/reports`). Chọn tháng ở dải tháng, chọn **toàn công ty hay một tòa**, thấy ngay một tờ báo cáo trắng đúng như bản in. Bấm **In / Lưu PDF** để mở hộp in của trình duyệt (chọn "Lưu thành PDF" là có tệp gửi người góp vốn hoặc kế toán), hoặc **Xuất Excel** để có tệp CSV mở bằng Excel (số tiền để dạng số, cộng được).
@@ -492,7 +513,8 @@ js/
   icons.js            # bộ icon SVG dùng chung
   charts.js           # biểu đồ SVG thuần: donut, cột, vùng, tiến độ, vòng cung
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
-  gemini.js           # cầu nối Gemini Flash (phân loại ý định + soạn lời), đếm hạn mức, cache
+  gemini.js           # cầu nối Gemini Flash (phân loại ý định + soạn lời), đếm hạn mức, cache, tự sang mô hình dự phòng khi treo/quá tải (có kiểm thử)
+  chat-photos.js      # ảnh đính kèm trong chat: giới hạn, bậc nén, tóm tắt tin (không đụng DOM, có kiểm thử, dùng chung hai app)
   ai.js               # bộ ý định của chủ trọ: mỗi ý định tự lấy số thật từ store
   assistant.js        # khung chat nổi ở góc màn hình
   store.js            # dữ liệu + trạng thái + truy vấn/đột biến/phân tích dashboard
@@ -528,6 +550,8 @@ tests/
   rewards.test.js     # kiểm thử điểm thưởng: node tests/rewards.test.js
   listing.test.js     # kiểm thử trang công khai phòng: node tests/listing.test.js
   bank-webhook-auth.test.js  # kiểm thử kiểm mã webhook ngân hàng (cần node 22.18+): node tests/bank-webhook-auth.test.js
+  chat-photos.test.js # kiểm thử luật ảnh trong chat: node tests/chat-photos.test.js
+  gemini.test.js      # kiểm thử vòng gọi AI (treo, quá tải, dự phòng) bằng máy chủ giả: node tests/gemini.test.js
 ```
 
 ## Kiểm thử
@@ -552,6 +576,8 @@ node tests/renewal.test.js
 node tests/rewards.test.js
 node tests/listing.test.js
 node tests/bank-webhook-auth.test.js
+node tests/chat-photos.test.js
+node tests/gemini.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
@@ -572,6 +598,7 @@ python -m venv .venv-db
 .venv-db/Scripts/python tests/db/tenant-code-self.test.py
 .venv-db/Scripts/python tests/db/incident-rating.test.py
 .venv-db/Scripts/python tests/db/push.test.py
+.venv-db/Scripts/python tests/db/chat-photos.test.py
 ```
 
 Nạp lần lượt schema và mọi migration theo thứ tự, rồi thử đăng nhập khách bằng các vai `anon` / `authenticated` như PostgREST: 44 ca (mã sai, khóa 15 phút, cấp lại mã, phiên hết hạn, thu hồi, hai chủ trọ trùng số điện thoại, anon không đọc được bảng mã, các hàm nghiệp vụ dùng token). Đã thử phá 11 chỗ của migration (bỏ khóa, bỏ kiểm mã, bỏ đăng xuất phiên, lộ hóa đơn chủ khác...) và bộ thử bắt được cả 11. Hạn chế: `pgcrypto` thật (bcrypt, sha256) không có trong bản Postgres nhúng nên được giả bằng md5; độ mạnh mật mã do `pgcrypto` của Supabase bảo đảm, phần thử ở đây là logic (khớp mã, token, khóa).

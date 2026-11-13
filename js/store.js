@@ -56,6 +56,7 @@ HH.store = (function () {
   const bankTx = [];          // giao dịch ngân hàng nhận qua webhook / dán sao kê
   const auditLog = [];
   const supportMsgs = [];     // khách nhắn cho nhân viên trực và lời nhân viên trả lời
+  const supportPhotos = {};   // ảnh của từng tin chat { mãTin: [dataUrl] }: CHỈ trong bộ nhớ, không vào localStorage hay bảng tin (xem backend.js)
 
   // Kỳ tính tiền lấy theo đồng hồ máy, không ghim cứng: sang tháng là tự nhảy kỳ.
   const CUR_PERIOD = U.monthKey();
@@ -1205,22 +1206,42 @@ HH.store = (function () {
       return supportMsgs.filter(m => m.sender === 'tenant' && !m.readByStaff).length;
     },
     /** Nhân viên trả lời một cuộc */
-    replySupport(phone, body, thread) {
+    replySupport(phone, body, thread, photos) {
       const text = String(body || '').trim();
-      if (!phone || !text) return null;
+      const kq = HH.chatPhotos.kiem(photos);           // ảnh hỏng thì không gửi gì cả (không gửi một phần)
+      if (!phone || !kq.ok || (!text && !kq.anh.length)) return null;
       const m = {
         id: U.uid('ms'), buildingId: (thread && thread.buildingId) || null,
         roomCode: (thread && thread.roomCode) || null,
         tenantPhone: phone, tenantName: (thread && thread.tenantName) || '',
         sender: 'staff', staffName: prefs.userName || 'Nhân viên trực',
-        body: text, createdAt: new Date().toISOString(),
+        body: text, createdAt: new Date().toISOString(), photoCount: kq.anh.length,
         readByStaff: true, readByTenant: false,
       };
+      if (kq.anh.length) supportPhotos[m.id] = kq.anh;
       supportMsgs.push(m);
       api.markSupportRead(phone, true);          // trả lời xong coi như đã xử lý xong các câu trước
       api.log('support.reply', `Trả lời khách ${phone}${m.roomCode ? ' (phòng ' + m.roomCode + ')' : ''}`);
       persist();
       return m;
+    },
+    /** Ảnh đã có trong bộ nhớ của một tin, hoặc null (chưa tải) */
+    supportPhotosOf(id) { return supportPhotos[id] || null; },
+    /** Đẩy ảnh của một tin vừa trả lời lên máy chủ. { ok } | { missing } (máy chủ chưa chạy migration) | { error }. Bản demo: chỉ giữ trong bộ nhớ. */
+    async sendSupportPhotos(m) {
+      const ph = m && supportPhotos[m.id];
+      if (!ph || !ph.length || !usingBackend()) return { ok: true };
+      return HH.backend.saveSupportPhotos(m.id, ph);
+    },
+    /** Tải ảnh của các tin chưa có trong bộ nhớ (tối đa 20 tin). Chỉ nhận ảnh đúng dạng. Trả { added, missing?, error? } */
+    async loadSupportPhotos(ids) {
+      const can = (ids || []).filter(id => id && !supportPhotos[id]).slice(0, 20);
+      if (!can.length || !usingBackend()) return { added: 0 };
+      const r = await HH.backend.loadSupportPhotos(can);
+      if (r.error || r.missing) return { added: 0, missing: !!r.missing, error: r.error };
+      let added = 0;
+      Object.keys(r.data).forEach(id => { const a = (r.data[id] || []).filter(HH.chatPhotos.hopLe); if (a.length) { supportPhotos[id] = a; added++; } });
+      return { added };
     },
     /** Đánh dấu các câu của khách là đã xem (quiet = đừng ghi nhật ký) */
     markSupportRead(phone, quiet) {

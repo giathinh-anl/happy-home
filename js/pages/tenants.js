@@ -399,7 +399,7 @@ QUY TẮC:
     if (btn) btn.classList.add('loading');
     if (bao) bao.innerHTML = `<span class="hint">Đang đọc mặt sau...</span>`;
     try {
-      const out = await G().readDoc([{ mime: fileObj.type || 'image/jpeg', data: String(dataUrl).split(',')[1] }],
+      const out = await G().readDoc([await anhChoAi(fileObj, dataUrl)],
         CCCD_SAU_SYS, 'Đọc mặt sau thẻ căn cước trong ảnh này và trả JSON theo đúng định dạng đã nêu.');
       if (out && out.isBackSide === false) {
         if (bao) bao.innerHTML = `<span class="err">Ảnh này trông như mặt trước. Chụp mặt sau (mặt có ngày cấp) giúp em.</span>`;
@@ -438,8 +438,22 @@ QUY TẮC:
     if (redo) redo.onclick = () => { anhSau = null; veAnhSau(); };
   }
 
+  /* Ảnh gửi cho AI: thu về cạnh dài 1600 px, JPEG. Ảnh chụp điện thoại nguyên cỡ nặng vài MB, gửi lên vừa chậm vừa dễ quá giờ,
+     trong khi chữ trên thẻ ở 1600 px vẫn rõ. Thu nhỏ lỗi (định dạng lạ) thì gửi ảnh gốc như trước. Ảnh hiện trên màn hình vẫn là ảnh gốc. */
+  async function anhChoAi(fileObj, dataUrl) {
+    try {
+      const d = await U.compressImage(fileObj, 1600, 0.85);
+      if (/^data:image\/jpeg;base64,/.test(d)) return { mime: 'image/jpeg', data: d.split(',')[1] };
+    } catch (e) { /* dùng ảnh gốc */ }
+    return { mime: (fileObj && fileObj.type) || 'image/jpeg', data: String(dataUrl).split(',')[1] };
+  }
+
+  let tepTruoc = null;                 // tệp ảnh mặt trước vừa chọn, giữ lại để bấm "Đọc lại bằng AI" khỏi chọn lại ảnh
+  let lanDoc = 0;                      // số thứ tự lần đọc AI mới nhất; kết quả của lần cũ hơn thì bỏ
+
   function startOcr(ctx, fileObj) {
     const card = document.getElementById('ocrCard');
+    tepTruoc = fileObj;
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result;
@@ -453,24 +467,39 @@ QUY TẮC:
         <div class="ocr-img"><img src="${raw(dataUrl)}" alt="CCCD" style="width:100%;object-fit:cover"></div>
         <div><div class="b" style="margin-bottom:8px">Đang đọc thẻ căn cước...</div>
           <div class="progress-track"><div class="progress-fill" id="ocrProg" style="width:10%"></div></div>
-          <p class="muted text-sm" style="margin-top:8px">Đang đọc chữ trên ảnh, mất khoảng 5 tới 20 giây.</p></div></div>`;
+          <p class="muted text-sm" style="margin-top:8px">Đang đọc chữ trên ảnh, mất khoảng 5 tới 20 giây.</p>
+          <div id="ocrWait" style="margin-top:12px"></div></div></div>`;
       // thanh tiến trình bò dần tới 90% rồi chờ kết quả thật
       let p = 10; const prog = document.getElementById('ocrProg');
       const timer = setInterval(() => { p = Math.min(90, p + 6); if (prog) prog.style.width = p + '%'; }, 400);
 
+      /* Google có lúc chậm cả chục giây tới cả phút. Chờ quá 8 giây thì cho lối thoát: nhập tay luôn,
+         khỏi đứng nhìn thanh chạy. Kết quả AI về muộn sau đó bị bỏ, không đè lên chữ người dùng đã gõ. */
+      const luot = ++lanDoc;
+      const nutCho = setTimeout(() => {
+        const w = document.getElementById('ocrWait');
+        if (!w || luot !== lanDoc) return;
+        w.innerHTML = `<p class="muted text-sm">Máy chủ AI đang chậm hơn thường lệ. Anh/chị có thể chờ thêm, hoặc nhập tay luôn (ảnh vẫn được giữ lại).</p>
+          <button type="button" class="btn btn-outline btn-sm" id="ocrSkip">Nhập tay luôn</button>`;
+        w.querySelector('#ocrSkip').onclick = () => {
+          lanDoc++; clearInterval(timer);
+          showForm(ctx, blankData(), dataUrl, 'Đang nhập tay, ảnh chưa được đọc bằng AI.', '', { docLai: true });
+        };
+      }, 8000);
+
       let out = null, errMsg = '';
       try {
-        const mime = (fileObj && fileObj.type) || 'image/jpeg';
-        out = await G().readDoc([{ mime, data: String(dataUrl).split(',')[1] }], CCCD_SYS,
+        out = await G().readDoc([await anhChoAi(fileObj, dataUrl)], CCCD_SYS,
           'Đọc thẻ căn cước công dân trong ảnh này và trả JSON theo đúng định dạng đã nêu.');
       } catch (e) {
         errMsg = G().errText(e.message);
       }
-      clearInterval(timer);
+      clearInterval(timer); clearTimeout(nutCho);
+      if (luot !== lanDoc) return;               // người dùng đã chọn nhập tay (hoặc chọn ảnh khác) trong lúc chờ
       if (prog) prog.style.width = '100%';
 
       if (!out) {
-        showForm(ctx, blankData(), dataUrl, errMsg || 'Chưa đọc được ảnh. Nhập tay giúp em nhé.');
+        showForm(ctx, blankData(), dataUrl, errMsg || 'Chưa đọc được ảnh. Nhập tay giúp em nhé.', '', { docLai: true });
         return;
       }
       if (out.isIdCard === false) {
@@ -614,8 +643,9 @@ QUY TẮC:
     kiemHet(card);
   }
 
-  function showForm(ctx, data, imgUrl, warn, issueDate) {
+  function showForm(ctx, data, imgUrl, warn, issueDate, opt) {
     const card = document.getElementById('ocrCard');
+    const docLai = !!(opt && opt.docLai && tepTruoc);        // AI đọc lỗi: cho bấm đọc lại, khỏi chọn lại ảnh
     const preRoom = roomFromUrl();
     const existing = data.idNumber && data.idNumber.value ? S.tenantByIdNumber(data.idNumber.value.replace(/\s/g, '')) : null;
     const readCount = OCR_FIELDS.filter(f => (data[f.key] || {}).value).length;
@@ -638,7 +668,7 @@ QUY TẮC:
     // Đọc được thì nói rõ là phải kiểm tra lại; không đọc được thì nói thẳng lý do
     const readAlert = warn
       ? `<div class="alert alert-warning" style="margin-bottom:16px"><span class="ic">${HH.ic('alert', 16)}</span>
-          <div>${U.esc(warn)}</div></div>`
+          <div>${U.esc(warn)}${docLai ? ` <button type="button" class="btn btn-sm btn-outline" id="ocrRetry" style="margin-left:8px" title="Đọc lại ảnh này bằng AI. Các ô đã gõ tay sẽ được điền lại.">${HH.ic('refresh', 16)} Đọc lại bằng AI</button>` : ''}</div></div>`
       : (readCount ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
           <div>Đã đọc được <b>${readCount}/${OCR_FIELDS.length}</b> ô từ ảnh. Ô nào có dấu <b>độ tin cậy thấp</b> là chữ mờ,
           <b>đối chiếu lại với thẻ</b> trước khi lưu.</div></div>` : '');
@@ -678,6 +708,8 @@ QUY TẮC:
 
     anhSau = null; noiCap = '';
     veAnhSau();
+    const lai = card.querySelector('#ocrRetry');
+    if (lai) lai.onclick = () => startOcr(ctx, tepTruoc);
 
     // Gõ xong rời khỏi ô thì kiểm luôn ô đó; ô đang báo lỗi thì sửa tới đâu xóa báo tới đó
     BAT_BUOC.forEach(r => {

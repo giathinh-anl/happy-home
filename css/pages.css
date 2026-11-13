@@ -1204,3 +1204,20 @@ table.dt tr.row-urgent td { background: var(--wood-50); }
 .tour-goi { position: fixed; left: 16px; bottom: 16px; z-index: 1100; width: min(320px, calc(100vw - 32px)); }
 @media (max-width: 860px) { .tour-goi { bottom: 84px; } }
 @media (prefers-reduced-motion: reduce) { .tour-hole, .tour-card { transition: none; } }
+
+
+/* ---------- Ảnh trong chat (trang Hỏi đáp khách thuê) ---------- */
+.sp-ph { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.sp-ph:first-child { margin-top: 0; }
+.sp-ph-i { width: 96px; height: 96px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2, #f2f5f4); padding: 0; cursor: zoom-in; display: grid; place-items: center; color: var(--ink-3); }
+.sp-ph-i.wait { cursor: default; }
+.sp-ph-i img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-pend { display: none; gap: 8px; padding: 8px 14px 0; flex-wrap: wrap; }
+.sp-pend.on { display: flex; }
+.sp-pend-i { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+.sp-pend-i img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-pend-i button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: none; background: rgba(0, 0, 0, .65); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
+.sp-attach { padding: 0 12px; align-self: stretch; display: inline-flex; align-items: center; cursor: pointer; }
+.sp-lb { position: fixed; inset: 0; z-index: 1300; background: rgba(8, 20, 20, .88); display: grid; place-items: center; cursor: zoom-out; }
+.sp-lb img { max-width: 94vw; max-height: 90vh; border-radius: 8px; background: #fff; }
+.sp-lb-x { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255, 255, 255, .18); color: #fff; font-size: 24px; cursor: pointer; }

@@ -185,6 +185,28 @@ HH.backend = (function () {
     return { data: (data || []).map((r) => rowToJs(kind, r)) };
   }
 
+  /* ---------- Ảnh trong chat (supabase/migration-chat-photos.sql) ----------
+     Ảnh nằm ở bảng riêng, KHÔNG nằm trong support_messages: trang Hỏi đáp hỏi máy chủ mỗi 3,5 giây và tải cả bảng tin nhắn,
+     ảnh vài trăm KB mỗi tấm cùng bảng thì mỗi lượt hỏi nặng thêm hàng MB. Tin chỉ ghi số ảnh (photo_count). */
+  const ANH_CHAT = 'support_message_photos';
+  /** Tải ảnh của các tin (tối đa 20 tin một lần). { data: { mãTin: [dataUrl, ...] } }, { missing: true } khi máy chủ chưa chạy migration, hoặc { error }. */
+  async function loadSupportPhotos(ids) {
+    if (!enabled || !Array.isArray(ids) || !ids.length) return { data: {} };
+    const { data, error } = await client.from(ANH_CHAT).select('message_id, idx, data').in('message_id', ids.slice(0, 20)).order('idx');
+    if (error) return isMissingTable(error) ? { data: {}, missing: true } : { error };
+    const out = {};
+    (data || []).forEach((r) => { (out[r.message_id] = out[r.message_id] || [])[r.idx] = r.data; });
+    return { data: out };
+  }
+  /** Ghi ảnh của một tin (chủ trọ trả lời kèm ảnh). { ok: true }, { missing: true } hoặc { error } */
+  async function saveSupportPhotos(messageId, photos) {
+    if (!enabled || !Array.isArray(photos) || !photos.length) return { ok: true };
+    const rows = photos.map((d, i) => ({ owner_id: ownerId, message_id: messageId, idx: i, data: d }));
+    const { error } = await client.from(ANH_CHAT).upsert(rows, { onConflict: 'owner_id,message_id,idx' });
+    if (error) return isMissingTable(error) ? { missing: true } : { error };
+    return { ok: true };
+  }
+
   /* ---------- Chỉ gửi những dòng THẬT SỰ đổi ----------
      Trước đây mỗi lần lưu là đẩy lại toàn bộ mọi bảng. Từ khi phòng có ảnh
      (mỗi tấm vài trăm KB nằm ngay trong dòng) thì mỗi lần bấm Lưu phải tải
@@ -262,6 +284,9 @@ HH.backend = (function () {
       const { error } = await client.from(KINDS[kind]).delete().neq('id', '__never__');
       if (error) console.error('[deleteAll ' + kind + ']', error.message);
     }
+    // Ảnh trong chat nằm ở bảng riêng (không có cột id): xóa theo mã tin, không để sót ảnh của khách sau khi xóa sạch dữ liệu
+    const ph = await client.from(ANH_CHAT).delete().neq('message_id', '__never__');
+    if (ph.error && !isMissingTable(ph.error)) console.error('[deleteAll ảnh chat]', ph.error.message);
   }
   // Xóa toàn bộ dữ liệu của 1 tòa nhà
   async function deleteByBuilding(bid) {
@@ -303,6 +328,6 @@ HH.backend = (function () {
   }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail,
-    loadAll, loadKind, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
+    loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
     client: () => client, KINDS };
 })();

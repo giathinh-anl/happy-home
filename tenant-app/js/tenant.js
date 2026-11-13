@@ -1571,8 +1571,72 @@
   const chat = { msgs: [], busy: false, ctx: NLU ? NLU.createContext() : null, loadedFor: null,
     handed: false,          // đã chuyển cho nhân viên trực chưa
     seen: {},               // id tin nhân viên đã hiện, tránh hiện lại hai lần
+    photos: [],             // ảnh đang chọn để gửi kèm (data URL đã nén), chỉ trong bộ nhớ
     lastPull: null };       // mốc thời gian lần hỏi máy chủ gần nhất
   const chatKey = () => 'hh_tchat_' + (state.phone || '');
+
+  /* ---------- Ảnh trong chat với nhân viên (supabase/migration-chat-photos.sql; luật ở ../js/chat-photos.js) ----------
+     Ảnh chỉ nằm trong BỘ NHỚ (PH), không vào sessionStorage cùng lời trò chuyện (đầy bộ nhớ). Tin lưu lại chỉ nhớ số ảnh (photoN) và mã tin
+     trên máy chủ (sid) để tải lại ảnh khi mở lại. Mọi ảnh vào PH đều đã qua CP.kiem / CP.hopLe nên đưa vào thuộc tính src là an toàn. */
+  const CP = window.HH && HH.chatPhotos;
+  const PH = {};                     // { khóa: [dataUrl] }, khóa = photoKey (ảnh mình vừa gửi) hoặc sid (mã tin trên máy chủ)
+  const phTried = new Set();         // tin đã thử tải ảnh: mạng lỗi hay máy chủ chưa bật thì đừng hỏi lại mãi
+  const anhCuaTin = (m) => PH[m.photoKey] || PH[m.sid] || null;
+  function khungAnhChat(m) {
+    const n = Number(m.photoN) | 0;
+    if (!n) return '';
+    const ph = anhCuaTin(m), k = m.photoKey && PH[m.photoKey] ? m.photoKey : m.sid;
+    const o = ph ? ph.map((d, i) => `<button type="button" class="b-ph" data-lb="${esc(k)}" data-i="${i}" aria-label="Xem ảnh ${i + 1}"><img src="${d}" alt="Ảnh ${i + 1}"></button>`).join('')
+      : Array.from({ length: n }, () => '<span class="b-ph wait" aria-hidden="true">…</span>').join('');
+    return `<div class="b-photos">${o}</div>`;
+  }
+  function xemAnhChat(k, i) {
+    const ph = PH[k]; if (!ph || !ph[i]) return;
+    sheet(`<img class="lb-img" src="${ph[i]}" alt="Ảnh ${i + 1}"><button class="t-btn outline" data-close style="margin-top:10px">Đóng</button>`);
+  }
+  /* Tải ảnh của các tin có ảnh mà chưa có trong bộ nhớ (tối đa 10 tin một lần), rồi vẽ lại nếu còn ở màn chat */
+  async function taiAnhChat() {
+    if (!CP) return;
+    const can = chat.msgs.filter(m => m.sid && (Number(m.photoN) | 0) > 0 && !PH[m.sid] && !phTried.has(m.sid)).map(m => m.sid).slice(0, 10);
+    if (!can.length) return;
+    can.forEach(id => phTried.add(id));
+    let r; try { r = await rpc('tenant_message_photos', { p_ids: can }); } catch (e) { return; }
+    let them = 0;
+    Object.keys(r || {}).forEach(id => { const a = (Array.isArray(r[id]) ? r[id] : []).filter(CP.hopLe); if (a.length) { PH[id] = a; them++; } });
+    if (them && document.getElementById('chatBody')) screenChat();
+  }
+  /* Nén ảnh chọn từ máy: thử từ bậc to đẹp tới bậc nhỏ cho tới khi vừa giới hạn */
+  async function nenAnhChat(file) {
+    if (['image/jpeg', 'image/png', 'image/webp'].indexOf(file.type) < 0) throw new Error('Chỉ gửi ảnh JPG, PNG hoặc WebP');
+    for (const b of CP.BAC_NEN) { const d = await compressImg(file, b.canh, b.chatLuong); if (CP.hopLe(d)) return d; }
+    throw new Error('Ảnh nặng quá, anh/chị chọn ảnh khác giúp em');
+  }
+  function veAnhCho() {
+    const box = el('chatPend'); if (!box) return;
+    box.innerHTML = chat.photos.map((d, i) => `<span class="chat-pend-i"><img src="${d}" alt="Ảnh đính kèm ${i + 1}"><button type="button" data-rm="${i}" aria-label="Bỏ ảnh ${i + 1}">×</button></span>`).join('');
+    box.classList.toggle('on', chat.photos.length > 0);
+    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { chat.photos = CP.bo(chat.photos, +b.dataset.rm); veAnhCho(); });
+  }
+  /* Gửi tin (có thể kèm ảnh) thẳng cho nhân viên, khi đã chuyển cho nhân viên */
+  async function sendToStaff(text, photos) {
+    const kq = CP.kiem(photos);
+    if (!kq.ok) { toast(kq.loi); return; }
+    if (!text && !kq.anh.length) return;
+    const key = kq.anh.length ? 'l' + Date.now().toString(36) : null;
+    if (key) PH[key] = kq.anh;
+    pushMsg('me', esc(text), [], false, key ? { photoKey: key, photoN: kq.anh.length } : null);
+    chat.photos = []; screenChat();
+    try {
+      const r = await rpcNeed('tenant_send_message', kq.anh.length ? { p_body: text, p_photos: kq.anh } : { p_body: text });
+      if (r && r.error) throw new Error(r.error === 'too_many' ? 'TOO_MANY' : 'INVALID');
+      if (r && r.id && key) { const m = chat.msgs.find(x => x.photoKey === key); if (m) { m.sid = r.id; saveChat(); } }
+    } catch (e) {
+      pushMsg('bot', e.message === 'NOT_ACTIVATED' ? 'Phần gửi ảnh chưa được bật trên hệ thống ạ. Anh/chị nhắn chữ trước, hoặc gọi trực tiếp giúp em nhé.'
+        : e.message === 'TOO_MANY' ? 'Anh/chị gửi ảnh hơi nhiều trong một giờ, mình chờ một lát rồi gửi tiếp nhé.'
+        : 'Em gửi chưa được ạ, anh/chị thử lại giúp em.', [{ label: 'Gọi chủ nhà', act: 'contact', solid: true }]);
+    }
+    screenChat();
+  }
 
   const SUGGESTIONS = [
     'Tháng này tôi đóng bao nhiêu?',
@@ -2096,7 +2160,7 @@
     const sugg = (lastBot && lastBot.suggest && lastBot.suggest.length) ? lastBot.suggest : SUGGESTIONS;
     const body = chat.msgs.map((m, i) => `
       <div class="chat-msg ${m.who === 'me' ? 'me' : ''}">
-        <div class="bubble ${m.staff ? 'from-staff' : ''}">${m.staff ? `<div class="b-staff">${ico('users', 18)} ${esc(m.staff)} trả lời</div>` : ''}${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}
+        <div class="bubble ${m.staff ? 'from-staff' : ''}">${m.staff ? `<div class="b-staff">${ico('users', 18)} ${esc(m.staff)} trả lời</div>` : ''}${m.note ? `<div class="b-ctx">${HH.ic('refresh', 16)} ${esc(m.note)}</div>` : ''}${m.html}${khungAnhChat(m)}
           ${m.ai ? '<span class="b-ai">' + HH.ic('sparkles', 16) + ' lời văn do Gemini soạn · số liệu lấy từ hệ thống</span>' : ''}
           ${(m.actions || []).length ? `<div class="b-actions">${m.actions.map((a, j) =>
             `<button class="b-act ${a.solid ? 'solid' : ''}" data-mi="${i}" data-ai="${j}">${esc(a.label)}</button>`).join('')}</div>` : ''}
@@ -2108,8 +2172,10 @@
         <button class="chat-new" id="chatNew" title="Cuộc trò chuyện mới">Trò chuyện mới</button></div>
       <div class="chat-body" id="chatBody" aria-live="polite">${body}${chat.busy ? '<div class="chat-typing"><i></i><i></i><i></i></div>' : ''}</div>
       <div class="chat-sugg">${sugg.map(s => `<button data-sugg="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      <div class="chat-pend${chat.photos.length ? ' on' : ''}" id="chatPend">${chat.photos.map((d, i) => `<span class="chat-pend-i"><img src="${d}" alt="Ảnh đính kèm ${i + 1}"><button type="button" data-rm="${i}" aria-label="Bỏ ảnh ${i + 1}">×</button></span>`).join('')}</div>
       <div class="chat-input">
-        <textarea id="chatIn" rows="1" placeholder="Hỏi về tiền phòng, điện, hợp đồng…"></textarea>
+        ${chat.handed && CP ? `<label class="chat-attach" for="chatFile" aria-label="Gửi ảnh" title="Gửi ảnh (tối đa 3)">${HH.ic('camera', 16)}</label><input type="file" id="chatFile" accept="image/jpeg,image/png,image/webp" multiple hidden>` : ''}
+        <textarea id="chatIn" rows="1" placeholder="${chat.handed ? 'Nhắn cho nhân viên…' : 'Hỏi về tiền phòng, điện, hợp đồng…'}"></textarea>
         <button class="chat-send" id="chatSend" aria-label="Gửi">${HH.ic('send', 16)}</button>
       </div></div></div>`;
 
@@ -2122,12 +2188,30 @@
     el('back').onclick = () => { stopStaffPoll(); go('#/home'); };
     el('chatNew').onclick = () => {
       chat.msgs = []; chat.ctx.clear();
-      chat.handed = false; chat.seen = {}; chat.lastPull = null; stopStaffPoll();
+      chat.handed = false; chat.seen = {}; chat.lastPull = null; chat.photos = []; stopStaffPoll();
       saveChat(); screenChat();
     };
     const bodyEl = el('chatBody'); bodyEl.scrollTop = bodyEl.scrollHeight;
     const inp = el('chatIn');
-    const send = () => { const v = inp.value.trim(); if (!v || chat.busy) return; inp.value = ''; inp.style.height = 'auto'; ask(v); };
+    const send = () => {
+      const v = inp.value.trim();
+      if (chat.busy) return;
+      if (chat.handed && chat.photos.length) { inp.value = ''; inp.style.height = 'auto'; sendToStaff(v, chat.photos.slice()); return; }
+      if (!v) return;
+      inp.value = ''; inp.style.height = 'auto'; ask(v);
+    };
+    const tep = el('chatFile');
+    if (tep) tep.onchange = async () => {
+      const ds = Array.from(tep.files || []); tep.value = '';
+      const moi = [];
+      for (const f of ds.slice(0, CP.MAX_ANH)) { try { moi.push(await nenAnhChat(f)); } catch (e) { toast(e.message || 'Không đọc được ảnh'); } }
+      const r = CP.them(chat.photos, moi);
+      chat.photos = r.anh; veAnhCho();
+      if (r.thua || ds.length > CP.MAX_ANH) toast('Mỗi tin gửi tối đa ' + CP.MAX_ANH + ' ảnh');
+    };
+    document.querySelectorAll('#chatPend [data-rm]').forEach(b => b.onclick = () => { chat.photos = CP.bo(chat.photos, +b.dataset.rm); veAnhCho(); });
+    bodyEl.onclick = (e) => { const b = e.target.closest('[data-lb]'); if (b) xemAnhChat(b.dataset.lb, +b.dataset.i); };
+    taiAnhChat();
     el('chatSend').onclick = send;
     inp.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
     inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(96, inp.scrollHeight) + 'px'; };
@@ -2245,8 +2329,8 @@
     if (!list.length) return;
     list.forEach(m => {
       chat.seen[m.id] = true;
-      pushMsg('bot', `${esc(m.body).split('\n').join('<br>')}`, [], false,
-        { staff: m.staffName || 'Nhân viên trực' });
+      pushMsg('bot', m.body ? `${esc(m.body).split('\n').join('<br>')}` : '', [], false,
+        { staff: m.staffName || 'Nhân viên trực', sid: m.id, photoN: Number(m.photoCount) | 0 });
     });
     screenChat();
   }

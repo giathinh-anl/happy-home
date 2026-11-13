@@ -117,24 +117,52 @@
   const TAM_THOI = [500, 502, 503, 504];
   const CHO_LAI = [1200, 3000];          // nghỉ bao lâu trước lần thử thứ 2 và 3
 
+  /* Mô hình chính của Google có lúc TREO (không trả lời) hoặc trả 503 liên tục trong khi mô hình dự phòng vẫn chạy
+     (đo ngày 12/11/2026: gemini-3.8-flash treo hơn 40 giây, gemini-3.5-flash trả lời sau 3 giây). Trước đây chỉ khi HẾT LƯỢT
+     mới đổi mô hình, còn treo hay quá tải thì chờ hết giờ rồi báo lỗi. Nay:
+       - hết lượt, treo quá giờ: sang ngay mô hình sau;
+       - lỗi tạm của máy chủ (5xx) hoặc rớt mạng, tới NHANH: thử lại vài lần trên mô hình đó, vẫn lỗi thì sang mô hình sau;
+       - lỗi tạm mà tới CHẬM (từ CHAM.ms trở lên): Google đã xếp hàng cả chục giây rồi mới báo, thử lại cũng chờ chừng đó
+         (đo 13/11/2026: 503 tới sau khoảng 21 giây, cả hai mô hình), nên sang ngay mô hình sau, không thử lại;
+       - sai khóa, sai yêu cầu...: mô hình nào cũng vậy, báo ngay.
+     Mô hình vừa hỏng được nhớ lại TRANH_MS: các lần gọi sau đi thẳng mô hình đang ổn, khỏi bắt người dùng chờ lại từ đầu. */
+  const TRANH_MS = 5 * 60 * 1000;
+  const CHAM = { ms: 8000 };
+  const xau = {};                         // { tên mô hình: thời điểm lỗi gần nhất }
+  function phanLoaiLoi(ma) {
+    if (ma === 'AI_QUOTA' || ma === 'AI_TIMEOUT') return 'sang-mo-hinh-khac';
+    const m = /^AI_HTTP_(\d+)$/.exec(ma || '');
+    if ((m && TAM_THOI.includes(+m[1])) || ma === 'AI_NETWORK') return 'thu-lai';
+    return 'bao-ngay';
+  }
+  /** Thứ tự sẽ thử: mô hình đang ổn trước, mô hình vừa hỏng xếp sau (vẫn thử nếu không còn ai khác) */
+  function thuTuMoHinh(ds, bayGio) {
+    const on = ds.filter(m => !(xau[m] && bayGio - xau[m] < TRANH_MS));
+    return on.concat(ds.filter(m => on.indexOf(m) < 0));
+  }
+  /** Còn mô hình khác để thử thì đừng chờ hết thời gian ở mô hình này: tối đa khoảng nửa thời gian (không dưới 12 giây) */
+  const gioiHanCho = (t, conDuPhong) => conDuPhong ? Math.min(t, Math.max(12000, Math.round(t * 0.55))) : t;
+
   async function send(body, timeout) {
-    const ds = danhSachMoHinh();
+    const t = timeout || 12000;
+    const ds = thuTuMoHinh(danhSachMoHinh(), Date.now());
     let cuoi;
-    for (const moHinh of ds) {
+    for (let i = 0; i < ds.length; i++) {
+      const moHinh = ds[i], cho = gioiHanCho(t, i < ds.length - 1);
       for (let lan = 0; lan <= CHO_LAI.length; lan++) {
-        try { return await sendMot(body, timeout, moHinh); }
+        const batDau = Date.now();
+        try { const kq = await sendMot(body, cho, moHinh); delete xau[moHinh]; return kq; }
         catch (e) {
           cuoi = e;
-          // Hết lượt model này: bỏ qua, sang model tiếp theo (hạn mức đếm riêng từng model)
-          if (e.message === 'AI_QUOTA') break;
-          const m = /^AI_HTTP_(\d+)$/.exec(e.message || '');
-          const thuLaiDuoc = (m && TAM_THOI.includes(+m[1])) || e.message === 'AI_NETWORK';
-          if (!thuLaiDuoc || lan === CHO_LAI.length) throw e;   // lỗi khác thì báo ngay
+          const loai = phanLoaiLoi(e.message);
+          if (loai === 'bao-ngay') throw e;
+          const cham = Date.now() - batDau >= CHAM.ms;
+          if (loai === 'sang-mo-hinh-khac' || cham || lan === CHO_LAI.length) { xau[moHinh] = Date.now(); break; }
           await new Promise(r => setTimeout(r, CHO_LAI[lan]));
         }
       }
     }
-    throw cuoi;                           // mọi model đều hết lượt
+    throw cuoi;                           // mọi mô hình đều không dùng được
   }
 
   /* Gửi yêu cầu tới Gemini (qua proxy nếu có) và lấy phần chữ trả về */
@@ -256,7 +284,9 @@ QUY TẮC BẮT BUỘC:
       case 'AI_QUOTA': return choToi
         ? `Đã hết lượt hỏi AI miễn phí. Google báo chờ khoảng ${choToi} nữa là dùng lại được ạ.`
         : 'Đã hết lượt hỏi AI miễn phí, chờ một lát rồi thử lại giúp em ạ.';
-      case 'AI_TIMEOUT': return 'Máy chủ AI phản hồi chậm quá. Anh/chị thử lại giúp em nhé.';
+      case 'AI_TIMEOUT': return 'Máy chủ AI của Google đang phản hồi rất chậm (đã thử cả mô hình dự phòng). Anh/chị thử lại sau ít phút, hoặc nhập tay giúp em nhé.';
+      case 'AI_HTTP_500': case 'AI_HTTP_502': case 'AI_HTTP_503': case 'AI_HTTP_504':
+        return 'Máy chủ AI của Google đang quá tải (đã thử cả mô hình dự phòng). Anh/chị thử lại sau ít phút, hoặc nhập tay giúp em nhé.';
       case 'AI_NETWORK': return 'Không kết nối được máy chủ AI. Kiểm tra mạng giúp em ạ.';
       case 'AI_BAD_KEY': return 'Khóa Gemini không hợp lệ.';
       case 'AI_BAD_JSON': return 'AI đọc được nhưng trả về sai định dạng. Thử chụp lại ảnh rõ hơn giúp em.';
@@ -269,5 +299,8 @@ QUY TẮC BẮT BUỘC:
     cacheGet, cacheSet,
     quotaUsed: () => quota().n, quotaLimit: CHAN_LOAN, choPhaiDoi: () => choToi,
     model: MODEL,
+    // chỉ để kiểm thử (tests/gemini.test.js): xem và chỉnh trạng thái nội bộ
+    _thu: { xau, CHO_LAI, TRANH_MS, CHAM, phanLoaiLoi, thuTuMoHinh, gioiHanCho, danhSachMoHinh },
   };
-})(window);
+  if (typeof module !== 'undefined' && module.exports) module.exports = root.HHGemini;
+})(typeof window !== 'undefined' ? window : globalThis);
