@@ -970,3 +970,77 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 .chat-pend-i img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .chat-pend-i button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: none; background: rgba(0, 0, 0, .65); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
 .chat-attach { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; border: 1px solid var(--neutral-200); background: var(--surface); color: var(--neutral-600); }
+
+
+/* ============================================================
+   Giao diện theo mùa và lễ (js/seasons.js chọn mùa và màu, tenant-app/js/season-ui.js vẽ)
+   Màu: season-ui đặt thẳng các biến --teal-*, --bg, --line... lên :root, thắng mọi bảng màu ở trên (cả chế độ tối).
+   Hình: lớp phủ không bắt chạm nằm dưới thanh tab (40), nút trợ lý (45), thông báo (90) và hộp thoại (100);
+   hạt chỉ dùng transform và opacity nên nhẹ. Bản "tĩnh" và máy bật giảm chuyển động: không có hạt, tranh đứng yên.
+   ============================================================ */
+.sz-layer { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; contain: layout paint; }
+.sz-p { position: absolute; left: var(--x); top: -44px; width: var(--s); height: var(--s); opacity: 0; will-change: transform, opacity;
+  animation: szRoi var(--t) linear var(--dl) infinite; }
+.sz-p svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sz-p.bay { top: auto; bottom: -44px; animation-name: szBay; }
+.sz-p.lap { top: var(--y); animation: szLap var(--t) ease-in-out var(--dl) infinite; }
+@keyframes szRoi {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  7%   { opacity: var(--o); }
+  30%  { transform: translate3d(var(--sw), 32vh, 0) rotate(80deg); }
+  62%  { transform: translate3d(calc(var(--sw) * -0.7), 68vh, 0) rotate(200deg); }
+  93%  { opacity: var(--o); }
+  100% { transform: translate3d(calc(var(--sw) * 0.5), 112vh, 0) rotate(320deg); opacity: 0; }
+}
+@keyframes szBay {
+  0%   { transform: translate3d(0, 0, 0) rotate(-8deg); opacity: 0; }
+  8%   { opacity: var(--o); }
+  35%  { transform: translate3d(var(--sw), -36vh, 0) rotate(8deg); }
+  68%  { transform: translate3d(calc(var(--sw) * -0.7), -72vh, 0) rotate(-6deg); }
+  92%  { opacity: var(--o); }
+  100% { transform: translate3d(calc(var(--sw) * 0.4), -112vh, 0) rotate(6deg); opacity: 0; }
+}
+@keyframes szLap {
+  0%, 100% { transform: scale(.15) rotate(0deg); opacity: 0; }
+  50%      { transform: scale(1) rotate(50deg); opacity: var(--o); }
+}
+.sz-pause .sz-p { animation-play-state: paused; }
+
+/* Lời chào ở Trang chủ thành một băng có nền chuyển màu theo mùa, tranh nằm bên phải, chữ luôn nằm trên tranh */
+.sz-on .t-hello { position: relative; overflow: hidden; margin-bottom: 14px; padding: 16px 16px 14px; border-radius: 20px;
+  border: 1px solid var(--line); background: linear-gradient(115deg, var(--sz-h1) 0%, var(--sz-h2) 100%); }
+.sz-on .t-hello > :not(.sz-art) { position: relative; z-index: 1; }
+.sz-on .t-hello .hi, .sz-on .t-hello .bn { color: var(--ink-2); }
+.sz-on .t-hello .hi b { color: var(--ink); }
+.sz-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sz-art > svg { position: absolute; display: block; overflow: visible; transform: rotate(var(--r, 0deg)); }
+.sz-ribbon { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: 10px; padding: 5px 12px 5px 8px; border-radius: 999px;
+  background: var(--sz-rb); border: 1px solid var(--sz-rl); color: var(--teal-700); font-size: 12.5px; font-weight: 700; line-height: 1.35; }
+.sz-ribbon svg { width: 18px; height: 18px; flex: 0 0 18px; }
+
+.sz-treo { transform-origin: 50% 0; animation: szTreo 3.4s ease-in-out infinite alternate; }
+.sz-bong { animation: szBong 4.2s ease-in-out infinite alternate; }
+.sz-quay { animation: szQuay 46s linear infinite; }
+.sz-luon { animation: szLuon 5.2s ease-in-out infinite alternate; }
+.sz-nhip { animation: szNhip 2.8s ease-in-out infinite alternate; }
+@keyframes szTreo { from { transform: rotate(calc(var(--r, 0deg) - 6deg)); } to { transform: rotate(calc(var(--r, 0deg) + 6deg)); } }
+@keyframes szBong { from { transform: translateY(-3px) rotate(var(--r, 0deg)); } to { transform: translateY(4px) rotate(calc(var(--r, 0deg) + 4deg)); } }
+@keyframes szQuay { from { transform: rotate(var(--r, 0deg)); } to { transform: rotate(calc(var(--r, 0deg) + 360deg)); } }
+@keyframes szLuon { from { transform: translate(-5px, 3px) rotate(calc(var(--r, 0deg) - 4deg)); } to { transform: translate(6px, -4px) rotate(calc(var(--r, 0deg) + 4deg)); } }
+@keyframes szNhip { from { transform: scale(.82) rotate(var(--r, 0deg)); opacity: .75; } to { transform: scale(1.08) rotate(calc(var(--r, 0deg) + 10deg)); opacity: 1; } }
+.sz-tinh .sz-art > svg { animation: none; }
+.sz-pause .sz-art > svg { animation-play-state: paused; }
+
+/* Công tắc ở Tài khoản */
+.t-action.t-season { cursor: default; border-bottom: none; }
+.sz-info { padding: 0 14px 10px 64px; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); background: var(--neutral-0); }
+.sz-info b { color: var(--ink-2); font-weight: 700; }
+.sz-try { padding: 0 14px 14px 64px; background: var(--neutral-0); border-bottom: 1px solid var(--neutral-100); }
+.sz-try summary { display: inline-block; font-size: 12.5px; font-weight: 700; color: var(--teal-700); cursor: pointer; list-style: none; }
+.sz-try summary::-webkit-details-marker { display: none; }
+.sz-try summary::after { content: ' ›'; }
+.sz-try[open] summary::after { content: ' ˅'; }
+.sz-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sz-chip { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 999px; min-height: 32px;
+  transition: background-color .18s, color .18s, border-color .18s; }
+.sz-chip.on { background: var(--teal-50); color: var(--teal-700); border-color: var(--teal-500); }

@@ -662,6 +662,7 @@
     HH.fx.slide(el('tTabs'), 't-tab');
     if (!inVT) HH.fx.enter(document.querySelector('.t-main'));
     HH.fx.countUp(el('tapp'), { vnd: (v) => vnd(v) });
+    if (HH.seasonUI) HH.seasonUI.afterRender();      // tranh và ruy băng theo mùa/lễ trong lời chào (js/season-ui.js)
   }
 
   function screenLoading() { shell('', `<div class="skeleton-card"></div><div class="skeleton-card"></div>`, { home: true }); }
@@ -1495,6 +1496,7 @@
         <div id="pushRow"></div>
         <div class="t-action t-theme" role="group" aria-label="Giao diện"><span class="aic">${HH.ic('sparkles', 20)}</span><span style="flex:1">Giao diện</span>
           <span class="t-seg">${THEMES.map(([k, l]) => `<button type="button" class="${themeNow() === k ? 'on' : ''}" data-theme-set="${k}" aria-pressed="${themeNow() === k}">${l}</button>`).join('')}</span></div>
+        ${HH.seasonUI ? HH.seasonUI.settingsHtml() : ''}
         <button class="t-action" data-nav="#/changecode"><span class="aic">${ico('lock', 26)}</span>Đổi mã vào app<span class="chev">›</span></button>
         <button class="t-action" id="helpBtn"><span class="aic">${HH.ic('help', 20)}</span>Hướng dẫn sử dụng<span class="chev">›</span></button>
       </div>
@@ -1510,6 +1512,7 @@
       setTheme(b.dataset.themeSet);
       document.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
     });
+    if (HH.seasonUI) HH.seasonUI.wireSettings();
     el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     el('logoutBtn').onclick = () => {
       if (!confirm('Đăng xuất khỏi ứng dụng?')) return;

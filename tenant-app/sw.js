@@ -1,9 +1,9 @@
 /* Happy Home — Service worker cho app khách thuê (PWA)
    Chiến lược: mạng trước, có lỗi thì lấy bản đã lưu (để mở được khi mạng chập chờn).
    KHÔNG lưu cache lệnh gọi API Supabase — dữ liệu phải luôn mới. */
-const CACHE = 'hh-tenant-v26';
+const CACHE = 'hh-tenant-v27';
 const SHELL = ['./', './index.html', '../css/tokens.css', './css/tenant.css', './js/tenant.js', './manifest.webmanifest',
-  '../js/icons.js', '../js/motion.js', '../js/nlu.js', '../js/gemini.js', '../js/split.js', '../js/dates.js', '../js/bank-info.js', '../js/chat-photos.js', '../js/progress.js', './js/helpers.js', '../assets/logo-mark.svg', '../assets/logo-icon.svg', '../assets/icon-192.png', '../assets/icon-512.png', '../assets/apple-touch-icon.png'];
+  '../js/icons.js', '../js/motion.js', '../js/nlu.js', '../js/gemini.js', '../js/split.js', '../js/dates.js', '../js/bank-info.js', '../js/chat-photos.js', '../js/seasons.js', '../js/progress.js', './js/helpers.js', './js/season-ui.js', '../assets/logo-mark.svg', '../assets/logo-icon.svg', '../assets/icon-192.png', '../assets/icon-512.png', '../assets/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));

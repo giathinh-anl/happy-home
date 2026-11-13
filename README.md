@@ -376,6 +376,34 @@ Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọ
 - **Trang thêm khách thuê không để người dùng kẹt:** chờ quá 8 giây hiện thêm nút **Nhập tay luôn** (ảnh được giữ lại; kết quả AI về muộn sau đó bị bỏ, không đè lên chữ đã gõ). Đọc lỗi thì có nút **Đọc lại bằng AI**, khỏi chọn lại ảnh.
 - Khi cả hai mô hình đều hỏng, câu báo lỗi nói rõ là do máy chủ AI của Google và đã thử cả mô hình dự phòng, không để người dùng tưởng máy mình hỏng. Đó là chỗ app không sửa được: nếu Google vẫn treo cả hai, chờ ít phút hoặc nhập tay.
 
+## Giao diện theo mùa và theo lễ (app khách thuê)
+
+App khách tự đổi **màu, hình trang trí và hiệu ứng** theo ngày hôm nay (giờ Việt Nam), chủ trọ không phải làm gì. 12 bộ: 4 mùa và 8 dịp lễ.
+
+| Bộ | Khi nào | Hình |
+|---|---|---|
+| Mùa xuân | tháng 2 tới 4 | hoa đào rơi, lá non, chim én |
+| Mùa hè | tháng 5 tới 7 | mặt trời, sóng, bong bóng bay lên |
+| Mùa thu | tháng 8 tới 10 | lá phong, lá vàng rơi |
+| Mùa đông | tháng 11 tới 1 | bông tuyết |
+| Tết Nguyên Đán | từ khoảng 16 tháng Chạp tới Rằm tháng Giêng (30 ngày) | đèn lồng, hoa mai, lì xì; đếm ngược "Còn 9 ngày nữa là Tết", "Hôm nay là Giao thừa", "Mùng 4 Tết" |
+| Trung thu | mùng 8 tới rằm tháng 8 âm lịch | trăng, đèn ông sao bay lên |
+| Giáng sinh | 14 tới 26/12 | cây thông, tuyết |
+| Năm mới | 28/12 tới 2/1 | pháo hoa lấp lánh |
+| Valentine | 12 tới 14/2 | trái tim |
+| 8/3 và 20/10 | 6 tới 8/3, 18 tới 20/10 | hoa tulip, hoa |
+| 30/4 - 1/5 và 2/9 | 27/4 tới 1/5, 28/8 tới 2/9 | cờ đỏ sao vàng, sao |
+| Halloween | 27 tới 31/10 | bí ngô, lấp lánh tím cam |
+
+Lễ thắng mùa; hai lễ chồng nhau thì lễ đứng trước thắng (Tết thắng Valentine khi trùng). Mùa chia theo miền Bắc (bốn mùa); chưa có chế độ riêng cho miền Nam.
+
+- **Âm lịch tính bằng mã** (`js/seasons.js`, thuật toán Hồ Ngọc Đức, múi giờ +7), vì Tết và Trung thu đổi ngày dương mỗi năm. Kiểm thử đối chiếu: mùng 1 Tết 2015-2029 khớp ngày đã công bố; từng lần trăng mới 2001-2040 khớp lịch âm của Intl (chỉ được lệch khi trăng mới nằm sát nửa đêm, trong 15 phút); ngày âm luôn từ 1 tới 30 và liên tục 1990-2060. Tính ra Tết 2030 là 2/2 ở Việt Nam (trăng mới lúc 23 giờ 9 phút ngày 2/2 giờ Việt Nam), Trung Quốc ăn Tết 3/2. Khi viết kiểm thử đã tìm ra và sửa một lỗi của thuật toán gốc: có ngày ra "ngày 0" của tháng âm.
+- **Cái gì đổi:** bảng màu cả app (nút, thanh tab, liên kết, nền, đường kẻ; sáng và tối đều có bản riêng, màu chữ mờ tự đậm thêm vừa đủ để không khó đọc hơn bản hiện tại), băng chào ở Trang chủ (nền chuyển màu, tranh bên phải, dòng chữ hôm nay là mùa/lễ gì), hạt rơi hoặc bay phủ toàn màn hình, màu thanh trạng thái của điện thoại. Hạt không bắt chạm, nằm dưới thanh tab, nút trợ lý và hộp thoại, chỉ dùng transform và opacity nên nhẹ.
+- **Tự đổi theo thời gian thật:** app hẹn đúng nửa đêm giờ Việt Nam, và tính lại mỗi khi mở lại hoặc quay lại tab, nên app mở nhiều ngày liền vẫn đúng. Đã thử bằng cách tua đồng hồ tới đêm Giao thừa: app tự chuyển sang giao diện Tết, dòng chữ đổi thành "Hôm nay là Giao thừa".
+- **Khách tự chọn** (Tài khoản → *Mùa và lễ*): *Tự động* (đầy đủ), *Tĩnh* (có màu và hình, không chuyển động), *Tắt* (giao diện cũ hoàn toàn). Mục *Xem thử các mùa và lễ* cho thử từng bộ ngay, chỉ trong lần mở app đó (đóng app là về theo ngày). Máy bật "giảm chuyển động" tự dùng bản tĩnh, máy yếu giảm nửa số hạt, tab bị ẩn thì hạt tạm dừng. Lựa chọn lưu ở máy khách.
+- Độ rõ chữ được đo bằng mã (WCAG): chữ trắng trên nút, chữ trên nền nhạt, chữ phụ và chữ mờ, cho cả 12 bộ ở cả hai chế độ sáng và tối. Màu nút tránh trùng nghĩa với màu trạng thái (xanh lá "đã thanh toán", đỏ gạch "quá hạn").
+- Không cần chạy SQL nào. Mã: `js/seasons.js` (chọn mùa/lễ, âm lịch, bảng màu; thuần, `node tests/seasons.test.js`, 26 ca, thử phá 38 chỗ cả 38 bị bắt), `tenant-app/js/season-ui.js` (bộ 19 hình SVG, hạt, tranh, công tắc; `node tests/season-ui.test.js`, 13 ca, thử phá 25 chỗ cả 25 bị bắt), phần CSS ở cuối `tenant-app/css/tenant.css`. Đổi hình, màu, thêm lễ: sửa `HIEU_UNG` (hình) và `GIAO_DIEN`, `SU_KIEN` (ngày, màu); bài kiểm thử sẽ báo nếu thiếu hình, thiếu CSS hay chữ khó đọc.
+
 ## Báo cáo tháng (xem, in ra PDF, xuất Excel)
 
 Vào **Tổng quan → Báo cáo tháng** (hoặc `#/reports`). Chọn tháng ở dải tháng, chọn **toàn công ty hay một tòa**, thấy ngay một tờ báo cáo trắng đúng như bản in. Bấm **In / Lưu PDF** để mở hộp in của trình duyệt (chọn "Lưu thành PDF" là có tệp gửi người góp vốn hoặc kế toán), hoặc **Xuất Excel** để có tệp CSV mở bằng Excel (số tiền để dạng số, cộng được).
@@ -515,6 +543,7 @@ js/
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
   gemini.js           # cầu nối Gemini Flash (phân loại ý định + soạn lời), đếm hạn mức, cache, tự sang mô hình dự phòng khi treo/quá tải (có kiểm thử)
   chat-photos.js      # ảnh đính kèm trong chat: giới hạn, bậc nén, tóm tắt tin (không đụng DOM, có kiểm thử, dùng chung hai app)
+  seasons.js          # giao diện theo mùa và lễ: âm lịch, hôm nay là mùa/lễ gì, bảng màu sáng/tối (không đụng DOM, có kiểm thử); phần vẽ ở tenant-app/js/season-ui.js
   ai.js               # bộ ý định của chủ trọ: mỗi ý định tự lấy số thật từ store
   assistant.js        # khung chat nổi ở góc màn hình
   store.js            # dữ liệu + trạng thái + truy vấn/đột biến/phân tích dashboard
@@ -552,6 +581,8 @@ tests/
   bank-webhook-auth.test.js  # kiểm thử kiểm mã webhook ngân hàng (cần node 22.18+): node tests/bank-webhook-auth.test.js
   chat-photos.test.js # kiểm thử luật ảnh trong chat: node tests/chat-photos.test.js
   gemini.test.js      # kiểm thử vòng gọi AI (treo, quá tải, dự phòng) bằng máy chủ giả: node tests/gemini.test.js
+  seasons.test.js     # kiểm thử âm lịch, chọn mùa/lễ theo ngày, độ rõ chữ của bảng màu: node tests/seasons.test.js
+  season-ui.test.js   # kiểm thử hình, hạt, tranh của giao diện theo mùa và việc nối vào app khách: node tests/season-ui.test.js
 ```
 
 ## Kiểm thử
@@ -578,6 +609,8 @@ node tests/listing.test.js
 node tests/bank-webhook-auth.test.js
 node tests/chat-photos.test.js
 node tests/gemini.test.js
+node tests/seasons.test.js
+node tests/season-ui.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
