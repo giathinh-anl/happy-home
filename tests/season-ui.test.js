@@ -18,7 +18,7 @@ const MAU = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
 /** Kiểm tra XML cân thẻ (đủ cho các hình SVG tự viết): trả danh sách lỗi */
 function loiXml(xml, choChu) {
   const loi = [], ngan = [];
-  const re = /<(\/?)([A-Za-z][A-Za-z0-9]*)((?:\s+[A-Za-z:-]+="[^"]*")*)\s*(\/?)>/g;
+  const re = /<(\/?)([A-Za-z][A-Za-z0-9]*)((?:\s+[A-Za-z:-]+(?:="[^"]*")?)*)\s*(\/?)>/g;      // thuộc tính có giá trị hoặc không (data-dong)
   let m, het = 0;
   while ((m = re.exec(xml))) {
     if (!choChu && xml.slice(het, m.index).trim() !== '') loi.push('chữ lạ giữa các thẻ: ' + xml.slice(het, m.index).slice(0, 30));
@@ -178,20 +178,92 @@ test('mọi lớp chuyển động và kiểu hạt dùng trong mã đều có l
   }
   assert.ok(/\.sz-tinh \.sz-art > svg\s*\{\s*animation:\s*none/.test(css), 'bản tĩnh phải dừng tranh');
 });
-test('app khách tải seasons.js trước season-ui.js trước tenant.js, khởi động bằng init, và service worker lưu cả hai tệp', () => {
+test('app khách tải seasons.js, birthday.js rồi season-ui.js rồi tenant.js, khởi động bằng init, và service worker lưu đủ các tệp', () => {
   const h = doc('tenant-app/index.html');
-  const i1 = h.indexOf('../js/seasons.js'), i2 = h.indexOf('js/season-ui.js'), i3 = h.indexOf('HH.seasonUI.init()'), i4 = h.indexOf('js/tenant.js');
-  assert.ok(i1 > 0 && i1 < i2 && i2 < i3 && i3 < i4, 'thứ tự nạp: ' + [i1, i2, i3, i4]);
+  const i1 = h.indexOf('../js/seasons.js'), i1b = h.indexOf('../js/birthday.js'), i2 = h.indexOf('js/season-ui.js'), i3 = h.indexOf('HH.seasonUI.init()'), i4 = h.indexOf('js/tenant.js');
+  assert.ok(i1 > 0 && i1 < i1b && i1b < i2 && i2 < i3 && i3 < i4, 'thứ tự nạp: ' + [i1, i1b, i2, i3, i4]);
   const sw = doc('tenant-app/sw.js');
-  assert.ok(sw.includes("'../js/seasons.js'") && sw.includes("'./js/season-ui.js'"));
+  for (const f of ["'../js/seasons.js'", "'../js/birthday.js'", "'../js/voice.js'", "'./js/season-ui.js'"]) assert.ok(sw.includes(f), 'service worker thiếu ' + f);
+  assert.ok(h.indexOf('../js/voice.js') > 0 && h.indexOf('../js/voice.js') < i4, 'voice.js phải nạp trước tenant.js');
   const t = doc('tenant-app/js/tenant.js');
   assert.ok(t.includes('HH.seasonUI.afterRender()') && t.includes('HH.seasonUI.settingsHtml()') && t.includes('HH.seasonUI.wireSettings()'));
   assert.ok(/shell\(title, body, opts\)[\s\S]*?HH\.seasonUI\.afterRender\(\)/.test(t), 'afterRender phải được gọi trong shell()');
+  assert.ok(/function render\(\) \{\s*if \(HH\.seasonUI\) HH\.seasonUI\.datCaNhan\(state\.data && state\.data\.tenant/.test(t), 'render() phải báo hồ sơ khách cho giao diện sinh nhật');
 });
 test('phiên bản tệp trong index.html và tên bộ nhớ đệm của service worker đã được nâng', () => {
   const sw = doc('tenant-app/sw.js'), h = doc('tenant-app/index.html');
-  assert.ok(+/hh-tenant-v(\d+)/.exec(sw)[1] >= 27);
-  assert.ok(+/tenant\.css\?v=(\d+)/.exec(h)[1] >= 48 && +/js\/tenant\.js\?v=(\d+)/.exec(h)[1] >= 48);
+  assert.ok(+/hh-tenant-v(\d+)/.exec(sw)[1] >= 28);
+  assert.ok(+/tenant\.css\?v=(\d+)/.exec(h)[1] >= 49 && +/js\/tenant\.js\?v=(\d+)/.exec(h)[1] >= 49 && +/js\/season-ui\.js\?v=(\d+)/.exec(h)[1] >= 4 && +/js\/helpers\.js\?v=(\d+)/.exec(h)[1] >= 46);
+});
+
+/* ============================================================
+   Sinh nhật: banner lời chúc, banner chúc mừng nổi lên, giấy màu bắn ra
+   ============================================================ */
+test('banner lời chúc dưới băng chào: có tên, tiêu đề, cân thẻ, thoát ký tự đặc biệt của tên', () => {
+  const x = U.veTheSinhNhat('Mẫu');
+  assert.deepStrictEqual(loiXml(x, true), []);
+  assert.ok(x.startsWith('<section class="sz-bday"') && x.includes('Hôm nay là sinh nhật của bạn') && x.includes('Mẫu') && x.includes('<use href="#sz-banh"/>') && !/undefined|NaN/.test(x));
+  const xau = U.veTheSinhNhat('<img src=x onerror=alert(1)>'); assert.ok(!xau.includes('<img') && xau.includes('&lt;img'));
+  assert.ok(U.veTheSinhNhat('').includes('chúc bạn') && U.veTheSinhNhat(null).includes('chúc bạn'));
+});
+test('banner chúc mừng nổi lên: hộp thoại có tên, nút đóng, tiêu đề liên kết; thoát ký tự của tên; bản tĩnh không có giấy màu', () => {
+  const no = U.taoNo(U.mulberry32(5), 32), x = U.veHopChuc('Mẫu', no);
+  assert.deepStrictEqual(loiXml(x.replace(/<i class="sz-nd"[^>]*>|<\/i>/g, ''), true), []);
+  assert.ok(x.includes('role="dialog"') && x.includes('aria-modal="true"') && x.includes('aria-labelledby="szPopT"') && x.includes('id="szPopT"'));
+  assert.ok(x.includes('Chúc mừng sinh nhật, Mẫu!') && x.includes('id="szPopOk"') && x.includes('Cảm ơn Happy Home') && (x.match(/data-dong/g) || []).length === 2, 'nền và nút đều đóng được');
+  assert.strictEqual((x.match(/class="sz-nd"/g) || []).length, 32);
+  for (const id of ['sz-bongbay', 'sz-banh', 'sz-giay']) assert.ok(x.includes('#' + id), id);
+  const tinh = U.veHopChuc('Mẫu', []); assert.ok(!tinh.includes('sz-nd') && tinh.includes('Chúc mừng sinh nhật, Mẫu!'));
+  assert.ok(U.veHopChuc('Mẫu').includes('szPopOk') && !U.veHopChuc('Mẫu').includes('sz-nd'));
+  const xau = U.veHopChuc('"><script>alert(1)</script>', []); assert.ok(!xau.includes('<script') && xau.includes('&lt;script'));
+  assert.ok(U.veHopChuc('', []).includes('Chúc mừng sinh nhật, bạn!'));
+});
+test('giấy màu bắn ra: cùng hạt giống cùng kết quả, đủ số lượng, bắn lên rồi rơi xuống, màu và cỡ đúng khoảng', () => {
+  const a = U.taoNo(U.mulberry32(9), 30), b = U.taoNo(U.mulberry32(9), 30), c = U.taoNo(U.mulberry32(10), 30);
+  assert.deepStrictEqual(a, b); assert.notDeepStrictEqual(a, c); assert.strictEqual(a.length, 30); assert.strictEqual(U.taoNo(U.mulberry32(1), 0).length, 0);
+  const mau = new Set(a.map((p) => p.c1)); assert.ok(mau.size >= 5, 'nhiều màu: ' + mau.size);
+  for (const p of a) {
+    assert.ok(/^#[0-9A-F]{6}$/i.test(p.c1) && p.s >= 10 && p.s <= 18 && p.t >= 1.6 && p.t <= 2.8 && Math.abs(p.quay) <= 720 && p.roi >= 240 && p.roi <= 420, JSON.stringify(p));
+    assert.ok(Math.abs(p.dx) <= 1.2 * 260 + 1 && Math.abs(p.dy) <= 260, 'tầm bắn ' + JSON.stringify(p));
+  }
+  assert.ok(a.filter((p) => p.dy < 0).length >= 25, 'chủ yếu bắn lên trên');
+  const h = U.veNo(a[0]); assert.ok(h.startsWith('<i class="sz-nd"') && h.includes('<use href="#sz-giay"/>') && !/undefined|NaN/.test(h));
+  for (const v of ['--dx', '--dy', '--fall', '--rot', '--d', '--s', '--c1']) assert.ok(h.includes(v + ':'), v);
+});
+test('bộ Sinh nhật có đủ hình, hạt giấy màu, tranh bóng bay bánh kem hộp quà, và icon bánh kem', () => {
+  const c = U.HIEU_UNG.sinhNhat;
+  assert.strictEqual(c.icon.sp, 'sz-banh'); assert.strictEqual(c.hat.kieu, 'roi');
+  const tranh = c.tranh.map((a) => a.sp); for (const sp of ['sz-bongbay', 'sz-banh', 'sz-qua']) assert.ok(tranh.includes(sp), sp);
+  assert.ok(c.hat.loai.some((l) => l.sp === 'sz-giay' && l.c1.length >= 5));
+  for (const sp of ['sz-giay', 'sz-bongbay', 'sz-banh', 'sz-qua']) assert.ok(U.SPRITE_IDS.includes(sp), sp);
+  assert.ok(U.veRuyBang(S.xemThu('sinhNhat', 'An')).includes('Chúc mừng sinh nhật, An!'));
+});
+test('mọi hàm app khách gọi đều đi qua lớp bảo vệ: có lỗi thì bỏ qua, không làm hỏng màn hình', () => {
+  const hong = U.antoan(() => { throw new Error('hỏng'); }, 'mặc định'), cu = console.info; let ghi = '';
+  console.info = (...a) => { ghi += a.join(' '); };
+  try { assert.strictEqual(hong(), 'mặc định'); } finally { console.info = cu; }
+  assert.ok(/gặp lỗi/.test(ghi));
+  for (const f of ['init', 'refresh', 'afterRender', 'wireSettings', 'datCaNhan', 'xem']) assert.doesNotThrow(() => U[f]({ id: 1 }), f);       // không có DOM trong node: chạy êm, không ném lỗi
+  assert.strictEqual(typeof U.settingsHtml(), 'string');
+  const nguon = doc('tenant-app/js/season-ui.js');
+  assert.ok(/init: antoan\(khoiDong\)/.test(nguon) && /afterRender: antoan\(sauKhiVe\)/.test(nguon) && /datCaNhan: antoan\(datCaNhan\)/.test(nguon) && /settingsHtml: antoan\(caiDatHtml, ''\)/.test(nguon));
+});
+test('CSS của sinh nhật và nút micro có đủ; banner chúc mừng nằm trên thanh tab, giấy màu chỉ dùng transform và opacity', () => {
+  const css = doc('tenant-app/css/tenant.css');
+  for (const k of ['.sz-bday', '.sz-pop', '.sz-pop-bg', '.sz-pop-box', '.sz-nd', '.chat-mic', '.chat-mic.on']) assert.ok(css.includes(k + ' {') || css.includes(k + ' >') || css.includes(k + ','), 'thiếu ' + k);
+  assert.ok(/@keyframes szNo\b/.test(css) && /@keyframes tmPulse\b/.test(css));
+  const pop = /\.sz-pop \{([^}]*)\}/.exec(css)[1]; assert.ok(+/z-index:\s*(\d+)/.exec(pop)[1] >= 100 && /position:\s*fixed/.test(pop), 'banner nổi phải phủ cả thanh tab và nút trợ lý');
+  const kf = /@keyframes szNo\s*\{([\s\S]*?)\n\}/.exec(css)[1]; assert.ok(!/\b(top|left|width|height|margin|box-shadow|filter)\s*:/.test(kf), 'szNo dùng thuộc tính tốn kém');
+  assert.ok(/\.sz-nd \{[^}]*pointer-events:\s*none/.test(css), 'giấy màu không được chặn chạm');
+});
+test('nút micro trong chat: có mặt khi trình duyệt hỗ trợ, nghe một câu rồi dừng, dừng khi vẽ lại màn hình, hỏi trợ lý thì gửi còn nhắn nhân viên thì không', () => {
+  const t = doc('tenant-app/js/tenant.js');
+  assert.ok(t.includes('id="chatMic"') && t.includes('HH.voice && HH.voice.hoTro()') && t.includes('aria-label="Nói câu hỏi"'));
+  assert.ok(/HH\.voice\.nghe\(\{\s*lienTuc: false/.test(t), 'nghe một câu rồi dừng');
+  assert.ok(/function screenChat\(\) \{\s*if \(micH\)/.test(t), 'vẽ lại màn hình thì ngừng nghe');
+  assert.ok(/TH\(\)\.sauKhiNghe\(cuoi, chat\.handed\)/.test(t) && /if \(r\.gui\) send\(\); else inp\.focus\(\)/.test(t), 'chỉ hỏi trợ lý mới tự gửi');
+  assert.ok(/if \(micH\) \{ micH\.dung\(\); return; \}/.test(t), 'bấm lần nữa để dừng');
+  assert.ok(t.indexOf('id="chatMic"') < t.indexOf('id="chatSend"'), 'micro nằm trước nút gửi');
 });
 
 console.log('\n' + ok + ' đạt, ' + hong + ' hỏng');

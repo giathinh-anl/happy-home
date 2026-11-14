@@ -210,5 +210,24 @@ test('biên lai: số tiền lẻ được làm tròn cả ở số lẫn chữ 
   const b = H.bienLai({ id: 'x', amount: 1999.6 }, {}); assert.strictEqual(b.soTien, 2000); assert.strictEqual(b.soTienChu, 'Hai nghìn đồng');
 });
 
+/* ---------- Hỏi trợ lý bằng giọng nói ---------- */
+test('giọng nói: dọn gọn câu (khoảng trắng, viết hoa chữ đầu kể cả "đ", bỏ dấu chấm cuối, giữ dấu hỏi)', () => {
+  assert.strictEqual(H.sauKhiNghe('  hóa   đơn tháng này  ', false).chu, 'Hóa đơn tháng này');
+  assert.strictEqual(H.sauKhiNghe('đóng tiền khi nào.', false).chu, 'Đóng tiền khi nào');
+  assert.strictEqual(H.sauKhiNghe('Tiền điện tháng trước bao nhiêu?', false).chu, 'Tiền điện tháng trước bao nhiêu?');
+  assert.strictEqual(H.sauKhiNghe('xin chào...', false).chu, 'Xin chào');
+});
+test('giọng nói: hỏi trợ lý thì gửi luôn, nhắn cho nhân viên (người thật) thì KHÔNG tự gửi', () => {
+  assert.strictEqual(H.sauKhiNghe('hóa đơn tháng này', false).gui, true);
+  assert.strictEqual(H.sauKhiNghe('hóa đơn tháng này', true).gui, false);
+  assert.strictEqual(H.sauKhiNghe('hóa đơn tháng này', true).chu, 'Hóa đơn tháng này', 'vẫn điền vào ô để khách xem lại');
+});
+test('giọng nói: không nghe được gì thì không gửi và có câu báo; đầu vào lạ không làm sập', () => {
+  for (const v of ['', '   ', '.', '...', null, undefined]) {
+    const r = H.sauKhiNghe(v, false); assert.strictEqual(r.gui, false, JSON.stringify(v)); assert.strictEqual(r.chu, ''); assert.ok(/chưa nghe rõ/.test(r.loi));
+  }
+  assert.strictEqual(H.sauKhiNghe(12345, false).chu, '12345'); assert.strictEqual(H.sauKhiNghe('ok', false).loi, '');
+});
+
 console.log('\n' + ok + ' đạt, ' + hong + ' hỏng');
 process.exit(hong ? 1 : 0);

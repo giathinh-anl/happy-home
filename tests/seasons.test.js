@@ -217,7 +217,7 @@ test('độ dài từng cửa sổ trong một năm không chồng nhau (2028)',
   assert.strictEqual(Object.keys(dem).length, 14, JSON.stringify(dem));     // 10 lễ + 4 mùa
   assert.strictEqual(Object.values(dem).reduce((a, b) => a + b, 0), 366);
 });
-test('mọi ngày 2020-2040 đều ra kết quả hợp lệ, không nhấp nháy, và đủ 12 bộ giao diện đều có lúc xuất hiện', () => {
+test('mọi ngày 2020-2040 đều ra kết quả hợp lệ, không nhấp nháy, và đủ 12 bộ theo lịch đều có lúc xuất hiện (bộ Sinh nhật là riêng từng người)', () => {
   const thay = {}; const thay2 = new Set();
   let truoc = null, doi = 0, nam = 2020;
   for (let jd = S.jdTuNgay(1, 1, 2020); jd < S.jdTuNgay(1, 1, 2041); jd++) {
@@ -231,7 +231,22 @@ test('mọi ngày 2020-2040 đều ra kết quả hợp lệ, không nhấp nhá
     if (truoc !== null && truoc !== r.giaoDien) doi++;
     truoc = r.giaoDien; thay2.add(r.giaoDien); thay[r.id] = 1;
   }
-  assert.deepStrictEqual([...thay2].sort(), S.DANH_SACH.slice().sort());
+  assert.deepStrictEqual([...thay2].sort(), S.DANH_SACH.filter((id) => !S.GIAO_DIEN[id].rieng).sort());
+});
+test('bộ Sinh nhật: riêng từng người, thắng mọi lễ và mọi mùa trong cả năm, có tên người đó, không có thì gọi "bạn"', () => {
+  assert.deepStrictEqual(S.DANH_SACH.filter((id) => S.GIAO_DIEN[id].rieng), ['sinhNhat']);
+  for (let jd = S.jdTuNgay(1, 1, 2026); jd < S.jdTuNgay(1, 1, 2028); jd++) {
+    const x = S.ngayTuJd(jd), r = S.chon(vn(x.y, x.m, x.d), { sinhNhat: { ten: 'An' } });
+    assert.strictEqual(r.giaoDien, 'sinhNhat', x.d + '/' + x.m + '/' + x.y);
+    assert.strictEqual(r.dong, 'Chúc mừng sinh nhật, An!'); assert.strictEqual(r.conLai, 0); assert.strictEqual(r.loai, 'le'); assert.strictEqual(r.id, 'sinhNhat');
+  }
+  assert.strictEqual(S.chon(vn(2026, 2, 17), { sinhNhat: { ten: 'An' } }).giaoDien, 'sinhNhat', 'trùng mùng 1 Tết vẫn là sinh nhật');
+  assert.strictEqual(S.chon(vn(2026, 2, 17)).giaoDien, 'tet'); assert.strictEqual(S.chon(vn(2026, 2, 17), {}).giaoDien, 'tet');
+  assert.strictEqual(S.chon(vn(2026, 2, 17), { sinhNhat: null }).giaoDien, 'tet'); assert.strictEqual(S.chon(vn(2026, 6, 15), undefined).giaoDien, 'ha');
+  assert.strictEqual(S.dongSinhNhat(''), 'Chúc mừng sinh nhật, bạn!'); assert.strictEqual(S.dongSinhNhat(null), 'Chúc mừng sinh nhật, bạn!'); assert.strictEqual(S.dongSinhNhat('  Mẫu '), 'Chúc mừng sinh nhật, Mẫu!');
+  assert.strictEqual(S.chon(vn(2026, 6, 15), { sinhNhat: {} }).dong, 'Chúc mừng sinh nhật, bạn!');
+  assert.strictEqual(S.xemThu('sinhNhat').dong, 'Chúc mừng sinh nhật!'); assert.strictEqual(S.xemThu('sinhNhat', 'An').dong, 'Chúc mừng sinh nhật, An!');
+  assert.strictEqual(S.xemThu('tet', 'An').dong, S.GIAO_DIEN.tet.dongMau, 'tên chỉ dùng cho bộ Sinh nhật');
 });
 
 /* ============================================================

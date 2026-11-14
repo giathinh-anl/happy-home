@@ -21,7 +21,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%20&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/tokens.css?v=40">
-  <link rel="stylesheet" href="css/tenant.css?v=48">
+  <link rel="stylesheet" href="css/tenant.css?v=49">
 </head>
 <body>
   <div id="tapp"></div>
@@ -37,15 +37,17 @@
   <script src="../js/dates.js?v=40"></script>
   <script src="../js/bank-info.js?v=41"></script>
   <script src="../js/chat-photos.js?v=47"></script>
-  <script src="../js/seasons.js?v=2"></script>
+  <script src="../js/seasons.js?v=3"></script>
+  <script src="../js/birthday.js?v=1"></script>
+  <script src="../js/voice.js?v=1"></script>
   <script src="../js/progress.js?v=40"></script>
-  <script src="js/helpers.js?v=45"></script>
-  <script src="js/season-ui.js?v=3"></script>
+  <script src="js/helpers.js?v=46"></script>
+  <script src="js/season-ui.js?v=4"></script>
   <script>try { HH.seasonUI.init(); } catch (e) { console.info('Giao diện theo mùa không chạy:', e && e.message); }</script>
   <!-- Cấu hình máy chủ: dùng chung js/config.js của web quản trị; nếu có tenant-app/js/config.js thì tệp này được ưu tiên -->
   <script src="../js/config.js?v=41" onerror="console.info('Chưa có js/config.js')"></script>
   <script src="js/config.js?v=40" onerror="console.info('Chưa có tenant-app/js/config.js (dùng chung ../js/config.js)')"></script>
-  <script src="js/tenant.js?v=48"></script>
+  <script src="js/tenant.js?v=49"></script>
   <script>
     // PWA: cho phép cài về màn hình chính (chỉ chạy khi mở qua http/https)
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

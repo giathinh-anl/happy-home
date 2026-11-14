@@ -1044,3 +1044,43 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 .sz-chip { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 999px; min-height: 32px;
   transition: background-color .18s, color .18s, border-color .18s; }
 .sz-chip.on { background: var(--teal-50); color: var(--teal-700); border-color: var(--teal-500); }
+
+
+/* ---------- Sinh nhật của khách (js/birthday.js, tenant-app/js/season-ui.js) ----------
+   Banner lời chúc dưới băng chào ở Trang chủ, và banner chúc mừng nổi giữa màn hình MỘT lần trong ngày với giấy màu bắn ra.
+   Màu lấy từ bảng màu của bộ Sinh nhật (đặt lên :root), nên tự đổi theo sáng/tối. */
+.sz-bday { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 12px 14px; border-radius: 18px;
+  border: 1px solid var(--teal-200); background: var(--teal-50); }
+.sz-bday > svg { width: 46px; height: 46px; flex: 0 0 46px; overflow: visible; }
+.sz-bday b { display: block; font-size: 14.5px; color: var(--teal-700); margin-bottom: 2px; }
+.sz-bday p { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.sz-pop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; }
+.sz-pop-bg { position: absolute; inset: 0; background: rgba(28, 8, 36, .52); opacity: 0; transition: opacity .3s; }
+.sz-pop.on .sz-pop-bg { opacity: 1; }
+.sz-pop-box { position: relative; width: min(100%, 360px); text-align: center; padding: 18px 22px 22px; border-radius: 24px; border: 1px solid var(--line);
+  background: var(--surface); box-shadow: var(--shadow-dialog); opacity: 0; transform: translateY(26px) scale(.94);
+  transition: transform .5s var(--spring), opacity .25s; }
+.sz-pop.on .sz-pop-box { opacity: 1; transform: none; }
+.sz-pop-art { display: flex; justify-content: center; align-items: flex-end; gap: 2px; height: 104px; margin: 0 0 4px; }
+.sz-pop-art svg { display: block; overflow: visible; }
+.sz-pop-art .pa1 { width: 50px; height: 50px; margin-bottom: 26px; transform: rotate(-9deg); }
+.sz-pop-art .pa2 { width: 86px; height: 86px; }
+.sz-pop-art .pa3 { width: 44px; height: 44px; margin-bottom: 30px; transform: rotate(9deg); }
+.sz-pop-box h3 { font-size: 20px; margin: 6px 0 8px; color: var(--teal-700); }
+.sz-pop-box p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin-bottom: 18px; }
+.sz-nd { position: absolute; left: 50%; top: 24%; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+  pointer-events: none; will-change: transform, opacity; animation: szNo var(--d) cubic-bezier(.2, .7, .3, 1) both; }
+.sz-nd svg { display: block; width: 100%; height: 100%; }
+@keyframes szNo {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(.4); opacity: 0; }
+  8%   { opacity: 1; }
+  45%  { transform: translate3d(var(--dx), var(--dy), 0) rotate(calc(var(--rot) * .5)) scale(1); opacity: 1; }
+  100% { transform: translate3d(calc(var(--dx) * 1.2), calc(var(--dy) + var(--fall)), 0) rotate(var(--rot)) scale(.9); opacity: 0; }
+}
+
+/* ---------- Nút micro trong khung chat với trợ lý (js/voice.js): nói câu hỏi thay vì gõ ---------- */
+.chat-mic { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--neutral-200); background: var(--surface); color: var(--neutral-600); transition: background-color .18s, color .18s, border-color .18s; }
+.chat-mic:active { transform: scale(.94); }
+.chat-mic.on { background: var(--danger); border-color: var(--danger); color: #fff; animation: tmPulse 1.2s ease-in-out infinite; }
+@keyframes tmPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(179, 64, 47, .45); } 50% { box-shadow: 0 0 0 9px rgba(179, 64, 47, 0); } }

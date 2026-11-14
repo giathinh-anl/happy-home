@@ -218,7 +218,19 @@
       khach: String(c.khach || ''), phong: String(c.phong || ''), toa: String(c.toa || '') };
   }
 
-  const api = { pushMode, urlBase64ToBytes, installMode, buildIcs, shareText, cacheEnvelope, readCache, ageLabel, codeProblem, meterCheck, parseMeterAnswer, usageForecast, docSoThanhChu, bienLai, CACHE_VERSION };
+  /* ---------- Hỏi trợ lý bằng giọng nói ----------
+     Trình duyệt chỉ đổi giọng thành chữ (js/voice.js). Ở đây quyết định làm gì với câu vừa nghe:
+       - dọn gọn chữ: bỏ khoảng trắng thừa, viết hoa chữ đầu, bỏ dấu chấm cuối câu (giữ dấu hỏi);
+       - đang hỏi TRỢ LÝ (chỉ tra cứu, việc quan trọng nào cũng có nút xác nhận): nói xong là gửi luôn;
+       - đang nhắn cho NHÂN VIÊN (người thật): KHÔNG tự gửi, chỉ điền vào ô cho khách xem lại, vì nghe nhầm một chữ là gửi nhầm.
+     Trả { chu, gui, loi }. */
+  function sauKhiNghe(chu, choNhanVien) {
+    const s = String(chu == null ? '' : chu).replace(/\s+/g, ' ').trim().replace(/[.。]+$/, '').trim();
+    const dep = s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+    return { chu: dep, gui: !!dep && !choNhanVien, loi: dep ? '' : 'Em chưa nghe rõ, anh/chị thử nói lại giúp em' };
+  }
+
+  const api = { pushMode, urlBase64ToBytes, installMode, buildIcs, shareText, cacheEnvelope, readCache, ageLabel, codeProblem, meterCheck, parseMeterAnswer, usageForecast, docSoThanhChu, bienLai, sauKhiNghe, CACHE_VERSION };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.tenantHelpers = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

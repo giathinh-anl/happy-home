@@ -12,6 +12,7 @@
 (function (root) {
   'use strict';
   const S = (root.HH && root.HH.seasons) || (typeof require === 'function' ? require('../../js/seasons.js') : null);
+  const B = (root.HH && root.HH.birthday) || (typeof require === 'function' ? require('../../js/birthday.js') : null);
 
   /* ---------- Bộ hình (mỗi hình trong khung 64 x 64, đổi màu bằng --c1 / --c2 đặt ở thẻ svg ngoài) ---------- */
   const F1 = 'style="fill:var(--c1)"', F2 = 'style="fill:var(--c2)"';
@@ -41,6 +42,11 @@
     'sz-cay': '<path d="M32 3L47 24H39L53 42H43L58 58H6L21 42H11L25 24H17Z" style="fill:var(--c1);stroke:var(--c1);stroke-width:2;stroke-linejoin:round"/><rect x="28" y="57" width="8" height="6" rx="1" style="fill:#8B5A2B"/><circle cx="26" cy="38" r="2.6" ' + F2 + '/><circle cx="38" cy="31" r="2.6" style="fill:#FFD54F"/><circle cx="34" cy="48" r="2.6" ' + F2 + '/><circle cx="20" cy="52" r="2.4" style="fill:#FFD54F"/><circle cx="46" cy="52" r="2.4" ' + F2 + '/><polygon points="32,4.5 33.29,8.22 37.23,8.3 34.09,10.68 35.2,14.45 32,12.2 28.8,14.45 29.91,10.68 26.77,8.3 30.71,8.22" style="fill:#FFD54F"/>',
     'sz-co': '<rect x="5" y="6" width="3.2" height="55" rx="1.6" style="fill:#B58A4A"/><path d="M8 12C18 6 26 18 36 12C46 6 52 12 58 10V42C52 44 46 38 36 44C26 50 18 38 8 44Z" ' + F1 + '/><polygon points="33,18 35.59,25.44 43.46,25.6 37.18,30.36 39.47,37.9 33,33.4 26.53,37.9 28.82,30.36 22.54,25.6 30.41,25.44" ' + F2 + '/>',
     'sz-tulip': '<path d="M32 60V34" style="fill:none;stroke:var(--c3,#4C9A4A);stroke-width:3.5;stroke-linecap:round"/><path d="M32 52C26 50 22 46 20 41C26 41 30 45 32 52Z" style="fill:var(--c3,#4C9A4A)"/><path d="M32 52C38 50 42 46 44 41C38 41 34 45 32 52Z" style="fill:var(--c3,#4C9A4A)"/><path d="M18 14C18 30 24 38 32 38C40 38 46 30 46 14L39 21L32 10L25 21Z" ' + F1 + '/>',
+    // sinh nhật: mảnh giấy màu, bóng bay, bánh kem (ba nến), hộp quà
+    'sz-giay': '<rect x="23" y="6" width="18" height="52" rx="4" ' + F1 + '/>',
+    'sz-bongbay': '<path d="M32 4C46 4 54 15 54 27C54 41 43 50 32 52C21 50 10 41 10 27C10 15 18 4 32 4Z" ' + F1 + '/><path d="M32 52L27 58H37Z" ' + F1 + '/><path d="M32 58C28 60 36 62 32 64" style="fill:none;stroke:var(--c1);stroke-width:1.6;stroke-linecap:round;opacity:.7"/><ellipse cx="22" cy="19" rx="4.5" ry="8" transform="rotate(25 22 19)" style="fill:#fff;opacity:.38"/>',
+    'sz-banh': '<rect x="22" y="14" width="4" height="12" rx="1.5" style="fill:#4CC9F0"/><rect x="30" y="14" width="4" height="12" rx="1.5" style="fill:#7C4DFF"/><rect x="38" y="14" width="4" height="12" rx="1.5" style="fill:#06D6A0"/><path d="M24 4C27 8 27 11 24 11C21 11 21 8 24 4ZM32 4C35 8 35 11 32 11C29 11 29 8 32 4ZM40 4C43 8 43 11 40 11C37 11 37 8 40 4Z" style="fill:#FFB300"/><rect x="14" y="26" width="36" height="14" rx="4" ' + F2 + '/><path d="M14 31C14 28 16 26 19 26H45C48 26 50 28 50 31V32C48 37 46 32 43 36C40 32 37 38 34 34C31 38 28 32 25 36C22 32 18 37 14 33Z" style="fill:#fff;opacity:.9"/><rect x="8" y="38" width="48" height="18" rx="5" ' + F1 + '/><path d="M8 47H56" style="fill:none;stroke:#fff;stroke-opacity:.6;stroke-width:2.4;stroke-dasharray:1 6;stroke-linecap:round"/>',
+    'sz-qua': '<rect x="10" y="26" width="44" height="30" rx="3" ' + F1 + '/><rect x="6" y="19" width="52" height="11" rx="3" ' + F1 + '/><rect x="28" y="19" width="8" height="37" ' + F2 + '/><path d="M32 19C27 6 14 8 20 19Z" ' + F2 + '/><path d="M32 19C37 6 50 8 44 19Z" ' + F2 + '/>',
   };
   const SPRITE_IDS = Object.keys(SPRITE);
   const soDoSprite = () => '<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>' +
@@ -174,6 +180,19 @@
         { sp: 'sz-bido', rt: 68, bt: -2, w: 38, c1: '#F57C00', c2: '#3E1F5C', a: 'bong', dl: -1.2 },
         { sp: 'sz-lap', rt: 22, tp: 8, w: 26, c1: '#8E5BC2', a: 'nhip' },
         { sp: 'sz-lap', rt: 80, tp: 22, w: 18, c1: '#FB8C00', a: 'nhip', dl: -1 }] },
+    sinhNhat: {
+      icon: { sp: 'sz-banh', c1: '#E0489B', c2: '#FFD166' },
+      hat: { kieu: 'roi', n: 18, t: [8, 14], sw: 30, o: [0.8, 1], loai: [
+        { sp: 'sz-giay', c1: ['#FF5C8A', '#FFD166', '#06D6A0', '#4CC9F0', '#B388FF', '#FF9F1C'], c2: '#fff', w: 8, s: [9, 15] },
+        { sp: 'sz-lap', c1: ['#FFC107', '#FF5C8A'], c2: '#fff', w: 2, s: [10, 16] },
+        { sp: 'sz-tim', c1: ['#FF5C8A', '#F48FB1'], c2: '#fff', w: 1, s: [10, 16] }] },
+      tranh: [
+        { sp: 'sz-bongbay', rt: 14, tp: -6, w: 46, r: 8, c1: '#FF5C8A', a: 'bong' },
+        { sp: 'sz-bongbay', rt: 60, tp: -2, w: 40, r: -6, c1: '#4CC9F0', a: 'bong', dl: -1.2 },
+        { sp: 'sz-bongbay', rt: 96, tp: 4, w: 32, r: 10, c1: '#FFC107', a: 'bong', dl: -2.4 },
+        { sp: 'sz-banh', rt: 10, bt: -2, w: 56, c1: '#E0489B', c2: '#FFD166' },
+        { sp: 'sz-qua', rt: 76, bt: 0, w: 34, r: -8, c1: '#7C4DFF', c2: '#FFD166' },
+        { sp: 'sz-lap', rt: 106, tp: 58, w: 16, c1: '#FFC107', a: 'nhip' }] },
   };
 
   /* ---------- Sinh hạt và hình (thuần) ---------- */
@@ -228,8 +247,37 @@
     return '<div class="sz-ribbon"><svg viewBox="0 0 64 64" aria-hidden="true" style="--c1:' + cfg.icon.c1 + ';--c2:' + cfg.icon.c2 + '"><use href="#' + cfg.icon.sp + '"/></svg><span>' + esc(kq.dong) + '</span></div>';
   }
 
+  /* ---------- Sinh nhật: banner lời chúc, banner chúc mừng nổi lên, giấy màu bắn ra (thuần) ---------- */
+  /** Banner lời chúc nằm dưới băng chào ở Trang chủ. ten: tên gọi của khách. */
+  function veTheSinhNhat(ten) {
+    const x = B.loiChucApp(ten);
+    return '<section class="sz-bday" aria-label="Chúc mừng sinh nhật"><svg viewBox="0 0 64 64" aria-hidden="true" style="--c1:#E0489B;--c2:#FFD166"><use href="#sz-banh"/></svg>' +
+      '<div><b>' + esc(x.tieuDe) + '</b><p>' + esc(x.noiDung) + '</p></div></section>';
+  }
+  /** Các mảnh giấy màu bắn ra khi banner chúc mừng mở. Cùng hạt giống cho cùng kết quả. */
+  function taoNo(rng, n) {
+    const mau = ['#FF5C8A', '#FFD166', '#06D6A0', '#4CC9F0', '#B388FF', '#FF9F1C'], out = [];
+    for (let i = 0; i < n; i++) {
+      const goc = -Math.PI / 2 + (rng() - 0.5) * Math.PI * 1.15, luc = 90 + rng() * 170;      // chủ yếu bắn lên, tỏa hai bên
+      out.push({ dx: Math.round(Math.cos(goc) * luc * 1.2), dy: Math.round(Math.sin(goc) * luc), roi: Math.round(240 + rng() * 180),
+        quay: Math.round((rng() * 2 - 1) * 720), t: lamTron(1.6 + rng() * 1.2, 1), s: Math.round(10 + rng() * 8), c1: mau[i % mau.length] });
+    }
+    return out;
+  }
+  const veNo = (p) => '<i class="sz-nd" style="--dx:' + p.dx + 'px;--dy:' + p.dy + 'px;--fall:' + p.roi + 'px;--rot:' + p.quay + 'deg;--d:' + p.t + 's;--s:' + p.s +
+    'px;--c1:' + p.c1 + '"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#sz-giay"/></svg></i>';
+  /** Banner chúc mừng nổi lên giữa màn hình một lần trong ngày sinh nhật. no: các mảnh giấy (bản tĩnh thì để rỗng). */
+  function veHopChuc(ten, no) {
+    const x = B.loiChucApp(ten), t = String(ten == null ? '' : ten).trim() || 'bạn';
+    const hinh = (sp, cls, c1, c2) => '<svg class="' + cls + '" viewBox="0 0 64 64" aria-hidden="true" style="--c1:' + c1 + ';--c2:' + c2 + '"><use href="#' + sp + '"/></svg>';
+    return '<div class="sz-pop-bg" data-dong></div><div class="sz-pop-box" role="dialog" aria-modal="true" aria-labelledby="szPopT">' + (no || []).map(veNo).join('') +
+      '<div class="sz-pop-art" aria-hidden="true">' + hinh('sz-bongbay', 'sz-bong pa1', '#FF5C8A', '#fff') + hinh('sz-banh', 'pa2', '#E0489B', '#FFD166') + hinh('sz-bongbay', 'sz-bong pa3', '#4CC9F0', '#fff') + '</div>' +
+      '<h3 id="szPopT">Chúc mừng sinh nhật, ' + esc(t) + '!</h3><p>' + esc(x.noiDung) + '</p>' +
+      '<button type="button" class="t-btn" id="szPopOk" data-dong>Cảm ơn Happy Home</button></div>';
+  }
+
   /* ---------- Lựa chọn của người dùng (lưu ở máy này) ---------- */
-  const KHO = 'hh_season', KHO_XEM = 'hh_season_xem';
+  const KHO = 'hh_season', KHO_XEM = 'hh_season_xem', KHO_POP = 'hh_bday_pop';
   const doc = (k, ss) => { try { return (ss ? root.sessionStorage : root.localStorage).getItem(k); } catch (e) { return null; } };
   const ghi = (k, v, ss) => { try { const st = ss ? root.sessionStorage : root.localStorage; if (v == null) st.removeItem(k); else st.setItem(k, v); } catch (e) { /* trình duyệt chặn lưu thì thôi */ } };
   const cheDo = () => { const v = doc(KHO); return v === 'tinh' || v === 'tat' ? v : 'auto'; };
@@ -245,6 +293,36 @@
 
   /* ---------- Vẽ lên trang (chỉ chạy trong trình duyệt) ---------- */
   let cur = { kq: null, mode: 'tat', toi: false }, daVe = '', hen = null, daDatSprite = false;
+  let ca = null, caKhoa = '';           // khách đang đăng nhập: { id, ten (tên gọi), dob }; null khi chưa đăng nhập hoặc chưa có ngày sinh
+  let popKhoa = '', lanXem = 0;         // banner chúc mừng đã nổi lên cho "lần" nào; lanXem đếm số lần bấm xem thử
+
+  /** Gọi mỗi khi vẽ màn hình với hồ sơ khách ({ id, fullName, dob }), hoặc null khi chưa đăng nhập. Hồ sơ đổi thì tự tính lại. */
+  function datCaNhan(khach) {
+    const moi = khach && khach.dob && B ? { id: String(khach.id || ''), ten: B.tenGoi(khach.fullName), dob: String(khach.dob) } : null;
+    const k = moi ? moi.id + '|' + moi.dob + '|' + moi.ten : '';
+    if (k === caKhoa) return;
+    caKhoa = k; ca = moi; apDung(false);
+  }
+  /** Hôm nay là mùa/lễ nào đối với người đang dùng; đúng ngày sinh của họ thì bộ Sinh nhật thắng tất cả */
+  function chonHomNay() {
+    const now = Date.now();
+    return S.chon(now, ca && B.laHomNay(ca.dob, now) ? { sinhNhat: { ten: ca.ten } } : null);
+  }
+
+  /** Banner chúc mừng nổi giữa màn hình (một lần trong ngày sinh nhật, hoặc mỗi lần bấm xem thử) */
+  function dongHop() { const h = root.document.getElementById('szPop'); if (h) h.remove(); root.document.removeEventListener('keydown', phimHop); }
+  function phimHop(e) { if (e.key === 'Escape') dongHop(); }
+  function moHop() {
+    const d = root.document;
+    dongHop(); datSprite();
+    const el = d.createElement('div'); el.id = 'szPop'; el.className = 'sz-pop';
+    el.innerHTML = veHopChuc(ca ? ca.ten : '', cur.mode === 'dong' ? taoNo(mulberry32((Date.now() >>> 0) ^ 0x9E3779B9), 32) : []);
+    d.body.appendChild(el);
+    el.addEventListener('click', (e) => { if (e.target.closest('[data-dong]')) dongHop(); });
+    d.addEventListener('keydown', phimHop);
+    if (root.requestAnimationFrame) root.requestAnimationFrame(() => el.classList.add('on')); else el.classList.add('on');
+    const ok = d.getElementById('szPopOk'); if (ok && ok.focus) ok.focus();
+  }
 
   function datSprite() {
     if (daDatSprite || root.document.getElementById('szSprite')) { daDatSprite = true; return; }
@@ -269,26 +347,34 @@
     el.innerHTML = taoHat(kq.giaoDien, mulberry32(hatGiong(kq.giaoDien + hom.d + '/' + hom.m)), mayYeu() ? 0.5 : 1).map(veHat).join('');
     el.classList.toggle('sz-pause', !!root.document.hidden);
   }
-  /** Gắn tranh và ruy băng vào lời chào ở Trang chủ (gọi sau mỗi lần vẽ màn hình) */
+  /** Gắn tranh, ruy băng (và banner lời chúc sinh nhật) vào lời chào ở Trang chủ; nổi banner chúc mừng. Gọi sau mỗi lần vẽ màn hình. */
   function sauKhiVe() {
     if (!root.document) return;
+    const kq = cur.kq;
+    // Banner chúc mừng nổi lên MỘT lần trong ngày sinh nhật (nhớ ở máy này); bấm xem thử thì nổi lên mỗi lần bấm
+    if (kq && kq.giaoDien === 'sinhNhat' && root.document.querySelector('.t-main')) {
+      const thu = xemThu(), khoaHop = thu ? 'xem:' + lanXem : B.khoaNgay(Date.now()) + '|' + (ca ? ca.id : '');
+      if (khoaHop !== popKhoa && (thu || doc(KHO_POP) !== khoaHop)) { popKhoa = khoaHop; if (!thu) ghi(KHO_POP, khoaHop); moHop(); }
+    }
     const hello = root.document.querySelector('.t-hello');
     if (!hello) return;
-    const kq = cur.kq, khoa = kq ? kq.giaoDien + '|' + kq.dong : '';
+    const khoa = kq ? kq.giaoDien + '|' + kq.dong : '';
     if ((hello.getAttribute('data-sz') || '') === khoa) return;
     hello.querySelectorAll('.sz-art, .sz-ribbon').forEach((n) => n.remove());
+    const cu = hello.nextElementSibling; if (cu && cu.classList.contains('sz-bday')) cu.remove();
     hello.removeAttribute('data-sz');
     if (!kq || !HIEU_UNG[kq.giaoDien]) return;
     datSprite();
     hello.insertAdjacentHTML('afterbegin', veTranh(kq.giaoDien));
     hello.insertAdjacentHTML('beforeend', veRuyBang(kq));
+    if (kq.giaoDien === 'sinhNhat') hello.insertAdjacentHTML('afterend', veTheSinhNhat(ca ? ca.ten : ''));
     hello.setAttribute('data-sz', khoa);
   }
   /** Tính lại hôm nay là mùa/lễ gì và vẽ lại nếu có gì đổi. ep = vẽ lại dù không đổi. */
   function apDung(ep) {
     if (!root.document || !S) return;
     const mode = hieuLuc(), x = xemThu();
-    const kq = mode === 'tat' ? null : (x ? S.xemThu(x) : S.chon(Date.now()));
+    const kq = mode === 'tat' ? null : (x ? S.xemThu(x, ca && ca.ten) : chonHomNay());
     const toi = laToi();
     const khoa = [kq ? kq.giaoDien : '-', kq ? kq.dong : '', mode, toi ? 'd' : 'l'].join('|');
     if (!ep && khoa === daVe) return;
@@ -335,7 +421,7 @@
     const m = cheDo(), x = xemThu();
     if (m === 'tat') return 'Đã tắt: app dùng giao diện mặc định.';
     if (x) return 'Đang xem thử: <b>' + esc(S.GIAO_DIEN[x].ten) + '</b>. Chọn "Theo ngày" để quay lại.';
-    const kq = S.chon(Date.now());
+    const kq = chonHomNay();
     return 'Hôm nay: <b>' + esc(kq.ten) + '</b> · ' + esc(kq.dong) + (hieuLuc() === 'tinh' ? '. Không chuyển động.' : '.');
   }
   function caiDatHtml() {
@@ -365,18 +451,24 @@
     root.document.querySelectorAll('[data-sz-xem]').forEach((b) => {
       b.onclick = () => {
         const id = b.dataset.szXem || null;
-        ghi(KHO_XEM, id, true);
+        ghi(KHO_XEM, id, true); lanXem++;
         if (id && cheDo() === 'tat') ghi(KHO, null);               // chọn xem thử mà đang tắt thì bật lại
         apDung(true); capNhatCaiDat();
       };
     });
   }
 
+  /* Đây chỉ là trang trí: có lỗi gì thì ghi nhật ký rồi bỏ qua, KHÔNG bao giờ để làm hỏng màn hình thanh toán, hóa đơn hay chat của khách.
+     Mọi hàm app khách gọi tới đều đi qua đây. */
+  const antoan = (f, macDinh) => function () {
+    try { return f.apply(this, arguments); } catch (e) { if (root.console && root.console.info) root.console.info('Giao diện theo mùa gặp lỗi, bỏ qua:', e && e.message); return macDinh; }
+  };
   const api = {
-    SPRITE, SPRITE_IDS, HIEU_UNG, soDoSprite, mulberry32, hatGiong, taoHat, veHat, veTranh, veRuyBang, esc,
-    init: khoiDong, refresh: apDung, afterRender: sauKhiVe, settingsHtml: caiDatHtml, wireSettings: noiCaiDat,
+    SPRITE, SPRITE_IDS, HIEU_UNG, soDoSprite, mulberry32, hatGiong, taoHat, veHat, veTranh, veRuyBang, esc, veTheSinhNhat, veHopChuc, taoNo, veNo, antoan,
+    init: antoan(khoiDong), refresh: antoan(apDung), afterRender: antoan(sauKhiVe), settingsHtml: antoan(caiDatHtml, ''), wireSettings: antoan(noiCaiDat),
+    datCaNhan: antoan(datCaNhan),
     current: () => cur,
-    xem: (id) => { ghi(KHO_XEM, id || null, true); apDung(true); },
+    xem: antoan((id) => { ghi(KHO_XEM, id || null, true); lanXem++; apDung(true); }),
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.seasonUI = api; }

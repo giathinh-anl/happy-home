@@ -67,6 +67,7 @@ Hai lỗi có sẵn được sửa cùng đợt: **mã hóa đơn** trước đ�
 - **Trang Chỉ số điện → nút Đọc chỉ số:** vừa đi dọc hành lang vừa đọc "phòng 101 điện 1250, phòng 102 điện 980". Trình duyệt đổi giọng thành chữ, `js/voice.js` hiểu chữ thành (phòng, chỉ số): nhận cả số viết bằng chữ ("một nghìn hai trăm năm mươi"), đọc từng số ("một không một" = 101), số viết 1.250 hoặc 1 250, nhiều phòng một câu, tiếng ậm ừ xen giữa.
 - **Giọng nói dễ nghe nhầm nên không bao giờ ghi thẳng.** Danh sách "nghe được" hiện ra để xem lại và sửa số ngay trong bảng; chưa bấm *Ghi* thì chưa lưu gì. Số nhỏ hơn kỳ trước không cho ghi (hay là nghe thiếu chữ số); cao hơn 3 lần mức thường hoặc ghi đè số đang có thì mặc định không tick, phải tự quyết; phòng không có trong tòa thì báo rõ. Mỗi lần ghi có dòng trong nhật ký hoạt động.
 - **Trợ lý ảo có nút micro:** nói câu hỏi, nói xong tự gửi (trợ lý chỉ tra cứu nên gửi luôn an toàn).
+- **Trợ lý trong app khách thuê cũng có nút micro** (cùng `js/voice.js`, nằm giữa ô nhập và nút gửi; ẩn đi nếu trình duyệt không hỗ trợ). Bấm nút, nói một câu: chữ hiện dần trong ô, nút sáng đỏ và ô báo "Đang nghe...", bấm lần nữa để dừng. **Đang hỏi trợ lý:** nói xong tự gửi, vì trợ lý chỉ tra cứu và việc quan trọng nào cũng có nút xác nhận. **Đang nhắn cho nhân viên (người thật):** KHÔNG tự gửi, chỉ điền câu vào ô để khách xem lại rồi tự bấm gửi, vì nghe nhầm một chữ là gửi nhầm cho người thật. Câu nói được dọn gọn (bỏ khoảng trắng thừa, viết hoa chữ đầu, bỏ dấu chấm cuối; `sauKhiNghe` ở `tenant-app/js/helpers.js`). Không nghe được gì hoặc bị chặn micro thì báo lý do và nút trở lại như cũ. Đã thử trong trình duyệt với bộ nhận dạng giả cho cả hai chế độ; micro thật chưa thử trên điện thoại.
 - Không có micro hoặc trình duyệt không hỗ trợ (Firefox): vẫn gõ hoặc dán câu vào ô, kết quả như nhau. Chrome, Edge, Android và Safari thì dùng được.
 - **Quyền riêng tư:** nhận dạng giọng nói do trình duyệt làm, âm thanh được gửi tới dịch vụ của hãng trình duyệt (Google với Chrome, Apple với Safari). Happy Home không ghi âm hay lưu âm thanh; hộp thoại có ghi chú này cho người dùng thấy.
 - 87 ca kiểm thử `tests/voice.test.js` (số bằng chữ, nhiều cách đọc, các câu sai, đánh giá chỉ số, micro giả), thử phá 47 chỗ đều bị bắt. Khi thử phát hiện một lỗi thật: từ nối như "là" từng bị bỏ qua giữa hai cụm số bằng chữ nên có thể ghép "phòng một không một là một nghìn hai trăm" thành số sai; nay từ nối ngắt cụm số, chỉ tiếng ậm ừ mới được bỏ qua.
@@ -378,7 +379,7 @@ Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọ
 
 ## Giao diện theo mùa và theo lễ (app khách thuê)
 
-App khách tự đổi **màu, hình trang trí và hiệu ứng** theo ngày hôm nay (giờ Việt Nam), chủ trọ không phải làm gì. 12 bộ: 4 mùa và 8 dịp lễ.
+App khách tự đổi **màu, hình trang trí và hiệu ứng** theo ngày hôm nay (giờ Việt Nam), chủ trọ không phải làm gì. 13 bộ: 4 mùa, 8 dịp lễ, và bộ **Sinh nhật** riêng cho từng khách (xem bên dưới).
 
 | Bộ | Khi nào | Hình |
 |---|---|---|
@@ -394,15 +395,21 @@ App khách tự đổi **màu, hình trang trí và hiệu ứng** theo ngày h�
 | 8/3 và 20/10 | 6 tới 8/3, 18 tới 20/10 | hoa tulip, hoa |
 | 30/4 - 1/5 và 2/9 | 27/4 tới 1/5, 28/8 tới 2/9 | cờ đỏ sao vàng, sao |
 | Halloween | 27 tới 31/10 | bí ngô, lấp lánh tím cam |
+| **Sinh nhật** | đúng ngày sinh của khách đang dùng app | bóng bay, bánh kem, hộp quà, giấy màu rơi |
 
 Lễ thắng mùa; hai lễ chồng nhau thì lễ đứng trước thắng (Tết thắng Valentine khi trùng). Mùa chia theo miền Bắc (bốn mùa); chưa có chế độ riêng cho miền Nam.
+
+- **Sinh nhật của khách** (`js/birthday.js`): đúng ngày sinh trong hồ sơ của khách, app khách tự chuyển sang bộ Sinh nhật, **thắng mọi mùa và lễ** (trùng mùng 1 Tết vẫn là sinh nhật). Khách thấy: băng chào ở Trang chủ có bóng bay, bánh kem, hộp quà và dòng "Chúc mừng sinh nhật, <tên>!"; một banner lời chúc ngay dưới băng chào; giấy màu rơi khắp màn hình; và một **banner chúc mừng nổi giữa màn hình, chỉ MỘT lần trong ngày** (có giấy màu bắn ra, đóng bằng nút *Cảm ơn Happy Home*, bấm nền hoặc phím Esc). Mở app lại cùng ngày không nổi lại.
+- Ngày sinh đọc được ở cả hai dạng trong hồ sơ (`dd/mm/yyyy` và `yyyy-mm-dd`); ngày hỏng hoặc không có thật thì bỏ qua, không làm sập trang. Sinh ngày 29/2 thì năm không nhuận mừng 28/2. Ngày tính theo **giờ Việt Nam**, sang ngày mới đúng nửa đêm. **Chỉ dùng ngày và tháng, không bao giờ hiện hay tính tuổi.** Tên trong lời chúc luôn được thoát ký tự (tên do khách tự khai không thể chèn mã vào trang).
+- Theo công tắc *Mùa và lễ* như các bộ khác: *Tĩnh* thì có banner và hình nhưng không giấy màu bắn, không hạt, tranh đứng yên; *Tắt* thì không có gì cả (kể cả banner). Mục *Xem thử* có thêm "Sinh nhật" để chủ trọ xem thử bằng chính hồ sơ của mình; xem thử không tính là "đã chúc hôm nay" nên không làm mất lần chúc thật.
+- **Hạn chế:** app khách cố ý không lưu ngày sinh vào bản dùng khi mất mạng (như số CCCD), nên lời chúc chỉ hiện khi app lấy được dữ liệu mới từ máy chủ. Chưa có thông báo đẩy "chúc mừng sinh nhật" (cần thêm SQL và hàm máy chủ). Web chủ trọ chưa có danh sách sinh nhật khách.
 
 - **Âm lịch tính bằng mã** (`js/seasons.js`, thuật toán Hồ Ngọc Đức, múi giờ +7), vì Tết và Trung thu đổi ngày dương mỗi năm. Kiểm thử đối chiếu: mùng 1 Tết 2015-2029 khớp ngày đã công bố; từng lần trăng mới 2001-2040 khớp lịch âm của Intl (chỉ được lệch khi trăng mới nằm sát nửa đêm, trong 15 phút); ngày âm luôn từ 1 tới 30 và liên tục 1990-2060. Tính ra Tết 2030 là 2/2 ở Việt Nam (trăng mới lúc 23 giờ 9 phút ngày 2/2 giờ Việt Nam), Trung Quốc ăn Tết 3/2. Khi viết kiểm thử đã tìm ra và sửa một lỗi của thuật toán gốc: có ngày ra "ngày 0" của tháng âm.
 - **Cái gì đổi:** bảng màu cả app (nút, thanh tab, liên kết, nền, đường kẻ; sáng và tối đều có bản riêng, màu chữ mờ tự đậm thêm vừa đủ để không khó đọc hơn bản hiện tại), băng chào ở Trang chủ (nền chuyển màu, tranh bên phải, dòng chữ hôm nay là mùa/lễ gì), hạt rơi hoặc bay phủ toàn màn hình, màu thanh trạng thái của điện thoại. Hạt không bắt chạm, nằm dưới thanh tab, nút trợ lý và hộp thoại, chỉ dùng transform và opacity nên nhẹ.
 - **Tự đổi theo thời gian thật:** app hẹn đúng nửa đêm giờ Việt Nam, và tính lại mỗi khi mở lại hoặc quay lại tab, nên app mở nhiều ngày liền vẫn đúng. Đã thử bằng cách tua đồng hồ tới đêm Giao thừa: app tự chuyển sang giao diện Tết, dòng chữ đổi thành "Hôm nay là Giao thừa".
 - **Khách tự chọn** (Tài khoản → *Mùa và lễ*): *Tự động* (đầy đủ), *Tĩnh* (có màu và hình, không chuyển động), *Tắt* (giao diện cũ hoàn toàn). Mục *Xem thử các mùa và lễ* cho thử từng bộ ngay, chỉ trong lần mở app đó (đóng app là về theo ngày). Máy bật "giảm chuyển động" tự dùng bản tĩnh, máy yếu giảm nửa số hạt, tab bị ẩn thì hạt tạm dừng. Lựa chọn lưu ở máy khách.
-- Độ rõ chữ được đo bằng mã (WCAG): chữ trắng trên nút, chữ trên nền nhạt, chữ phụ và chữ mờ, cho cả 12 bộ ở cả hai chế độ sáng và tối. Màu nút tránh trùng nghĩa với màu trạng thái (xanh lá "đã thanh toán", đỏ gạch "quá hạn").
-- Không cần chạy SQL nào. Mã: `js/seasons.js` (chọn mùa/lễ, âm lịch, bảng màu; thuần, `node tests/seasons.test.js`, 26 ca, thử phá 38 chỗ cả 38 bị bắt), `tenant-app/js/season-ui.js` (bộ 19 hình SVG, hạt, tranh, công tắc; `node tests/season-ui.test.js`, 13 ca, thử phá 25 chỗ cả 25 bị bắt), phần CSS ở cuối `tenant-app/css/tenant.css`. Đổi hình, màu, thêm lễ: sửa `HIEU_UNG` (hình) và `GIAO_DIEN`, `SU_KIEN` (ngày, màu); bài kiểm thử sẽ báo nếu thiếu hình, thiếu CSS hay chữ khó đọc.
+- Độ rõ chữ được đo bằng mã (WCAG): chữ trắng trên nút, chữ trên nền nhạt, chữ phụ và chữ mờ, cho cả 13 bộ ở cả hai chế độ sáng và tối. Màu nút tránh trùng nghĩa với màu trạng thái (xanh lá "đã thanh toán", đỏ gạch "quá hạn").
+- Không cần chạy SQL nào. Mã: `js/seasons.js` (chọn mùa/lễ, âm lịch, bảng màu; thuần, `node tests/seasons.test.js`, 27 ca, thử phá 38 chỗ cả 38 bị bắt), `js/birthday.js` (đọc ngày sinh, tính "hôm nay có phải sinh nhật không"; thuần, `node tests/birthday.test.js`, 13 ca), `tenant-app/js/season-ui.js` (bộ 23 hình SVG, hạt, tranh, banner sinh nhật, công tắc; `node tests/season-ui.test.js`, 20 ca, thử phá 25 chỗ cả 25 bị bắt; riêng phần sinh nhật và giọng nói thử phá thêm 39 chỗ, cả 39 bị bắt), phần CSS ở cuối `tenant-app/css/tenant.css`. Đổi hình, màu, thêm lễ: sửa `HIEU_UNG` (hình) và `GIAO_DIEN`, `SU_KIEN` (ngày, màu); bài kiểm thử sẽ báo nếu thiếu hình, thiếu CSS hay chữ khó đọc.
 
 ## Báo cáo tháng (xem, in ra PDF, xuất Excel)
 
@@ -543,6 +550,7 @@ js/
   nlu.js              # hiểu câu tiếng Việt: chấm điểm ý định, bóc tháng/tòa/phòng, nhớ ngữ cảnh
   gemini.js           # cầu nối Gemini Flash (phân loại ý định + soạn lời), đếm hạn mức, cache, tự sang mô hình dự phòng khi treo/quá tải (có kiểm thử)
   chat-photos.js      # ảnh đính kèm trong chat: giới hạn, bậc nén, tóm tắt tin (không đụng DOM, có kiểm thử, dùng chung hai app)
+  birthday.js         # sinh nhật của khách: đọc ngày sinh (hai dạng, 29/2), hôm nay có phải sinh nhật không, giờ Việt Nam (không đụng DOM, có kiểm thử)
   seasons.js          # giao diện theo mùa và lễ: âm lịch, hôm nay là mùa/lễ gì, bảng màu sáng/tối (không đụng DOM, có kiểm thử); phần vẽ ở tenant-app/js/season-ui.js
   ai.js               # bộ ý định của chủ trọ: mỗi ý định tự lấy số thật từ store
   assistant.js        # khung chat nổi ở góc màn hình
@@ -581,6 +589,7 @@ tests/
   bank-webhook-auth.test.js  # kiểm thử kiểm mã webhook ngân hàng (cần node 22.18+): node tests/bank-webhook-auth.test.js
   chat-photos.test.js # kiểm thử luật ảnh trong chat: node tests/chat-photos.test.js
   gemini.test.js      # kiểm thử vòng gọi AI (treo, quá tải, dự phòng) bằng máy chủ giả: node tests/gemini.test.js
+  birthday.test.js    # kiểm thử đọc ngày sinh, năm nhuận, ranh giới nửa đêm giờ Việt Nam: node tests/birthday.test.js
   seasons.test.js     # kiểm thử âm lịch, chọn mùa/lễ theo ngày, độ rõ chữ của bảng màu: node tests/seasons.test.js
   season-ui.test.js   # kiểm thử hình, hạt, tranh của giao diện theo mùa và việc nối vào app khách: node tests/season-ui.test.js
 ```
@@ -609,6 +618,7 @@ node tests/listing.test.js
 node tests/bank-webhook-auth.test.js
 node tests/chat-photos.test.js
 node tests/gemini.test.js
+node tests/birthday.test.js
 node tests/seasons.test.js
 node tests/season-ui.test.js
 ```

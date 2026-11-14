@@ -181,9 +181,12 @@
                  sang: { c: '#C0282D', phu: '#FFD33D' }, toi: { c: '#E0494B', phu: '#FFD33D' } },
     halloween: { ten: 'Halloween',         ngan: 'Halloween',  loai: 'le',  dongMau: 'Halloween vui vẻ!',
                  sang: { c: '#B04A06', phu: '#8E5BC2' }, toi: { c: '#D96F22', phu: '#8E5BC2' } },
+    // Riêng từng người: chỉ hiện đúng ngày sinh nhật của khách đang dùng app (chon(t, { sinhNhat: { ten } })), không theo lịch chung
+    sinhNhat:  { ten: 'Sinh nhật',         ngan: 'Sinh nhật',  loai: 'le',  dongMau: 'Chúc mừng sinh nhật!', rieng: true,
+                 sang: { c: '#A21CAF', phu: '#FFD166' }, toi: { c: '#D26BDB', phu: '#FFD166' } },
   };
   /** Thứ tự hiện ở nút "xem thử" */
-  const DANH_SACH = ['xuan', 'ha', 'thu', 'dong', 'tet', 'trungThu', 'noel', 'namMoi', 'tinhYeu', 'hoa', 'co', 'halloween'];
+  const DANH_SACH = ['xuan', 'ha', 'thu', 'dong', 'tet', 'trungThu', 'noel', 'namMoi', 'tinhYeu', 'hoa', 'co', 'halloween', 'sinhNhat'];
 
   /* Màu chữ mờ (--ink-3) hiện tại của app và độ tương phản của nó trên nền hiện tại. Nền pha màu làm tương phản này tụt xuống,
      nên bangMau làm đậm (sáng) hoặc nhạt đi (tối) chữ mờ vừa đủ để KHÔNG tệ hơn hiện tại. */
@@ -323,9 +326,15 @@
   ];
   const muaCuaThang = (m) => m >= 2 && m <= 4 ? MUA[1] : m >= 5 && m <= 7 ? MUA[2] : m >= 8 && m <= 10 ? MUA[3] : MUA[0];
 
+  /** Dòng chúc sinh nhật cho người tên `ten` (tên gọi, vd "An"); không có tên thì "bạn" */
+  const dongSinhNhat = (ten) => 'Chúc mừng sinh nhật, ' + (String(ten == null ? '' : ten).trim() || 'bạn') + '!';
+
   /** Hôm nay (hoặc thời điểm t) là lễ nào, mùa nào.
+      rieng (tùy chọn) là việc riêng của người đang dùng: { sinhNhat: { ten } } khi hôm nay là sinh nhật của họ (js/birthday.js tính);
+      lúc đó bộ Sinh nhật thắng mọi lễ và mùa.
       { id, giaoDien, loai: 'le'|'mua', ten, dong, conLai (số ngày tới ngày chính, hoặc null) } */
-  function chon(t) {
+  function chon(t, rieng) {
+    if (rieng && rieng.sinhNhat) return { id: 'sinhNhat', giaoDien: 'sinhNhat', loai: 'le', ten: 'Sinh nhật', dong: dongSinhNhat(rieng.sinhNhat.ten), conLai: 0 };
     const n = ngayVN(t == null ? Date.now() : t);
     const c = { d: n.d, m: n.m, y: n.y, jd: jdTuNgay(n.d, n.m, n.y) };
     for (const sk of SU_KIEN) {
@@ -335,16 +344,16 @@
     const m = muaCuaThang(c.m);
     return { id: m.id, giaoDien: m.id, loai: 'mua', ten: m.ten, dong: m.dong, conLai: null };
   }
-  /** Kết quả giả để xem thử một bộ giao diện bất kỳ (không theo ngày) */
-  function xemThu(id) {
+  /** Kết quả giả để xem thử một bộ giao diện bất kỳ (không theo ngày). ten: tên gọi của người xem, dùng cho bộ Sinh nhật. */
+  function xemThu(id, ten) {
     const g = GIAO_DIEN[id];
     if (!g) return null;
-    return { id, giaoDien: id, loai: g.loai, ten: g.ten, dong: g.dongMau, conLai: null };
+    return { id, giaoDien: id, loai: g.loai, ten: g.ten, dong: id === 'sinhNhat' && ten ? dongSinhNhat(ten) : g.dongMau, conLai: null };
   }
 
   const api = {
     TZ, ngayVN, msDenNuaDem, jdTuNgay, ngayTuJd, amLich, tetJd, trungThuJd, trangMoi, cungMatTroi,
-    mix, doSang, tuongPhan, GIAO_DIEN, DANH_SACH, bangMau, TEN_BIEN, SU_KIEN, chon, xemThu,
+    mix, doSang, tuongPhan, GIAO_DIEN, DANH_SACH, bangMau, TEN_BIEN, SU_KIEN, chon, xemThu, dongSinhNhat,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.seasons = api; }

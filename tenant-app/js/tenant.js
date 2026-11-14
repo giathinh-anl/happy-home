@@ -389,6 +389,7 @@
   });
 
   function render() {
+    if (HH.seasonUI) HH.seasonUI.datCaNhan(state.data && state.data.tenant ? state.data.tenant : null);   // đúng ngày sinh của khách thì đổi sang giao diện sinh nhật (js/season-ui.js)
     const h = location.hash || '';
     if (!state.phone) { // chưa đăng nhập
       if (h === '#/otp' && state.pendingPhone) return screenOtp();
@@ -2152,7 +2153,9 @@
   }
 
   /* ---------- màn hình chat ---------- */
+  let micH = null;            // đang nghe bằng micro (hỏi bằng giọng nói); vẽ lại màn hình thì ngừng nghe, khỏi còn micro treo
   function screenChat() {
+    if (micH) { const h0 = micH; micH = null; h0.dung(); }
     loadChat();
     if (!chat.msgs.length) {
       pushMsg('bot', `Chào anh/chị <b>${esc(state.data.tenant.fullName)}</b>! Em là trợ lý của Happy Home.<br>
@@ -2179,6 +2182,7 @@
       <div class="chat-input">
         ${chat.handed && CP ? `<label class="chat-attach" for="chatFile" aria-label="Gửi ảnh" title="Gửi ảnh (tối đa 3)">${HH.ic('camera', 16)}</label><input type="file" id="chatFile" accept="image/jpeg,image/png,image/webp" multiple hidden>` : ''}
         <textarea id="chatIn" rows="1" placeholder="${chat.handed ? 'Nhắn cho nhân viên…' : 'Hỏi về tiền phòng, điện, hợp đồng…'}"></textarea>
+        ${HH.voice && HH.voice.hoTro() ? `<button type="button" class="chat-mic" id="chatMic" aria-label="Nói câu hỏi" aria-pressed="false" title="Nói câu hỏi">${HH.ic('mic', 16)}</button>` : ''}
         <button class="chat-send" id="chatSend" aria-label="Gửi">${HH.ic('send', 16)}</button>
       </div></div></div>`;
 
@@ -2202,6 +2206,31 @@
       if (chat.handed && chat.photos.length) { inp.value = ''; inp.style.height = 'auto'; sendToStaff(v, chat.photos.slice()); return; }
       if (!v) return;
       inp.value = ''; inp.style.height = 'auto'; ask(v);
+    };
+    /* Nói câu hỏi (js/voice.js đổi giọng thành chữ). Hỏi trợ lý: nói xong gửi luôn. Nhắn cho nhân viên: chỉ điền vào ô để khách xem lại rồi tự bấm gửi.
+       Bấm lần nữa khi đang nghe thì dừng. */
+    const mic = el('chatMic');
+    if (mic) mic.onclick = () => {
+      if (micH) { micH.dung(); return; }
+      if (chat.busy) return;
+      const hoi = inp.placeholder;
+      let cuoi = '', coLoi = false;
+      const nghi = () => { mic.classList.remove('on'); mic.setAttribute('aria-pressed', 'false'); inp.placeholder = hoi; };
+      inp.value = ''; mic.classList.add('on'); mic.setAttribute('aria-pressed', 'true'); inp.placeholder = 'Đang nghe... anh/chị cứ nói nhé';
+      micH = HH.voice.nghe({
+        lienTuc: false,
+        onChu: (t) => { cuoi = t; inp.value = t; inp.oninput(); },
+        onLoi: (c) => { coLoi = true; toast(c); },
+        onKetThuc: () => {
+          micH = null; if (!mic.isConnected) return;
+          nghi();
+          const r = TH().sauKhiNghe(cuoi, chat.handed);
+          if (!r.chu) { inp.value = ''; if (!coLoi) toast(r.loi); return; }
+          inp.value = r.chu; inp.oninput();
+          if (r.gui) send(); else inp.focus();
+        },
+      });
+      if (!micH) nghi();
     };
     const tep = el('chatFile');
     if (tep) tep.onchange = async () => {
