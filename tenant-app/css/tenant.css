@@ -937,6 +937,10 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 .fc-main span:nth-child(2) { font-size: 16px; color: var(--neutral-600); font-weight: 700; }
 .fc-note { margin: 8px 0 0; font-size: 12px; color: var(--neutral-500); line-height: 1.5; }
 .link-btn { background: none; border: none; padding: 4px 0; margin-top: 2px; font: inherit; font-size: 12px; font-weight: 700; color: var(--teal-600, var(--teal-500)); cursor: pointer; text-decoration: underline; }
+/* Lịch sử thanh toán: ngày, hình thức và nút "Xem biên lai" xếp thành cột, số tiền không gãy dòng (xếp hàng ngang thì chật, chữ rớt xuống từng chữ) */
+.t-row .k.hist { flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.t-row .k.hist .link-btn { white-space: nowrap; }
+.t-row .k.hist + .v { white-space: nowrap; flex-shrink: 0; }
 
 .rc { padding: 2px 2px 6px; }
 .rc-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }

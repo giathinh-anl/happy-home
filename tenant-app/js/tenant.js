@@ -1434,7 +1434,7 @@
         <div class="mono" style="font-size:26px;font-weight:800;color:var(--success)">${vnd(pays.reduce((s, p) => s + p.amount, 0))}</div>
         <div style="color:var(--neutral-500);font-size:13px">${pays.length} lần thanh toán</div></div>
       <div class="t-card">${pays.map(p => `<div class="t-row">
-        <span class="k"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
+        <span class="k hist"><b style="color:var(--neutral-900)">${fmtDate(p.date)}</b>
           <div style="font-size:12px">${esc(p.method || '')}${p.invoiceId ? ' · ' + esc(p.invoiceId) : ''}</div>
           <button type="button" class="link-btn" data-bl="${esc(p.id)}">Xem biên lai</button></span>
         <span class="v mono" style="color:var(--success)">+${vnd(p.amount)}</span></div>`).join('')}</div>`
