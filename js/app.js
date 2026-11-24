@@ -335,21 +335,25 @@ HH.app = (function () {
      Web quản trị nạp dữ liệu lúc đăng nhập, nên phải tải lại thì mới thấy:
      tự tải khi quay lại tab, mỗi 2 phút, và khi bấm nút làm mới. */
   let lastPull = Date.now(), pulling = false;
-  async function pullServer(manual, btn) {
+  // ep = true: có việc mới (js/notify-ui.js) nên tải ngay, bỏ qua khoảng nghỉ 60 giây giữa hai lần tự tải
+  async function pullServer(manual, btn, ep) {
     if (!S.usingBackend()) {
       if (manual) HH.ui.toast('Bản demo không có máy chủ để tải lại', { type: 'warning' });
       return;
     }
     if (HH.offline.mode) return;             // đang mở ngoại tuyến: không có gì để tải, trang riêng tự lo việc gửi
-    if (pulling || (!manual && Date.now() - lastPull < 60000)) return;
+    if (pulling || (!manual && !ep && Date.now() - lastPull < 60000)) return;
     pulling = true;
     if (btn) btn.classList.add('spin');
     try {
       const r = await S.refreshFromServer();
       lastPull = Date.now();
       if (!r.ok) { if (manual) HH.ui.toast('Không tải được dữ liệu mới', { type: 'error' }); return; }
-      // đang điền biểu mẫu thêm / duyệt khách thì KHÔNG vẽ lại trang: vẽ lại là mất những gì vừa gõ
-      const dangDien = /\/tenants\/new/.test(HH.router.current() || '');
+      // đang điền biểu mẫu (thêm khách, lập hợp đồng, trả phòng...), đang mở hộp thoại hay đang gõ vào một ô thì KHÔNG vẽ lại trang:
+      // vẽ lại là mất những gì vừa gõ. Có việc mới thì giờ tải về thường hơn (js/notify-ui.js) nên càng phải giữ.
+      const o = document.activeElement;
+      const dangDien = /\/(tenants\/new|contracts\/new|contracts\/scan|contracts\/[^/]+\/terminate)/.test(HH.router.current() || '')
+        || !!document.querySelector('.overlay') || !!(o && /^(INPUT|TEXTAREA|SELECT)$/.test(o.tagName) && o.closest('#app'));
       if (r.changed && !dangDien) { HH.router.render(); if (manual) HH.ui.toast('Đã cập nhật dữ liệu mới', { type: 'ok' }); }
       else if (r.changed && manual) HH.ui.toast('Có dữ liệu mới. Lưu xong biểu mẫu này rồi tải lại để thấy.', { type: 'info' });
       else if (manual) HH.ui.toast('Dữ liệu đã là mới nhất', { type: 'ok' });
@@ -439,7 +443,7 @@ HH.app = (function () {
       S.dropPending();
     }
     HH.offline.mode = false;
-    S.logout(); HH.router.go('/login');
+    S.logout(); if (HH.baoViecUI) HH.baoViecUI.dungLai(); HH.router.go('/login');
   }
   function switchRole(role) {
     S.login(role);
@@ -529,6 +533,8 @@ HH.app = (function () {
     }
     HH.ui.watchTables();         // bảng viết tay cũng thành thẻ trên điện thoại (xem components.js)
     HH.router.start();
+    // Báo việc mới từ khách (js/notify-ui.js): hỏi máy chủ số việc đang chờ; có việc mới thì tải về ngay, không chờ 2 phút
+    if (HH.baoViecUI) HH.baoViecUI.batDau({ taiLai: () => pullServer(false, null, true) });
   }
 
   return { renderShell, renderBare, boot, showShortcuts, addBuildingDialog, resetDialog };

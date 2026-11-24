@@ -1329,6 +1329,7 @@
           ${raw(nhomViec)}
           <p class="hint" id="nvHint" style="margin-top:8px"></p>
         </div></div>
+        ${raw(backend ? baoViecHtml() : '')}
         ${raw(laChu ? saoLuuHtml() : '')}
         <div class="card" style="grid-column:1/-1"><div class="card-head"><h3>Trợ lý ảo (AI)</h3></div>
           <div class="card-pad">${raw(aiStatusHtml())}</div></div>
@@ -1401,8 +1402,51 @@
       const rst = el('cfgReset');
       if (rst) rst.onclick = () => HH.app.resetDialog();
       if (el('slTai')) ganSaoLuu(el);
+      if (el('bvCard')) ganBaoViec(el);
     },
   };
+
+  /* ---------- Báo khi có việc mới (js/notify.js, js/notify-ui.js); cài đặt theo từng thiết bị ---------- */
+  function baoViecHtml() {
+    const c = HH.baoViec.caiDat(S.prefs.baoViec);
+    const o = (k, ten, mo) => `<label class="hs-nv"><input type="checkbox" data-bv="${k}"${c[k] ? ' checked' : ''}><span><b>${ten}</b><br><span class="muted text-xs">${mo}</span></span></label>`;
+    return `<div class="card" id="bvCard"><div class="card-head"><h3>Báo khi có việc mới</h3></div><div class="card-pad">
+      <p class="muted text-sm" style="margin-bottom:8px">Khách nhắn tin, báo đã chuyển khoản, báo hỏng, xin gia hạn, gửi chỉ số: web tự kiểm tra mỗi 30 giây và tải về ngay. Áp dụng trên thiết bị này.</p>
+      ${o('tieuDe', 'Hiện số việc trên tab trình duyệt', 'Ví dụ "(3) Happy Home", nhìn thấy cả khi đang mở trang khác.')}
+      ${o('tieng', 'Kêu "ting" khi có việc mới', 'Tiếng nhỏ, chỉ kêu sau khi bạn đã bấm vào trang ít nhất một lần.')}
+      ${o('manHinh', 'Hiện thông báo trên màn hình máy tính', 'Khi bạn đang làm việc khác, cửa sổ này ở nền.')}
+      <div class="row-gap-2 wrap" style="margin-top:8px"><button class="btn btn-outline btn-sm" type="button" id="bvThu">${HH.ic('bell', 16)} Thử tiếng và thông báo</button></div>
+      <p class="hint" id="bvHint" style="margin-top:8px"></p>
+    </div></div>`;
+  }
+  function ganBaoViec(el) {
+    const UIb = HH.baoViecUI, hint = el('bvHint');
+    const veHint = () => {
+      const q = UIb ? UIb.quyen() : 'khong-ho-tro', c = HH.baoViec.caiDat(S.prefs.baoViec);
+      hint.textContent = !c.manHinh ? '' : q === 'granted' ? 'Trình duyệt đã cho phép hiện thông báo.'
+        : q === 'denied' ? 'Trình duyệt đang chặn thông báo của trang này. Bấm vào biểu tượng ổ khóa cạnh địa chỉ trang để cho phép lại.'
+        : q === 'khong-ho-tro' ? 'Trình duyệt này không hiện được thông báo trên màn hình.' : 'Chưa được phép: bấm "Thử tiếng và thông báo" để trình duyệt hỏi.';
+    };
+    veHint();
+    document.querySelectorAll('[data-bv]').forEach((cb) => cb.onchange = async () => {
+      const c = HH.baoViec.caiDat(S.prefs.baoViec); c[cb.dataset.bv] = cb.checked;
+      S.setPref('baoViec', c);
+      if (cb.dataset.bv === 'manHinh' && cb.checked && UIb) await UIb.xinQuyen();
+      if (cb.dataset.bv === 'tieuDe' && UIb) UIb.capNhatTieuDe();
+      veHint(); UI.toast('Đã lưu', { type: 'ok' });
+    });
+    el('bvThu').onclick = async () => {
+      if (!UIb) return;
+      UIb.moAm();
+      const c = HH.baoViec.caiDat(S.prefs.baoViec);
+      setTimeout(() => { if (c.tieng) UIb.ting(); }, 60);
+      if (c.manHinh && (await UIb.xinQuyen()) === 'granted') {
+        try { new Notification('Happy Home', { body: 'Thông báo thử: bạn sẽ thấy như thế này khi có việc mới.', tag: 'hh-thu', icon: 'assets/icon-192.png' }); } catch (e) { /* bỏ qua */ }
+      }
+      veHint();
+      UI.toast(c.tieng || c.manHinh ? 'Đã thử. Không nghe thấy tiếng thì kiểm tra âm lượng máy.' : 'Bạn đang tắt cả tiếng và thông báo màn hình.', { type: 'info' });
+    };
+  }
 
   /* ---------- Sao lưu / khôi phục (chỉ chủ trọ; luật ở js/backup.js) ---------- */
   function saoLuuHtml() {

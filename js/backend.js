@@ -303,6 +303,30 @@ HH.backend = (function () {
     if (error) console.error('[delByBuilding buildings]', error.message);
   }
 
+  /* Đếm việc đang chờ (js/notify.js, js/notify-ui.js): chỉ hỏi SỐ dòng (HEAD + count), không tải dữ liệu, nên hỏi 30 giây một lần vẫn nhẹ.
+     loai = các mã trong HH.baoViec.MA. Trả { data: { mã: số | null } }; loại nào lỗi thì null (không báo nhầm), bảng chưa tạo thì 0. */
+  const DEM_VIEC = {
+    tinNhan: (q) => q.from('support_messages').select('id', { count: 'exact', head: true }).eq('sender', 'tenant').eq('read_by_staff', false),
+    chuyenKhoan: (q) => q.from('payment_claims').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    suCo: (q) => q.from('incidents').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+    giaHan: (q) => q.from('renewal_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    chiSo: (q) => q.from('readings').select('id', { count: 'exact', head: true }).eq('source', 'tenant').eq('approved', false),
+  };
+  async function demViec(loai) {
+    if (!enabled || !client) return { error: { message: 'Chưa kết nối máy chủ' } };
+    const ds = (loai || []).filter((k) => DEM_VIEC[k]), out = {};
+    let mang = 0;
+    await Promise.all(ds.map(async (k) => {
+      try {
+        const { count, error } = await DEM_VIEC[k](client);
+        out[k] = error ? (isMissingTable(error) ? 0 : null) : (count || 0);
+        if (error && !isMissingTable(error) && /fetch|network/i.test(error.message || '')) mang++;
+      } catch (e) { out[k] = null; mang++; }
+    }));
+    // mọi loại đều hỏng vì mạng thì báo lỗi để giãn nhịp hỏi
+    return ds.length && mang === ds.length ? { error: { message: 'Mất mạng' } } : { data: out };
+  }
+
   // Gọi 1 hàm RPC bất kỳ (dùng cho bank_hook_secret, tenant_*...)
   async function rpc(name, args) {
     if (!enabled) return { error: { message: 'Chưa kết nối máy chủ' } };
@@ -328,6 +352,6 @@ HH.backend = (function () {
   }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail,
-    loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook,
+    loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, demViec,
     client: () => client, KINDS };
 })();

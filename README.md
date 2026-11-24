@@ -127,6 +127,15 @@ Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trướ
 - Không cần chạy SQL nào (dùng các bảng hóa đơn, phiếu thu, hợp đồng sẵn có).
 - `js/settlement.js` thuần: 27 ca kiểm thử `tests/settlement.test.js` (ngày ở, tháng nhuận, làm tròn, 3000 bộ số ngẫu nhiên cho chia cọc, gợi ý phạt, đối chiếu mã nguồn), thử phá 28 chỗ, bắt được 26, hai chỗ còn lại là biến thể tương đương. Thử như người dùng thật trên máy tính và điện thoại: gõ chỉ số sai bị chặn, chọn mức phạt, in biên bản, cọc không đủ thì khách còn nợ hiện ở Công nợ; cọc dư thì báo số tiền hoàn.
 
+## Báo chủ trọ khi có việc mới
+
+- **Trước đây** web chỉ nạp dữ liệu lúc đăng nhập và 2 phút một lần khi tab đang mở; tab để ở nền thì khách nhắn tin, báo chuyển khoản, báo hỏng... chủ trọ không hề biết.
+- **Nay** web hỏi máy chủ **số** việc đang chờ (chỉ đếm, không tải dữ liệu) mỗi 30 giây khi đang xem tab, 60 giây khi tab ở nền; mạng lỗi thì giãn dần tới 10 phút; một lần hỏi treo quá 15 giây thì bỏ, vòng hỏi không đứng. Năm loại: tin nhắn khách chưa đọc, báo đã chuyển khoản chờ duyệt, sự cố chưa tiếp nhận, xin gia hạn, chỉ số khách gửi chờ duyệt. Nhân viên chỉ được báo loại thuộc quyền (tin nhắn chỉ chủ trọ).
+- **Có việc mới** (số tăng): tải dữ liệu về ngay (không chờ 2 phút), báo nhỏ trong trang, kêu "ting" (sau khi người dùng đã bấm vào trang một lần, theo luật của trình duyệt), và nếu tab đang ở nền thì hiện **thông báo trên màn hình máy tính** (phải bật ở Cài đặt chung và cho phép trình duyệt); bấm vào thông báo mở đúng trang. **Tiêu đề tab** luôn có số việc đang chờ, ví dụ "(3) Happy Home". Việc có sẵn lúc mới mở web không bị báo là mới; số giảm (đã xử lý) chỉ giảm số trên tab.
+- Tải dữ liệu mới về **không vẽ lại trang** khi đang điền biểu mẫu (thêm khách, lập hợp đồng, trả phòng...), đang mở hộp thoại hay đang gõ vào ô, để không mất chữ đang gõ.
+- Cài đặt theo từng thiết bị ở Cài đặt chung (số trên tab, tiếng, thông báo màn hình, nút thử). Không cần chạy SQL nào. **Chưa làm:** đẩy thông báo tới điện thoại của chủ trọ khi đã đóng hẳn web (cần thêm bảng đăng ký và hàm gửi trên máy chủ như app khách).
+- `js/notify.js` (luật) + `js/notify-ui.js` (vòng hỏi): 30 ca kiểm thử `tests/notify.test.js`, trong đó vòng hỏi chạy thật trong môi trường giả (đồng hồ giả, máy chủ giả trả số / lỗi / treo, tab ẩn hiện, đăng xuất giữa chừng); thử phá 30 chỗ đều bị bắt. Khi viết kiểm thử phát hiện một lỗi thật: lần hỏi máy chủ bị treo làm vòng hỏi đứng luôn, nay có giới hạn 15 giây. Thử như người dùng thật trên máy tính và điện thoại.
+
 ## Sao lưu và khôi phục dữ liệu
 
 - **Tải bản sao lưu** (Cài đặt chung, chỉ chủ trọ): một tệp `.json` chứa toàn bộ dữ liệu đang có (tòa, phòng, dịch vụ, khách, hợp đồng, chỉ số, đợt chốt sổ, hóa đơn, phiếu thu, tài sản, sự cố, thu chi, cùng nhân viên, nhật ký, việc khách gửi để tra cứu). Thẻ nhắc rõ tệp có số CCCD, số điện thoại của khách. Mỗi lần tải ghi một dòng nhật ký.
@@ -562,6 +571,8 @@ js/
   renewal.js          # gia hạn hợp đồng: tính hạn mới, lịch sử, nội dung phụ lục (không đụng DOM, có kiểm thử)
   settlement.js       # tiền tháng lẻ theo ngày ở, chia cọc khi trả phòng, gợi ý phạt trả trước hạn (không đụng DOM, có kiểm thử)
   backup.js           # sao lưu ra tệp và khôi phục chỉ thêm mục đã mất (không đụng DOM, có kiểm thử)
+  notify.js           # luật báo việc mới: loại theo quyền, so số đếm, tiêu đề tab, nhịp hỏi (không đụng DOM, có kiểm thử)
+  notify-ui.js        # vòng hỏi máy chủ số việc đang chờ, tiếng "ting", thông báo màn hình
   offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
   offline-ui.js       # đăng ký service worker, thanh trạng thái mạng, hộp thoại chỉ số xung đột, mở ngoại tuyến
   onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
@@ -616,6 +627,7 @@ tests/
   tenant-tour.test.js # kiểm thử hướng dẫn từng bước của app khách (bước, đặt thẻ, đối chiếu mã nguồn): node tests/tenant-tour.test.js
   settlement.test.js  # kiểm thử tiền tháng lẻ và quyết toán trả phòng: node tests/settlement.test.js
   backup.test.js      # kiểm thử sao lưu / khôi phục: node tests/backup.test.js
+  notify.test.js      # kiểm thử báo việc mới (luật + vòng hỏi trong môi trường giả): node tests/notify.test.js
 ```
 
 ## Kiểm thử
@@ -648,6 +660,7 @@ node tests/season-ui.test.js
 node tests/tenant-tour.test.js
 node tests/settlement.test.js
 node tests/backup.test.js
+node tests/notify.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
