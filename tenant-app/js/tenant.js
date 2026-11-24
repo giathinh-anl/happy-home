@@ -1514,7 +1514,11 @@
       document.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
     });
     if (HH.seasonUI) HH.seasonUI.wireSettings();
-    el('helpBtn').onclick = () => alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
+    el('helpBtn').onclick = () => {
+      /* Hướng dẫn từng bước có chuyển động (js/tour.js), như bên web chủ trọ. Lỗi hay chưa tải được thì rơi xuống hộp thoại chữ cũ, không để mất hướng dẫn. */
+      try { if (HH.tenantTour && HH.tenantTour.start({ vaoTrangChu: () => go('#/home') })) return; } catch (e) { /* dùng hộp thoại chữ bên dưới */ }
+      alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
+    };
     el('logoutBtn').onclick = () => {
       if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
       doLogout();

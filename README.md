@@ -345,6 +345,7 @@ Chủ trọ vào **Cấu hình tòa nhà → Tài khoản nhận tiền**, chọ
 - **Trung tâm trợ giúp** (menu tài khoản, mục "Trợ giúp và hướng dẫn", đường dẫn `#/help`): 18 bài chia 4 nhóm (Bắt đầu, Thu tiền, Khách thuê, Tài khoản và bảo mật), mỗi bài là các bước làm bằng đúng tên nút trong giao diện, kèm nút mở thẳng trang liên quan. Ô tìm gõ không dấu cũng được ("doi soat" ra "Đối soát ngân hàng"); mọi từ trong câu tìm đều phải khớp. Bài nào cần quyền mà người dùng không có (nhân viên) hoặc chỉ dành cho chủ trọ thì tự ẩn.
 - **Hướng dẫn nhanh từng bước** (11 bước, khoảng một phút): làm sáng từng mục trên thanh điều hướng (tòa nhà, Phòng, Khách thuê, Hóa đơn, Thêm, Tổng báo cáo, Khách chuyển khoản, chuông, tài khoản) kèm một thẻ giải thích. Dùng được bằng chuột, bàn phím (mũi tên, Esc) và trên điện thoại (chỉ vào thanh tab dưới đáy; bước nào không có chỗ để chỉ thì thẻ nằm giữa màn hình). Nhân viên chỉ thấy các bước thuộc quyền của mình. Đang ở trang cấp công ty thì app tự chuyển sang một trang của tòa đầu tiên trước khi chạy.
 - **Lần đầu dùng:** sau khi đăng nhập hiện một thẻ nhỏ ở góc "Xem ngay / Để sau", không chặn thao tác. Chọn "Để sau" hay xem xong thì không hỏi lại (lưu trên thiết bị này); vẫn xem lại được bằng nút "Xem hướng dẫn nhanh" ở trang Trợ giúp.
+- **App khách thuê cũng có hướng dẫn từng bước** (Tài khoản → "Hướng dẫn sử dụng", `tenant-app/js/tour.js`): thay cho hộp thoại chữ (`alert`) cũ. 9 bước: màn hình tối đi, một ô sáng chỉ vào đúng chỗ (thẻ tiền cần đóng, nút Thanh toán ngay, Truy cập nhanh, các tab Hóa đơn / Phòng của tôi / Tài khoản, nút Trợ lý ảo) kèm thẻ giải thích. Ô sáng và thẻ trượt mượt giữa các bước, có thanh tiến độ, chấm bước và viền nhấp nháy nhẹ; đang ở màn khác thì app tự về Trang chủ trước; tự cuộn tới phần tử nằm dưới đáy; điện thoại dùng thanh tab, máy tính dùng thanh bên; chạy đúng màu của mùa/lễ và chế độ tối; Esc, mũi tên, Tab đều dùng được. Máy bật "giảm chuyển động" thì tắt hết trượt và nhấp nháy. Bước nào không có chỗ để chỉ (hết nợ thì không còn nút Thanh toán ngay) tự bỏ qua. Lỗi hay chưa tải được thì rơi về hộp thoại chữ cũ. `node tests/tenant-tour.test.js` (21 ca) đối chiếu bộ chọn với `tenant.js`, việc nạp trong `index.html` và `sw.js`, và luật CSS; thử phá 16 chỗ, cả 16 bị bắt. Không cần chạy SQL nào.
 - Nội dung ở `js/help.js`, giao diện ở `js/pages/help.js`. `node tests/help.test.js` (29 ca) đối chiếu bài viết với mã nguồn: mọi đường dẫn phải là route có thật trong `js/router.js`, mọi quyền phải có trong `js/store.js`, mọi bộ chọn của hướng dẫn phải chỉ vào phần tử có thật trong `js/app.js`; đổi tên route hay nút mà quên sửa bài thì báo hỏng. Thử phá 16 chỗ, cả 16 bị bắt. Không cần chạy SQL nào.
 
 ## Hồ sơ và cài đặt cá nhân (Cài đặt chung)
@@ -592,6 +593,7 @@ tests/
   birthday.test.js    # kiểm thử đọc ngày sinh, năm nhuận, ranh giới nửa đêm giờ Việt Nam: node tests/birthday.test.js
   seasons.test.js     # kiểm thử âm lịch, chọn mùa/lễ theo ngày, độ rõ chữ của bảng màu: node tests/seasons.test.js
   season-ui.test.js   # kiểm thử hình, hạt, tranh của giao diện theo mùa và việc nối vào app khách: node tests/season-ui.test.js
+  tenant-tour.test.js # kiểm thử hướng dẫn từng bước của app khách (bước, đặt thẻ, đối chiếu mã nguồn): node tests/tenant-tour.test.js
 ```
 
 ## Kiểm thử
@@ -621,6 +623,7 @@ node tests/gemini.test.js
 node tests/birthday.test.js
 node tests/seasons.test.js
 node tests/season-ui.test.js
+node tests/tenant-tour.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.

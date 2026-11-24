@@ -1088,3 +1088,37 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 .chat-mic:active { transform: scale(.94); }
 .chat-mic.on { background: var(--danger); border-color: var(--danger); color: #fff; animation: tmPulse 1.2s ease-in-out infinite; }
 @keyframes tmPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(179, 64, 47, .45); } 50% { box-shadow: 0 0 0 9px rgba(179, 64, 47, 0); } }
+
+/* ---------- Hướng dẫn làm quen từng bước (js/tour.js): ô sáng + thẻ chữ trượt mượt, như bên web chủ trọ ---------- */
+.tt { position: fixed; inset: 0; z-index: 1400; touch-action: none; overscroll-behavior: contain; animation: ttFade .28s ease both; }
+.tt.tt-dong { opacity: 0; transition: opacity .2s; pointer-events: none; }
+.tt-hole { position: fixed; display: none; box-sizing: border-box; pointer-events: none; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(8, 20, 20, .6);
+  transition: left .45s var(--ease-out), top .45s var(--ease-out), width .45s var(--ease-out), height .45s var(--ease-out), border-radius .45s var(--ease-out); }
+.tt-hole::before, .tt-hole::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.tt-hole::before { border: 2px solid rgba(255, 255, 255, .95); transition: opacity .3s; }
+.tt-hole::after { border: 2px solid rgba(255, 255, 255, .8); animation: ttPing 1.9s ease-out infinite; transition: opacity .3s; }
+.tt-nohole .tt-hole::before, .tt-nohole .tt-hole::after { opacity: 0; }                         /* bước không chỉ đâu: ô sáng thu thành một điểm, không viền */
+.tt-card { position: fixed; box-sizing: border-box; overflow: hidden; background: var(--surface); color: var(--ink); border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .34), 0 2px 6px rgba(0, 0, 0, .16);
+  transition: left .45s var(--ease-out), top .45s var(--ease-out); animation: ttPop .38s var(--ease-out) both; }
+.tt-ngay .tt-hole, .tt-ngay .tt-card, .tt-theo .tt-hole, .tt-theo .tt-card { transition: none; }       /* khung đầu và lúc đang cuộn: bám ngay, không trượt */
+.tt-bar { height: 3px; background: var(--neutral-100); }
+.tt-bar i { display: block; height: 100%; width: 0; background: var(--teal-600); border-radius: 0 3px 3px 0; transition: width .45s var(--ease-out); }
+.tt-in { padding: 14px 18px 14px; }
+.tt-body { animation: ttText .34s var(--ease-out) both; }
+.tt-so { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--ink-3); margin-bottom: 4px; }
+.tt-card h3 { margin: 0 0 6px; font-size: 17px; line-height: 1.3; font-weight: 700; color: var(--ink); }
+.tt-card p { margin: 0 0 14px; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+.tt-dots { display: flex; gap: 5px; margin: 0 0 12px; }
+.tt-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--neutral-200); transition: width .3s var(--ease-out), background-color .3s; }
+.tt-dots i.xong { background: var(--teal-600); opacity: .45; }
+.tt-dots i.on { width: 18px; background: var(--teal-600); opacity: 1; }
+.tt-acts { display: flex; align-items: center; gap: 8px; }
+.tt-acts .tt-sp { flex: 1; }
+.tt-acts .t-btn { width: auto; flex: none; }
+.tt-acts .t-btn.sm { padding-left: 16px; padding-right: 16px; }
+@keyframes ttFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ttPop { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes ttText { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ttPing { 0% { transform: scale(1); opacity: .8; } 70%, 100% { transform: scale(1.12); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tt, .tt-hole, .tt-hole::after, .tt-card, .tt-body, .tt-bar i, .tt-dots i { transition: none !important; animation: none !important; } }
