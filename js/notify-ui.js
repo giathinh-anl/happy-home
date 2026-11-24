@@ -10,7 +10,7 @@ HH.baoViecUI = (function () {
   const N = HH.baoViec;
   const S = () => HH.store;
   const HET_GIO = 15000;
-  let timer = null, truoc = null, loi = 0, goc = null, ac = null, taiLai = null, dangHoi = false, daBatDau = false, soLan = 0;
+  let timer = null, truoc = null, loi = 0, goc = null, ac = null, taiLai = null, dangHoi = false, daBatDau = false, soLan = 0, daLamMoi = false;
 
   const bidHienTai = () => {
     const m = /^\/b\/([^/?]+)/.exec((HH.router && HH.router.current && HH.router.current()) || '');
@@ -86,6 +86,7 @@ HH.baoViecUI = (function () {
     if (!r || r.error) { loi++; hen(); return; }
     loi = 0;
     const sau = N.chuanHoa(r.data), ss = N.soSanh(truoc, sau);
+    if (!truoc && !daLamMoi) { daLamMoi = true; lamMoiDay(); }      // lần hỏi đầu sau khi vào: báo máy chủ máy này vẫn bật thông báo đẩy
     truoc = sau;
     datTieuDe(N.tong(sau));
     if (ss.coMoi) baoMoi(ss.moi);
@@ -111,6 +112,56 @@ HH.baoViecUI = (function () {
   }
   const quyen = () => ('Notification' in window ? Notification.permission : 'khong-ho-tro');
 
+  /* ---------- Thông báo đẩy kể cả khi đã đóng web (supabase/migration-owner-push.sql) ----------
+     Máy chủ báo khi khách tạo việc mới; sw.js hiện thông báo và mở đúng trang khi bấm. Bật / tắt theo từng máy. */
+  const VAPID = () => (window.HH_CONFIG && window.HH_CONFIG.vapidPublicKey) || '';
+  async function dangKyDay() {
+    try { const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null; return reg && reg.pushManager ? await reg.pushManager.getSubscription() : null; }
+    catch (e) { return null; }
+  }
+  async function cheDoDay() {
+    const coSW = 'serviceWorker' in navigator, coPush = 'PushManager' in window, coThongBao = 'Notification' in window, st = S();
+    return N.cheDoDay({ chu: st.isOwner(), coMayChu: st.usingBackend(), coKhoa: !!VAPID(), coSW, coPush, coThongBao,
+      quyen: coThongBao ? Notification.permission : 'default', daBat: coSW && coPush ? !!(await dangKyDay()) : false,
+      ios: /iPhone|iPad|iPod/.test(navigator.userAgent), daCai: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true });
+  }
+  // Gọi hàm máy chủ; lỗi thì ném câu tiếng Việt dễ hiểu
+  async function goiMayChu(ten, doiSo) {
+    let r;
+    try { r = await HH.backend.rpc(ten, doiSo || {}); } catch (e) { throw new Error('Không kết nối được máy chủ. Thử lại sau.'); }
+    const loi = r && r.error, d = r && r.data;
+    if (loi) {
+      const m = String(loi.message || '').toLowerCase();
+      throw new Error(loi.code === 'PGRST202' || m.includes('could not find the function') ? 'Máy chủ chưa bật tính năng này (chưa chạy migration-owner-push.sql).' : 'Máy chủ báo lỗi: ' + (loi.message || ''));
+    }
+    if (d && d.error) throw new Error(d.error === 'auth' ? 'Phiên đăng nhập đã hết, hãy đăng nhập lại.' : 'Máy chủ không nhận máy này (' + d.error + ').');
+    return d || {};
+  }
+  async function batDay() {
+    if ((await xinQuyen()) !== 'granted') throw new Error('Cần cho phép thông báo thì mới bật được.');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription(), moi = false;
+    if (!sub) { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: N.khoaThanhByte(VAPID()) }); moi = true; }
+    const j = sub.toJSON();
+    try { await goiMayChu('owner_push_subscribe', { p_endpoint: j.endpoint, p_p256dh: j.keys && j.keys.p256dh, p_auth: j.keys && j.keys.auth, p_ua: navigator.userAgent.slice(0, 200) }); }
+    catch (e) { if (moi) { try { await sub.unsubscribe(); } catch (e2) { /* bỏ qua */ } } throw e; }   // máy chủ không nhận thì đừng để đăng ký lơ lửng
+  }
+  async function tatDay() {
+    const sub = await dangKyDay(); if (!sub) return;
+    try { await goiMayChu('owner_push_unsubscribe', { p_endpoint: sub.endpoint }); } catch (e) { /* máy cũ sẽ bị thay khi bật máy khác */ }
+    try { await sub.unsubscribe(); } catch (e) { /* bỏ qua */ }
+  }
+  async function thuDay() { return goiMayChu('owner_push_test'); }
+  // Mở web lên lại sau khi đã bật: gửi lại đăng ký (để máy chủ biết máy này còn dùng, không bị máy khác thay mất)
+  async function lamMoiDay() {
+    try { if ((await cheDoDay()) === 'dang-bat') { const j = (await dangKyDay()).toJSON(); await goiMayChu('owner_push_subscribe', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_ua: navigator.userAgent.slice(0, 200) }); } }
+    catch (e) { /* lần sau thử lại */ }
+  }
+  // Bấm vào thông báo khi web đang mở: sw.js gửi lệnh đi tới đúng trang (không tải lại cả web)
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'go') { try { HH.router.go(N.duongTuThongBao(e.data.hash)); } catch (er) { /* bỏ qua */ } }
+  });
+
   return { batDau, dungLai, xinQuyen, quyen, ting, moAm, hoiNgay: () => hen(0), capNhatTieuDe: () => datTieuDe(N.tong(truoc)),
-    _trangThai: () => ({ truoc, loi, coHen: !!timer }) };
+    cheDoDay, batDay, tatDay, thuDay, lamMoiDay, _trangThai: () => ({ truoc, loi, coHen: !!timer }) };
 })();

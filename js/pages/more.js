@@ -1415,9 +1415,51 @@
       ${o('tieuDe', 'Hiện số việc trên tab trình duyệt', 'Ví dụ "(3) Happy Home", nhìn thấy cả khi đang mở trang khác.')}
       ${o('tieng', 'Kêu "ting" khi có việc mới', 'Tiếng nhỏ, chỉ kêu sau khi bạn đã bấm vào trang ít nhất một lần.')}
       ${o('manHinh', 'Hiện thông báo trên màn hình máy tính', 'Khi bạn đang làm việc khác, cửa sổ này ở nền.')}
+      <div id="bvDay"></div>
       <div class="row-gap-2 wrap" style="margin-top:8px"><button class="btn btn-outline btn-sm" type="button" id="bvThu">${HH.ic('bell', 16)} Thử tiếng và thông báo</button></div>
       <p class="hint" id="bvHint" style="margin-top:8px"></p>
     </div></div>`;
+  }
+  /* Thông báo đẩy kể cả khi đã đóng web (js/notify-ui.js + supabase/migration-owner-push.sql). Bật theo từng máy (điện thoại, máy tính). */
+  const DAY_TXT = {
+    'chua-bat': ['Chưa bật trên máy này.', 'Bật trên máy này'],
+    'dang-bat': ['Đang bật trên máy này.', 'Tắt trên máy này'],
+    'bi-chan': ['Trình duyệt đang chặn thông báo của trang này: bấm biểu tượng ổ khóa cạnh địa chỉ trang để cho phép lại.', ''],
+    'can-cai': ['Trên iPhone: bấm Chia sẻ, chọn "Thêm vào MH chính", mở Happy Home từ màn hình chính rồi bật ở đây (Apple chỉ cho web đã cài nhận thông báo).', ''],
+    'khong-ho-tro': ['Trình duyệt này không nhận được thông báo khi đã đóng web.', ''],
+  };
+  async function veDay(el, loiCu) {
+    const UIb = HH.baoViecUI, box = el('bvDay');
+    if (!box || !UIb) return;
+    const m = await UIb.cheDoDay();
+    if (!el('bvDay')) return;
+    if (!DAY_TXT[m]) { box.innerHTML = ''; return; }
+    const [moTa, nhan] = DAY_TXT[m];
+    box.innerHTML = `<div class="hs-nv" style="display:block"><b>Báo cả khi đã đóng web</b><br>
+        <span class="muted text-xs">Điện thoại hay máy tính hiện thông báo khi khách nhắn tin, báo chuyển khoản, báo hỏng, xin gia hạn, gửi chỉ số. ${U.esc(moTa)}</span>
+        ${nhan || m === 'dang-bat' ? `<div class="row-gap-2 wrap" style="margin-top:8px">
+          ${nhan ? `<button class="btn btn-sm ${m === 'dang-bat' ? 'btn-outline' : 'btn-primary'}" type="button" id="bvDayBtn">${U.esc(nhan)}</button>` : ''}
+          ${m === 'dang-bat' ? '<button class="btn btn-sm btn-outline" type="button" id="bvDayThu">Gửi thử tới các máy đã bật</button>' : ''}</div>` : ''}
+        <p class="hs-err" id="bvDayErr" role="alert"></p></div>`;
+    const loi = el('bvDayErr'), nut = el('bvDayBtn'), thu = el('bvDayThu');
+    loi.textContent = loiCu || '';
+    if (nut) nut.onclick = async () => {
+      nut.disabled = true; nut.classList.add('loading'); loi.textContent = '';
+      let baoLoi = '';
+      try {
+        if (m === 'dang-bat') { await UIb.tatDay(); UI.toast('Đã tắt thông báo trên máy này', { type: 'ok' }); }
+        else { await UIb.batDay(); UI.toast('Đã bật. Bấm "Gửi thử" để xem thông báo hiện ra thế nào.', { type: 'ok' }); }
+      } catch (e) { baoLoi = (e && e.message) || 'Chưa bật được, thử lại sau.'; }
+      if (el('bvDay')) veDay(el, baoLoi);                    // vẽ lại theo trạng thái mới, giữ câu báo lỗi (nếu có)
+    };
+    if (thu) thu.onclick = async () => {
+      thu.disabled = true; loi.textContent = '';
+      try {
+        const r = await UIb.thuDay();
+        UI.toast(r.devices ? `Đã gửi thử tới ${r.devices} máy. Chờ vài giây là thông báo hiện ra.` : 'Máy chủ chưa gửi được (chưa cấu hình gửi thông báo, hoặc chưa có máy nào bật).', { type: r.devices ? 'ok' : 'warning' });
+      } catch (e) { loi.textContent = (e && e.message) || 'Chưa gửi được.'; }
+      thu.disabled = false;
+    };
   }
   function ganBaoViec(el) {
     const UIb = HH.baoViecUI, hint = el('bvHint');
@@ -1428,12 +1470,13 @@
         : q === 'khong-ho-tro' ? 'Trình duyệt này không hiện được thông báo trên màn hình.' : 'Chưa được phép: bấm "Thử tiếng và thông báo" để trình duyệt hỏi.';
     };
     veHint();
+    veDay(el);
     document.querySelectorAll('[data-bv]').forEach((cb) => cb.onchange = async () => {
       const c = HH.baoViec.caiDat(S.prefs.baoViec); c[cb.dataset.bv] = cb.checked;
       S.setPref('baoViec', c);
       if (cb.dataset.bv === 'manHinh' && cb.checked && UIb) await UIb.xinQuyen();
       if (cb.dataset.bv === 'tieuDe' && UIb) UIb.capNhatTieuDe();
-      veHint(); UI.toast('Đã lưu', { type: 'ok' });
+      veHint(); veDay(el); UI.toast('Đã lưu', { type: 'ok' });
     });
     el('bvThu').onclick = async () => {
       if (!UIb) return;

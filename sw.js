@@ -6,7 +6,7 @@
    Chỉ lưu: tệp của chính trang này (HTML, CSS, JS, hình) và SDK Supabase. KHÔNG đụng tới:
    - lệnh gọi API Supabase (dữ liệu phải luôn mới, và không để dữ liệu khách nằm trong bộ nhớ đệm của service worker),
    - app khách thuê (tenant-app/), trang khách tự khai (join/), trang công khai giới thiệu phòng (phong/) và trang giới thiệu có hiệu ứng cuộn (gioi-thieu/): bốn nơi đó tự có cách riêng. */
-const PHIEN_BAN = 2;                       // đổi số này khi sửa tệp này, để trình duyệt cài lại
+const PHIEN_BAN = 3;                       // đổi số này khi sửa tệp này, để trình duyệt cài lại
 const CACHE = 'hh-admin-v1';
 const GOC = new URL(self.registration.scope);              // thư mục chứa sw.js (gốc của trang)
 const VAO = new URL('index.html', GOC).href;
@@ -80,4 +80,28 @@ self.addEventListener('fetch', (e) => {
   // Chỉ trang chính mới thay bản index.html đã lưu; điều hướng tới tệp khác trong thư mục (tài liệu, .sql...) thì để trình duyệt tự xử lý
   if (req.mode === 'navigate' && u.pathname !== GOC.pathname && u.href !== VAO) return;
   e.respondWith(mangTruoc(req));
+});
+
+/* Thông báo đẩy cho chủ trọ (supabase/migration-owner-push.sql, gửi qua hàm Edge push-send): khách nhắn tin, báo chuyển khoản,
+   báo hỏng, xin gia hạn, gửi chỉ số. Nội dung: { title, body, url } với url dạng "#/b/b1/support". */
+const DUONG_OK = /^#\/[A-Za-z0-9/_-]{1,40}$/;
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Happy Home', body: e.data ? e.data.text() : '' }; }
+  const hash = DUONG_OK.test(d.url || '') ? d.url : '#/dashboard';
+  e.waitUntil(self.registration.showNotification(String(d.title || 'Happy Home').slice(0, 80), {
+    body: String(d.body || '').slice(0, 160), icon: new URL('assets/icon-192.png', GOC).href, badge: new URL('assets/icon-192.png', GOC).href,
+    tag: 'hh-chu' + hash, renotify: true, data: { hash } }));
+});
+
+// Bấm vào thông báo: web đang mở thì đưa tới đúng trang; chưa mở thì mở mới. Không dùng tab của app khách thuê.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const hash = (e.notification.data && DUONG_OK.test(e.notification.data.hash || '')) ? e.notification.data.hash : '#/dashboard';
+  const appKhach = new URL('tenant-app/', GOC).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const c = list.find((x) => x.url.startsWith(GOC.href) && !x.url.startsWith(appKhach) && !BO_QUA.some((p) => new URL(x.url).pathname.startsWith(p)));
+    if (c) { c.postMessage({ type: 'go', hash }); return c.focus(); }
+    return self.clients.openWindow(VAO + hash);
+  }));
 });

@@ -133,7 +133,11 @@ Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trướ
 - **Nay** web hỏi máy chủ **số** việc đang chờ (chỉ đếm, không tải dữ liệu) mỗi 30 giây khi đang xem tab, 60 giây khi tab ở nền; mạng lỗi thì giãn dần tới 10 phút; một lần hỏi treo quá 15 giây thì bỏ, vòng hỏi không đứng. Năm loại: tin nhắn khách chưa đọc, báo đã chuyển khoản chờ duyệt, sự cố chưa tiếp nhận, xin gia hạn, chỉ số khách gửi chờ duyệt. Nhân viên chỉ được báo loại thuộc quyền (tin nhắn chỉ chủ trọ).
 - **Có việc mới** (số tăng): tải dữ liệu về ngay (không chờ 2 phút), báo nhỏ trong trang, kêu "ting" (sau khi người dùng đã bấm vào trang một lần, theo luật của trình duyệt), và nếu tab đang ở nền thì hiện **thông báo trên màn hình máy tính** (phải bật ở Cài đặt chung và cho phép trình duyệt); bấm vào thông báo mở đúng trang. **Tiêu đề tab** luôn có số việc đang chờ, ví dụ "(3) Happy Home". Việc có sẵn lúc mới mở web không bị báo là mới; số giảm (đã xử lý) chỉ giảm số trên tab.
 - Tải dữ liệu mới về **không vẽ lại trang** khi đang điền biểu mẫu (thêm khách, lập hợp đồng, trả phòng...), đang mở hộp thoại hay đang gõ vào ô, để không mất chữ đang gõ.
-- Cài đặt theo từng thiết bị ở Cài đặt chung (số trên tab, tiếng, thông báo màn hình, nút thử). Không cần chạy SQL nào. **Chưa làm:** đẩy thông báo tới điện thoại của chủ trọ khi đã đóng hẳn web (cần thêm bảng đăng ký và hàm gửi trên máy chủ như app khách).
+- Cài đặt theo từng thiết bị ở Cài đặt chung (số trên tab, tiếng, thông báo màn hình, nút thử). Phần này không cần SQL.
+- **Báo cả khi đã đóng web (thông báo đẩy):** Cài đặt chung → *Báo khi có việc mới* → *Bật trên máy này* (điện thoại hay máy tính, mỗi máy bật một lần; iPhone phải thêm web vào màn hình chính trước, Apple chỉ cho web đã cài nhận thông báo). Từ đó máy hiện thông báo khi **khách** nhắn tin (một khách nhắn liền nhiều câu thì 2 phút báo một lần), báo đã chuyển khoản, báo hỏng, xin gia hạn, tự gửi chỉ số chờ duyệt; bấm vào mở đúng trang (Hỏi đáp, Chuyển khoản, Sự cố, Hợp đồng, Chỉ số điện). Việc do chủ trọ hay nhân viên tự ghi từ web thì không báo. Có nút *Gửi thử tới các máy đã bật*.
+  - Máy chủ: `supabase/migration-owner-push.sql` (bảng `owner_push_subs`, mỗi tài khoản tối đa 5 máy, khóa RLS, chỉ hàm của máy chủ đụng tới; 5 trigger chỉ chạy khi lệnh không mang tài khoản đăng nhập, tức là từ app khách). **Dùng lại** hàm Edge `push-send`, khóa VAPID và `push_config` của app khách: không phải triển khai lại hàm, không thêm khóa bí mật nào. Gửi hỏng không bao giờ làm hỏng việc khách vừa làm.
+  - **Tình trạng (25/11/2026): đã chạy trên Supabase thật** (mã băm tệp khớp trước khi chạy). Đã kiểm: 5 trigger có mặt, khách (anon) không gọi được hàm đăng ký, chủ trọ không đọc thẳng được bảng hay gọi hàm gửi nội bộ, số liệu cũ không đổi; gửi thật qua `push-send` tới một máy giả (thêm rồi xóa ngay) trả 200 `{"sent":0,"gone":1}`, đúng như mong đợi. **Chưa thử với điện thoại thật của chủ trọ:** bật ở Cài đặt chung rồi bấm *Gửi thử*.
+  - Kiểm thử: `tests/db/owner-push.test.py` (40 ca trên Postgres thật có `pg_net` giả, thử phá 20 chỗ, bắt 18, hai chỗ còn lại là lớp bảo vệ trùng), `tests/owner-push.test.js` (16 ca: luật chọn trạng thái, service worker của web chủ trọ chạy trong "self" giả, đối chiếu mã nguồn); thử như người dùng thật ở Cài đặt chung trên máy tính và điện thoại (bật, gửi thử, tắt, máy chủ chưa có chức năng).
 - `js/notify.js` (luật) + `js/notify-ui.js` (vòng hỏi): 30 ca kiểm thử `tests/notify.test.js`, trong đó vòng hỏi chạy thật trong môi trường giả (đồng hồ giả, máy chủ giả trả số / lỗi / treo, tab ẩn hiện, đăng xuất giữa chừng); thử phá 30 chỗ đều bị bắt. Khi viết kiểm thử phát hiện một lỗi thật: lần hỏi máy chủ bị treo làm vòng hỏi đứng luôn, nay có giới hạn 15 giây. Thử như người dùng thật trên máy tính và điện thoại.
 
 ## Sao lưu và khôi phục dữ liệu
@@ -634,6 +638,7 @@ tests/
   notify.test.js      # kiểm thử báo việc mới (luật + vòng hỏi trong môi trường giả): node tests/notify.test.js
   rpc-lite.test.js    # kiểm thử hàm gọi máy chủ nhẹ của app khách (fetch giả): node tests/rpc-lite.test.js
   a11y.test.js        # kiểm thử dễ dùng: nhãn nút, phóng to, cỡ chữ ô nhập, vùng chạm, không còn confirm(): node tests/a11y.test.js
+  owner-push.test.js  # kiểm thử thông báo đẩy cho chủ trọ phía trình duyệt (luật, service worker): node tests/owner-push.test.js
 ```
 
 ## Kiểm thử
@@ -669,6 +674,7 @@ node tests/backup.test.js
 node tests/notify.test.js
 node tests/rpc-lite.test.js
 node tests/a11y.test.js
+node tests/owner-push.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.

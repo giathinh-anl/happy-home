@@ -77,7 +77,32 @@
     return ra;
   }
 
-  const api = { LOAI, MA, MAC_DINH, loaiTheoQuyen, chuanHoa, tong, soSanh, noiDung, duongDen, tieuDe, khoangCho, caiDat };
+  /* ---------- Thông báo đẩy kể cả khi đã đóng web (supabase/migration-owner-push.sql, dùng chung hàm push-send của app khách) ----------
+     Nên hiện gì ở Cài đặt chung. o = { chu, coMayChu, coKhoa, coSW, coPush, coThongBao, quyen, daBat, ios, daCai }.
+     'an' = không hiện (không phải chủ trọ, chưa nối máy chủ, chưa có khóa VAPID), 'khong-ho-tro', 'can-cai' (iPhone phải thêm web vào
+     màn hình chính trước, Apple chỉ cho trang đã cài nhận thông báo), 'bi-chan', 'dang-bat', 'chua-bat'. */
+  function cheDoDay(o) {
+    const x = o || {};
+    if (!x.chu || !x.coMayChu || !x.coKhoa) return 'an';
+    if (!(x.coSW && x.coPush && x.coThongBao)) return x.ios && !x.daCai ? 'can-cai' : 'khong-ho-tro';
+    if (x.quyen === 'denied') return 'bi-chan';
+    return x.daBat ? 'dang-bat' : 'chua-bat';
+  }
+  /** Khóa VAPID công khai (base64 an toàn cho URL) -> mảng byte cho pushManager.subscribe. */
+  function khoaThanhByte(b64) {
+    const s = String(b64 || '').replace(/-/g, '+').replace(/_/g, '/');
+    const raw = (typeof atob === 'function' ? atob : (v) => Buffer.from(v, 'base64').toString('binary'))(s + '='.repeat((4 - (s.length % 4)) % 4));
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  /** Đường dẫn trong thông báo ("#/b/b1/support") -> đường cho HH.router.go ("/b/b1/support"). Dạng lạ thì về Tổng quan. */
+  function duongTuThongBao(h) {
+    const s = String(h || '');
+    return /^#\/[A-Za-z0-9/_-]{1,40}$/.test(s) ? s.slice(1) : '/dashboard';
+  }
+
+  const api = { LOAI, MA, MAC_DINH, loaiTheoQuyen, chuanHoa, tong, soSanh, noiDung, duongDen, tieuDe, khoangCho, caiDat, cheDoDay, khoaThanhByte, duongTuThongBao };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HH = root.HH || {}; root.HH.baoViec = api; }
 })(typeof window !== 'undefined' ? window : globalThis);
