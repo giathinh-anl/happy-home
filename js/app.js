@@ -452,8 +452,8 @@ HH.app = (function () {
   }
   function addBuildingDialog() {
     HH.ui.modal({ title: 'Thêm tòa nhà', bodyHtml: h`
-      <div class="field"><label>Tên tòa nhà *</label><input class="input" id="nbName" placeholder="VD: Happy Home Thủ Đức"></div>
-      <div class="field" style="margin-top:12px"><label>Địa chỉ</label><input class="input" id="nbAddr" placeholder="Số nhà, đường, quận, thành phố"></div>`,
+      <div class="field"><label for="nbName">Tên tòa nhà *</label><input class="input" id="nbName" placeholder="VD: Happy Home Thủ Đức"></div>
+      <div class="field" style="margin-top:12px"><label for="nbAddr">Địa chỉ</label><input class="input" id="nbAddr" placeholder="Số nhà, đường, quận, thành phố"></div>`,
       footHtml: `<button class="btn btn-outline" data-close>Hủy</button><span class="spacer"></span><button class="btn btn-primary" id="nbSave">Thêm tòa nhà</button>`,
       onMount(el, close) {
         const rules = HH.ui.formRules(el, [

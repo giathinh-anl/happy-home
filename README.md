@@ -461,6 +461,8 @@ Ai thấy được: chủ trọ, và nhân viên nào được cấp quyền **B
 
 **Mở nhanh hơn.** App khách chỉ cần gọi hàm máy chủ (khách vào bằng mã, không đăng nhập tài khoản Supabase), nên thư viện supabase-js (~48 KB nén, tải từ CDN ở tên miền khác, chặn chạy app) được thay bằng `tenant-app/js/rpc-lite.js`: vài chục dòng gọi thẳng `/rest/v1/rpc/<tên>` bằng `fetch`, trả lời giống hệt (`{ data, error }`, giữ mã lỗi PostgREST như `PGRST202`; mất mạng không ném lỗi), tự bỏ sau 20 giây không trả lời để chuyển sang bản lưu, luôn dùng khóa công khai (trước đây nếu cùng trình duyệt có người đang đăng nhập web chủ trọ thì supabase-js gửi kèm phiên của chủ trọ). Bỏ thẻ `tenant-app/js/config.js` luôn lỗi 404 trên bản chính. Phông chữ tải song song, không chặn vẽ trang. Service worker lưu thêm `rpc-lite.js` và cấu hình nên mở lại khi mất mạng chắc hơn (trước đây thư viện ở CDN không được lưu). Kiểm thử `tests/rpc-lite.test.js` (16 ca, thử phá 15 chỗ, bắt 14, chỗ còn lại là nhánh thừa đã bỏ); chạy thật app khách với máy chủ giả ở tầng `fetch`: vào app, hóa đơn, trò chuyện, máy chủ thiếu hàm phụ, mất mạng mở bản lưu.
 
+**Dễ dùng hơn trên điện thoại và với trình đọc màn hình.** Phóng to được bằng hai ngón (bỏ `maximum-scale=1`); mọi ô nhập chữ từ 16px trở lên nên iPhone không tự phóng khi chạm vào ô (ô chat trước đây 15px). Trên màn hình cảm ứng, nút quay lại, tải lại (38px), sao chép (29px), chọn giao diện (30px), gợi ý chat, "Xem biên lai" (23px) đều được nới vùng chạm tới khoảng 44px; nút chữ trong dòng nới bằng lề âm nên bố cục không đổi. Nút sao chép có tên đọc được ("Sao chép số tài khoản"...). Đăng xuất hỏi bằng tờ trượt của app (nút to là "Ở lại") thay hộp `confirm()` của trình duyệt. Bên web chủ trọ: "Cấp lại mã cho tất cả khách" xác nhận hai bước ngay trong hộp thoại (bấm lần đầu chỉ cảnh báo và đổi thành nút đỏ); ô chọn dòng của bảng có tên; ô nhập thông tin tòa nhà có nhãn gắn đúng ô; trên điện thoại cảm ứng ô nhập chữ 16px (trước đây 14,5px nên iPhone tự phóng khi chạm), nút của trợ lý, ảnh đại diện, chọn tháng, phân trang, thẻ, liên kết nhỏ được nới vùng chạm. Kiểm thử `tests/a11y.test.js` (10 ca); rà bằng máy có giả lập cảm ứng trên 12 màn app khách và 14 màn web chủ trọ: không còn nút thiếu tên, không còn ô chữ dưới 16px, không còn nút dưới 40px.
+
 **Xem được khi mất mạng.** Mỗi lần tải xong, app lưu bản hóa đơn, hợp đồng, phòng ở máy khách (không lưu số CCCD và ngày sinh). Mất mạng hay máy chủ lỗi thì hiện bản đó kèm băng "Đang xem bản lưu 5 phút trước", có nút Thử lại và tự thử khi có mạng. Đăng xuất hoặc hết phiên thì xóa bản lưu; bản lưu chỉ dùng đúng cho số điện thoại đã lưu và quá 30 ngày thì bỏ.
 
 **Gửi chỉ số điện: AI đọc số từ ảnh.** Khách chụp đồng hồ, AI (cùng đường dẫn Gemini đang dùng để đọc CCCD) điền sẵn số vào ô; khách luôn tự xem lại rồi mới gửi. Ảnh mờ thì ghi chú "xem kỹ lại"; không đọc được thì để khách nhập tay. Khi gửi, app soát số: nhỏ hơn kỳ trước hoặc vọt hơn 3 lần mức thường thì hỏi lại ("Sửa lại" / "Số này đúng, vẫn gửi").
@@ -631,6 +633,7 @@ tests/
   backup.test.js      # kiểm thử sao lưu / khôi phục: node tests/backup.test.js
   notify.test.js      # kiểm thử báo việc mới (luật + vòng hỏi trong môi trường giả): node tests/notify.test.js
   rpc-lite.test.js    # kiểm thử hàm gọi máy chủ nhẹ của app khách (fetch giả): node tests/rpc-lite.test.js
+  a11y.test.js        # kiểm thử dễ dùng: nhãn nút, phóng to, cỡ chữ ô nhập, vùng chạm, không còn confirm(): node tests/a11y.test.js
 ```
 
 ## Kiểm thử
@@ -665,6 +668,7 @@ node tests/settlement.test.js
 node tests/backup.test.js
 node tests/notify.test.js
 node tests/rpc-lite.test.js
+node tests/a11y.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.

@@ -331,7 +331,7 @@ HH.ui = (function () {
 
     function headHtml() {
       let cols = '';
-      if (opt.selectable) cols += `<th class="col-check"><input type="checkbox" data-check-all></th>`;
+      if (opt.selectable) cols += `<th class="col-check"><input type="checkbox" data-check-all aria-label="Chọn tất cả các dòng"></th>`;
       opt.columns.forEach(c => {
         const sortMark = state.sortKey === c.key ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
         cols += `<th class="${c.align === 'right' || c.mono ? 'num' : ''} ${c.sortable ? 'sortable' : ''}" ${c.sortable ? `data-sort="${c.key}"` : ''} ${c.width ? `style="width:${c.width}"` : ''} scope="col">${esc(c.label)}${sortMark}</th>`;
@@ -343,7 +343,7 @@ HH.ui = (function () {
     function rowHtml(r) {
       const rid = opt.rowId(r);
       let tds = '';
-      if (opt.selectable) tds += `<td class="col-check"><input type="checkbox" data-row-check="${esc(rid)}" ${state.selected.has(rid) ? 'checked' : ''}></td>`;
+      if (opt.selectable) tds += `<td class="col-check"><input type="checkbox" data-row-check="${esc(rid)}" aria-label="Chọn ${esc(rid)}" ${state.selected.has(rid) ? 'checked' : ''}></td>`;
       opt.columns.forEach((c, i) => {
         const cls = (c.align === 'right' || c.mono) ? 'num' : '';
         const content = c.render ? c.render(r) : esc(r[c.key] ?? '-');

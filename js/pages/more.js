@@ -114,10 +114,10 @@
       </div>
       <div class="grid-2" style="align-items:start">
         <div class="card"><div class="card-head"><h3>Thông tin tòa nhà</h3></div><div class="card-pad">
-          <div class="field"><label>Tên tòa nhà</label><input class="input" id="bName" value="${U.esc(b.name)}"></div>
-          <div class="field" style="margin-top:12px"><label>Địa chỉ</label><input class="input" id="bAddr" value="${U.esc(b.address || '')}"></div>
+          <div class="field"><label for="bName">Tên tòa nhà</label><input class="input" id="bName" value="${U.esc(b.name)}"></div>
+          <div class="field" style="margin-top:12px"><label for="bAddr">Địa chỉ</label><input class="input" id="bAddr" value="${U.esc(b.address || '')}"></div>
           <div class="grid-2" style="margin-top:12px">
-            <div class="field"><label>Số tầng</label><input class="input mono" id="bFloors" value="${b.floors || 1}"></div>
+            <div class="field"><label for="bFloors">Số tầng</label><input class="input mono" id="bFloors" inputmode="numeric" value="${b.floors || 1}"></div>
             <div><div class="field"><label>Tổng số phòng</label><div class="mono b" style="padding-top:9px">${rooms.length}</div></div></div>
           </div>
           <div style="margin-top:16px"><button class="btn btn-primary" id="saveBuilding">Lưu thay đổi</button></div>

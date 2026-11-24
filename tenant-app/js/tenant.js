@@ -362,6 +362,12 @@
     // chậm một nhịp: chỗ đã gọi hàm có thể còn vẽ lại màn hình sau khi bắt lỗi, đừng để nó đè lên màn đăng nhập
     setTimeout(() => { state.data = null; go('#/login'); }, 30);
   }
+  /* Hỏi trước khi đăng xuất bằng tờ trượt của app (trước đây là hộp confirm() của trình duyệt: chữ nhỏ, không theo giao diện, không có chế độ tối).
+     Nút chính (to) là "Ở lại" để lỡ chạm nhầm cũng không mất phiên. */
+  async function hoiDangXuat() {
+    const ok = await confirmSheet('Đăng xuất?', 'Lần sau vào lại cần nhập số điện thoại và mã vào app. Bản hóa đơn đã lưu trên máy này sẽ bị xóa.', 'Đăng xuất', 'Ở lại');
+    if (ok) doLogout();
+  }
   async function doLogout() {
     const tok = state.token, chatK = chatKey();
     stopStaffPoll(); clearCache();
@@ -648,7 +654,7 @@
     const fb = el('chatFab'); if (fb) fb.onclick = () => go('#/chat');
     wireTabs();   // thanh bên dùng chung data-tab
     const slo = el('sideLogout');
-    if (slo) slo.onclick = () => { if (!confirm('Đăng xuất khỏi ứng dụng?')) return; doLogout(); };
+    if (slo) slo.onclick = hoiDangXuat;
     const back = el('back'); if (back) back.onclick = () => history.length > 1 ? history.back() : go('#/home');
     const rn = el('retryNet'); if (rn) rn.onclick = async () => {
       rn.disabled = true; rn.textContent = 'Đang thử...';
@@ -878,7 +884,7 @@
           <div class="mono" style="font-size:28px;font-weight:800">${vnd(remain)}</div>
         </div>
         ${errBox('Chủ nhà chưa cài tài khoản nhận tiền trong ứng dụng, nên chưa có mã QR. Vui lòng hỏi chủ nhà số tài khoản và chỉ chuyển theo thông tin chủ nhà cung cấp trực tiếp.')}
-        <div class="t-card"><div class="bank-row"><span class="bk">Nội dung chuyển khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div></div>
+        <div class="t-card"><div class="bank-row"><span class="bk">Nội dung chuyển khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" type="button" aria-label="Sao chép nội dung" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div></div>
         <button class="t-btn" id="paid" style="margin-top:6px">Tôi đã chuyển khoản</button>
       `);
       document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy, b.dataset.l));
@@ -903,10 +909,10 @@
       <div class="t-card">
         <div style="font-weight:700;margin-bottom:6px">Chuyển khoản thủ công</div>
         <div class="bank-row"><span class="bk">Ngân hàng</span><span class="bv">${esc(BANK.name)}</span></div>
-        <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(BANK.account)}</span><button class="copybtn" data-copy="${esc(BANK.account)}" data-l="số tài khoản">${HH.ic('copy', 16)}</button></span></div>
+        <div class="bank-row"><span class="bk">Số tài khoản</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(BANK.account)}</span><button class="copybtn" type="button" aria-label="Sao chép số tài khoản" data-copy="${esc(BANK.account)}" data-l="số tài khoản">${HH.ic('copy', 16)}</button></span></div>
         <div class="bank-row"><span class="bk">Chủ tài khoản</span><span class="bv">${esc(BANK.holder)}</span></div>
-        <div class="bank-row"><span class="bk">Số tiền</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${num(remain)}</span><button class="copybtn" data-copy="${remain}" data-l="số tiền">${HH.ic('copy', 16)}</button></span></div>
-        <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div>
+        <div class="bank-row"><span class="bk">Số tiền</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${num(remain)}</span><button class="copybtn" type="button" aria-label="Sao chép số tiền" data-copy="${remain}" data-l="số tiền">${HH.ic('copy', 16)}</button></span></div>
+        <div class="bank-row"><span class="bk">Nội dung</span><span style="display:flex;gap:8px;align-items:center"><span class="bv mono">${esc(content)}</span><button class="copybtn" type="button" aria-label="Sao chép nội dung" data-copy="${esc(content)}" data-l="nội dung">${HH.ic('copy', 16)}</button></span></div>
       </div>
       <div class="t-note" style="margin-top:10px">Ghi <b>đúng nội dung</b> ở trên thì hệ thống nhận ra hóa đơn
         và tự xóa công nợ. Ghi khác thì chủ nhà phải đối soát tay, sẽ lâu hơn.</div>
@@ -1521,10 +1527,7 @@
       try { if (HH.tenantTour && HH.tenantTour.start({ vaoTrangChu: () => go('#/home') })) return; } catch (e) { /* dùng hộp thoại chữ bên dưới */ }
       alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     };
-    el('logoutBtn').onclick = () => {
-      if (!confirm('Đăng xuất khỏi ứng dụng?')) return;
-      doLogout();
-    };
+    el('logoutBtn').onclick = hoiDangXuat;
   }
 
   /* ---------- màn hình: ĐỔI MÃ VÀO APP ----------

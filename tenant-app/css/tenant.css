@@ -438,7 +438,7 @@ img { max-width: 100%; display: block; }
 }
 .chat-input textarea {
   flex: 1; border: 1px solid var(--neutral-200); border-radius: 20px; padding: 11px 15px;
-  font-size: 15px; resize: none; max-height: 96px; min-height: 44px; font-family: inherit; outline: none;
+  font-size: 16px; resize: none; max-height: 96px; min-height: 44px; font-family: inherit; outline: none;   /* dưới 16px thì iPhone tự phóng to khi chạm vào ô */
 }
 .chat-input textarea:focus { border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-100); }
 .chat-send {
@@ -1122,3 +1122,15 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 @keyframes ttText { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes ttPing { 0% { transform: scale(1); opacity: .8; } 70%, 100% { transform: scale(1.12); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tt, .tt-hole, .tt-hole::after, .tt-card, .tt-body, .tt-bar i, .tt-dots i { transition: none !important; animation: none !important; } }
+
+/* Màn hình cảm ứng: nút nhỏ có vùng chạm tối thiểu ~44px (khuyến nghị của Apple và Google). Rà bằng máy trước đây thấy nút quay lại,
+   tải lại 38px; nút sao chép 29px; "Xem biên lai" 23px; chọn giao diện 30px. Nút chữ nằm trong dòng (link-btn, "Xem lịch sử") nới vùng chạm
+   bằng lề âm nên chữ đứng yên, bố cục không xô lệch. Máy tính dùng chuột giữ nguyên cỡ cũ. */
+@media (pointer: coarse) {
+  .t-header .iconbtn, .t-header .back { width: 44px; height: 44px; flex-basis: 44px; }
+  .t-pill, .chat-new, .chat-sugg button, .sz-chip { min-height: 44px; }
+  .t-seg button { min-height: 40px; padding-left: 13px; padding-right: 13px; }
+  .copybtn { min-width: 44px; min-height: 40px; }
+  .link-btn { padding: 13px 8px; margin: -11px -8px -13px; }
+  .t-section-head a { display: inline-block; padding: 12px 6px; margin: -12px -6px; }
+}

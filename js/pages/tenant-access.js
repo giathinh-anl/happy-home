@@ -117,9 +117,20 @@
       footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span><button class="btn btn-primary" id="acBulkGo" ${thieu.length || all.length ? '' : 'disabled'}>Cấp mã</button>`,
       onMount(el) {
         const go = el.querySelector('#acBulkGo'), res = el.querySelector('#acBulkRes');
+        // "Tất cả" đăng xuất mọi khách: bấm lần đầu chỉ hiện cảnh báo và đổi nút thành nút đỏ, bấm lần nữa mới làm
+        // (trước đây dùng hộp confirm() của trình duyệt: chữ nhỏ, không theo giao diện, dễ bấm OK theo thói quen)
+        let daCanh = false;
+        const boCanh = () => { daCanh = false; go.textContent = 'Cấp mã'; go.className = 'btn btn-primary'; res.innerHTML = ''; };
+        el.querySelectorAll('input[name=acMode]').forEach(r => r.onchange = boCanh);
         go.onclick = async () => {
           const mode = el.querySelector('input[name=acMode]:checked').value;
-          if (mode === 'all' && !confirm('Cấp lại mã cho TẤT CẢ khách? Mã cũ sẽ hết hiệu lực và mọi khách đang dùng app sẽ bị đăng xuất.')) return;
+          if (mode === 'all' && !daCanh) {
+            daCanh = true; go.textContent = 'Đồng ý cấp lại cho tất cả'; go.className = 'btn btn-danger';
+            res.innerHTML = `<div class="alert alert-danger" role="alert"><span class="ic">${HH.ic('alert', 16)}</span><div><b>Cấp lại mã cho cả ${all.length} khách?</b>
+              Mã cũ hết hiệu lực ngay, mọi khách đang dùng app bị đăng xuất và phải nhập mã mới. Bấm nút đỏ để làm, hoặc chọn "Chỉ khách chưa có mã".</div></div>`;
+            go.focus(); return;
+          }
+          res.innerHTML = '';
           go.classList.add('loading'); go.disabled = true;
           const r = await goi('owner_issue_tenant_codes', { p_building_id: ctx.bid, p_only_missing: mode === 'missing' });
           go.classList.remove('loading');
