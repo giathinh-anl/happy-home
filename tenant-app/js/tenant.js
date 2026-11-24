@@ -5,8 +5,10 @@
 (function () {
   'use strict';
   const cfg = window.HH_CONFIG || {};
-  const enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && cfg.supabaseUrl.indexOf('YOUR-') === -1 && typeof supabase !== 'undefined');
-  const client = enabled ? supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
+  // Gọi hàm máy chủ bằng js/rpc-lite.js (nhẹ, cùng chỗ với app) thay cho thư viện supabase-js tải từ CDN
+  const RL = window.HH && HH.rpcLite;
+  const enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && cfg.supabaseUrl.indexOf('YOUR-') === -1 && RL);
+  const client = enabled ? RL.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
 
   // Kỳ và "hôm nay" lấy theo đồng hồ máy, không ghim cứng: sang tháng là tự nhảy.
   const TODAY = new Date();

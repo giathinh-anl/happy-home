@@ -18,8 +18,10 @@
   <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%20&display=swap" rel="stylesheet">
+  <!-- Phông chữ tải song song, KHÔNG chặn vẽ trang: mạng chậm thì hiện ngay bằng phông máy rồi đổi sang phông đẹp khi tải xong -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&text=happyome%20&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="../css/tokens.css?v=40">
   <link rel="stylesheet" href="css/tenant.css?v=51">
 </head>
@@ -27,7 +29,6 @@
   <div id="tapp"></div>
   <div class="t-toast-zone" id="ttoast"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>window.HH = window.HH || {};</script>
   <script src="../js/icons.js?v=40"></script>
   <script src="../js/motion.js?v=40"></script>
@@ -45,10 +46,11 @@
   <script src="js/season-ui.js?v=4"></script>
   <script src="js/tour.js?v=1"></script>
   <script>try { HH.seasonUI.init(); } catch (e) { console.info('Giao diện theo mùa không chạy:', e && e.message); }</script>
-  <!-- Cấu hình máy chủ: dùng chung js/config.js của web quản trị; nếu có tenant-app/js/config.js thì tệp này được ưu tiên -->
+  <!-- Cấu hình máy chủ: dùng chung js/config.js của web quản trị (bản trên mạng không có tenant-app/js/config.js riêng, trước đây thẻ đó luôn lỗi 404) -->
   <script src="../js/config.js?v=41" onerror="console.info('Chưa có js/config.js')"></script>
-  <script src="js/config.js?v=40" onerror="console.info('Chưa có tenant-app/js/config.js (dùng chung ../js/config.js)')"></script>
-  <script src="js/tenant.js?v=51"></script>
+  <!-- Gọi hàm máy chủ: tệp nhỏ cùng chỗ với app, thay thư viện supabase-js (~50 KB) tải từ CDN -->
+  <script src="js/rpc-lite.js?v=1"></script>
+  <script src="js/tenant.js?v=52"></script>
   <script>
     // PWA: cho phép cài về màn hình chính (chỉ chạy khi mở qua http/https)
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
