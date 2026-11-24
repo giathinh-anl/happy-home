@@ -1486,6 +1486,31 @@ HH.store = (function () {
       return { ok: true, hoaDonCuoi: o.hoaDonCuoi || null };
     },
 
+    /* ---------- SAO LƯU / KHÔI PHỤC (luật ở js/backup.js, giao diện ở Cài đặt chung) ---------- */
+    // Bản sao lưu toàn bộ dữ liệu đang có trong máy (đã nạp từ máy chủ). Chỉ chủ trọ.
+    banSaoLuu() {
+      if (!api.isOwner() || !HH.backup) return null;
+      const b = HH.backup.taoBanSao(groups, { taoLuc: new Date().toISOString(), nguoiTao: prefs.userName, cheDo: usingBackend() ? 'may-chu' : 'trinh-duyet' });
+      // tệp có thông tin riêng của khách (CCCD, số điện thoại): ghi lại ai tải lúc nào
+      api.log('data.export', `Tải bản sao lưu toàn bộ dữ liệu (${Object.values(b.soLuong).reduce((s, n) => s + n, 0)} mục)`);
+      persist();
+      return b;
+    },
+    soSanhSaoLuu(banSao) { return HH.backup ? HH.backup.soSanh(groups, banSao) : null; },
+    // Khôi phục: chỉ THÊM những mục trong tệp mà hiện không còn (so theo mã). Không ghi đè, không xóa. Trả { ok, n, theoLoai } hoặc { ok:false, loi }.
+    khoiPhucSaoLuu(banSao) {
+      if (!api.isOwner()) return { ok: false, loi: 'Chỉ chủ trọ được khôi phục dữ liệu.' };
+      if (!HH.backup || !banSao || !banSao.duLieu) return { ok: false, loi: 'Bản sao lưu không hợp lệ.' };
+      const them = HH.backup.mucCanThem(groups, banSao), theoLoai = {};
+      let n = 0;
+      Object.keys(them).forEach(k => { them[k].forEach(x => groups[k].push(x)); theoLoai[k] = them[k].length; n += them[k].length; });
+      if (!n) return { ok: true, n: 0, theoLoai };
+      api.refreshExpiryFlags();
+      api.log('data.restore', `Khôi phục ${n} mục từ bản sao lưu` + (banSao.taoLuc ? ` tạo lúc ${U.fmtDate(banSao.taoLuc)}` : ''));
+      persist();
+      return { ok: true, n, theoLoai };
+    },
+
     /* ---------- CHỐT SỔ THÁNG ---------- */
     // Xem trước: từng hợp đồng đang hiệu lực được phân loại (js/closing.js) kèm số tiền dự kiến
     closingPreview(bid, period) {

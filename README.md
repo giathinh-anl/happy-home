@@ -127,6 +127,14 @@ Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trướ
 - Không cần chạy SQL nào (dùng các bảng hóa đơn, phiếu thu, hợp đồng sẵn có).
 - `js/settlement.js` thuần: 27 ca kiểm thử `tests/settlement.test.js` (ngày ở, tháng nhuận, làm tròn, 3000 bộ số ngẫu nhiên cho chia cọc, gợi ý phạt, đối chiếu mã nguồn), thử phá 28 chỗ, bắt được 26, hai chỗ còn lại là biến thể tương đương. Thử như người dùng thật trên máy tính và điện thoại: gõ chỉ số sai bị chặn, chọn mức phạt, in biên bản, cọc không đủ thì khách còn nợ hiện ở Công nợ; cọc dư thì báo số tiền hoàn.
 
+## Sao lưu và khôi phục dữ liệu
+
+- **Tải bản sao lưu** (Cài đặt chung, chỉ chủ trọ): một tệp `.json` chứa toàn bộ dữ liệu đang có (tòa, phòng, dịch vụ, khách, hợp đồng, chỉ số, đợt chốt sổ, hóa đơn, phiếu thu, tài sản, sự cố, thu chi, cùng nhân viên, nhật ký, việc khách gửi để tra cứu). Thẻ nhắc rõ tệp có số CCCD, số điện thoại của khách. Mỗi lần tải ghi một dòng nhật ký.
+- **Khôi phục từ tệp an toàn:** chỉ **thêm lại những mục đã mất** (so theo mã), không ghi đè mục đang có (kể cả khi trong tệp khác đi), không xóa gì. Trước khi làm có bảng xem trước từng loại: trong tệp / đang có / sẽ thêm. Khôi phục lại cùng tệp lần hai thì không thêm gì.
+- **Không khôi phục từ tệp:** nhân viên (thêm lại là cấp lại quyền, phải làm tay), nhật ký (không cho viết lại lịch sử), giao dịch ngân hàng và việc khách gửi lên.
+- Tệp hỏng, tệp của app khác, tệp từ phiên bản mới hơn, tệp quá lớn đều bị từ chối kèm lời nhắn dễ hiểu; trường có tên lạ (kể cả `__proto__`) và mục thiếu mã, trùng mã bị bỏ.
+- Không cần chạy SQL nào. `js/backup.js` thuần: 24 ca kiểm thử `tests/backup.test.js` (vòng tròn tạo/đọc, tệp hỏng, 500 bộ ngẫu nhiên chứng minh không mục đang có nào bị đổi, đối chiếu danh sách loại với kho dữ liệu để thêm bảng mới mà quên sao lưu thì báo), thử phá 26 chỗ đều bị bắt. Thử như người dùng thật trên máy tính và điện thoại: tải tệp, chọn tệp sai, xóa một khách, khôi phục thấy khách trở lại còn tên tòa vừa đổi vẫn giữ.
+
 ## Ràng buộc dữ liệu ở tầng DB
 
 - **Lưới an toàn cuối cùng** sau `js/validate.js`: `supabase/migration-constraints.sql` chặn số âm (giá phòng, giá thuê, tiền cọc, đơn giá dịch vụ, chỉ số điện, đã thu, thanh toán), hợp đồng kết thúc trước khi bắt đầu, cuối kỳ hóa đơn trước đầu kỳ, kỳ không đúng dạng năm-tháng, ngày chốt ngoài 1–31, CCCD không phải 9 hoặc 12 số, số điện thoại không phải số di động 10 số (nhận +84, khoảng trắng, dấu chấm, gạch, ngoặc, đúng như luật ở app). Lỗi trả mã `23514` kèm lời nhắn tiếng Việt.
@@ -553,6 +561,7 @@ js/
   rewards.js          # điểm thưởng đóng tiền đúng hạn: luật điểm, chuỗi, đổi điểm, tin nhắn (không đụng DOM, có kiểm thử)
   renewal.js          # gia hạn hợp đồng: tính hạn mới, lịch sử, nội dung phụ lục (không đụng DOM, có kiểm thử)
   settlement.js       # tiền tháng lẻ theo ngày ở, chia cọc khi trả phòng, gợi ý phạt trả trước hạn (không đụng DOM, có kiểm thử)
+  backup.js           # sao lưu ra tệp và khôi phục chỉ thêm mục đã mất (không đụng DOM, có kiểm thử)
   offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
   offline-ui.js       # đăng ký service worker, thanh trạng thái mạng, hộp thoại chỉ số xung đột, mở ngoại tuyến
   onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
@@ -606,6 +615,7 @@ tests/
   season-ui.test.js   # kiểm thử hình, hạt, tranh của giao diện theo mùa và việc nối vào app khách: node tests/season-ui.test.js
   tenant-tour.test.js # kiểm thử hướng dẫn từng bước của app khách (bước, đặt thẻ, đối chiếu mã nguồn): node tests/tenant-tour.test.js
   settlement.test.js  # kiểm thử tiền tháng lẻ và quyết toán trả phòng: node tests/settlement.test.js
+  backup.test.js      # kiểm thử sao lưu / khôi phục: node tests/backup.test.js
 ```
 
 ## Kiểm thử
@@ -637,6 +647,7 @@ node tests/seasons.test.js
 node tests/season-ui.test.js
 node tests/tenant-tour.test.js
 node tests/settlement.test.js
+node tests/backup.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.

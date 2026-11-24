@@ -1329,6 +1329,7 @@
           ${raw(nhomViec)}
           <p class="hint" id="nvHint" style="margin-top:8px"></p>
         </div></div>
+        ${raw(laChu ? saoLuuHtml() : '')}
         <div class="card" style="grid-column:1/-1"><div class="card-head"><h3>Trợ lý ảo (AI)</h3></div>
           <div class="card-pad">${raw(aiStatusHtml())}</div></div>
       </div>`;
@@ -1399,6 +1400,75 @@
 
       const rst = el('cfgReset');
       if (rst) rst.onclick = () => HH.app.resetDialog();
+      if (el('slTai')) ganSaoLuu(el);
     },
   };
+
+  /* ---------- Sao lưu / khôi phục (chỉ chủ trọ; luật ở js/backup.js) ---------- */
+  function saoLuuHtml() {
+    const lan = S.prefs.saoLuuLuc;
+    return `<div class="card" style="grid-column:1/-1" id="slCard"><div class="card-head"><h3>Sao lưu dữ liệu</h3></div><div class="card-pad">
+      <p class="muted text-sm">Tải về một tệp chứa toàn bộ dữ liệu: tòa nhà, phòng, khách thuê, hợp đồng, chỉ số, hóa đơn, phiếu thu, tài sản, sự cố, thu chi. Nên tải mỗi tháng một lần và cất ở nơi an toàn.</p>
+      <div class="alert alert-warning" style="margin-top:12px"><span class="ic">${HH.ic('alert', 16)}</span><div>Tệp có thông tin riêng của khách thuê (họ tên, số CCCD, số điện thoại). Không gửi tệp cho người khác, không đăng lên mạng.</div></div>
+      <div class="row-gap-2 wrap" style="margin-top:12px">
+        <button class="btn btn-primary" id="slTai" type="button">${HH.ic('download', 16)} Tải bản sao lưu</button>
+        <label class="btn btn-outline" for="slFile">${HH.ic('upload', 16)} Khôi phục từ tệp</label>
+        <input type="file" id="slFile" accept="application/json,.json" hidden>
+      </div>
+      <p class="hint" id="slHint" style="margin-top:8px">Khôi phục chỉ thêm lại những mục đã mất; không ghi đè và không xóa dữ liệu đang có.${lan ? ' Lần tải gần nhất trên máy này: ' + U.esc(U.fmtDate(lan)) + '.' : ''}</p>
+      <p class="hs-err" id="slErr" role="alert"></p>
+    </div></div>`;
+  }
+  function ganSaoLuu(el) {
+    const B = HH.backup, loi = el('slErr');
+    el('slTai').onclick = () => {
+      loi.textContent = '';
+      const b = S.banSaoLuu(); if (!b) { loi.textContent = 'Chỉ chủ trọ được tải bản sao lưu.'; return; }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(b)], { type: 'application/json' }));
+      const a = document.createElement('a'); a.href = url; a.download = B.tenTep(new Date());
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+      S.setPref('saoLuuLuc', b.taoLuc);
+      const n = Object.values(b.soLuong).reduce((s, x) => s + x, 0);
+      el('slHint').textContent = `Đã tải ${U.number(n)} mục. Khôi phục chỉ thêm lại những mục đã mất; không ghi đè và không xóa dữ liệu đang có.`;
+      UI.toast(`Đã tải bản sao lưu (${U.number(n)} mục)`, { type: 'ok' });
+    };
+    el('slFile').onchange = async () => {
+      const f = el('slFile').files && el('slFile').files[0]; loi.textContent = '';
+      el('slFile').value = '';
+      if (!f) return;
+      let r;
+      try { r = f.size > 60 * 1024 * 1024 ? { ok: false, loi: 'Tệp quá lớn, không phải bản sao lưu của Happy Home.' } : B.docBanSao(await f.text()); }
+      catch (e) { r = { ok: false, loi: 'Không đọc được tệp.' }; }
+      if (!r.ok) { loi.textContent = r.loi; return; }
+      xemTruocKhoiPhuc(r);
+    };
+  }
+  function xemTruocKhoiPhuc(r) {
+    const ss = S.soSanhSaoLuu(r.banSao), b = r.banSao;
+    const hong = Object.keys(r.hong).reduce((s, k) => s + r.hong[k], 0);
+    const dong = ss.dong.filter(d => d.trongTep > 0).map(d => `<tr${d.khoiPhuc ? '' : ' class="muted"'}>
+      <td>${U.esc(d.ten)}${d.khoiPhuc ? '' : `<div class="text-xs">Không khôi phục: ${U.esc(d.vi)}</div>`}</td>
+      <td class="num" style="white-space:nowrap">${U.number(d.trongTep)} / ${U.number(d.daCo)}</td>
+      <td class="num">${d.khoiPhuc ? (d.thieu ? `<b style="color:var(--success)">+${U.number(d.thieu)}</b>` : '0') : '–'}</td></tr>`).join('');
+    const body = `<p class="muted text-sm">Bản sao lưu ${b.taoLuc ? 'tạo lúc <b>' + U.esc(U.fmtDate(b.taoLuc)) + ' ' + U.esc(new Date(b.taoLuc).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })) + '</b>' : 'không rõ ngày tạo'}${b.nguoiTao ? ' bởi ' + U.esc(b.nguoiTao) : ''}.</p>
+      <div class="dt-scroll" style="margin-top:12px"><table class="dt"><thead><tr><th>Loại</th><th class="num">Trong tệp / đang có</th><th class="num">Thêm</th></tr></thead><tbody>${dong || '<tr><td colspan="3" class="muted">Tệp không có dữ liệu nào.</td></tr>'}</tbody></table></div>
+      ${hong ? `<p class="hint" style="margin-top:8px">Bỏ qua ${U.number(hong)} mục hỏng trong tệp (thiếu mã hoặc trùng mã).</p>` : ''}
+      <p class="hint" style="margin-top:8px">Mục "Đang có" giữ nguyên như hiện tại, kể cả khi trong tệp khác đi. Không mục nào bị xóa.</p>`;
+    const n = ss.tongThieu;
+    const foot = `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span>
+      <button class="btn btn-primary" data-ok ${n ? '' : 'disabled'}>${n ? 'Thêm lại ' + U.number(n) + ' mục' : 'Không có gì để thêm'}</button>`;
+    UI.modal({ title: 'Khôi phục từ bản sao lưu', bodyHtml: body, footHtml: foot, size: 'wide', onMount(ov, close) {
+      const ok = ov.querySelector('[data-ok]');
+      ok.onclick = async () => {
+        ok.disabled = true; ok.classList.add('loading');
+        const kq = S.khoiPhucSaoLuu(b);
+        if (!kq.ok) { ok.classList.remove('loading'); ok.disabled = false; UI.toast(kq.loi, { type: 'error' }); return; }
+        let f = { ok: true };
+        if (S.usingBackend()) { try { f = await S.flush(); } catch (e) { f = { ok: false }; } }
+        close();
+        UI.toast(f.ok ? `Đã thêm lại ${U.number(kq.n)} mục` : `Đã thêm lại ${U.number(kq.n)} mục trên máy này, chưa gửi hết lên máy chủ. App sẽ tự gửi lại.`, { type: f.ok ? 'ok' : 'warning' });
+        HH.router.render();
+      };
+    } });
+  }
 })();

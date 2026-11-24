@@ -135,6 +135,13 @@
       buoc: ['Vào Cài đặt chung, bấm Xóa toàn bộ dữ liệu.',
         'Gõ đúng chữ xác nhận. Việc này xóa hết tòa nhà, phòng, khách, hóa đơn của tài khoản trên máy chủ và KHÔNG hoàn tác được; tài khoản đăng nhập vẫn còn và trở về trống như mới.'],
       lienKet: { nhan: 'Mở Cài đặt chung', duong: '/config' } },
+    { id: 'sao-luu', nhom: 'tai-khoan', tieuDe: 'Sao lưu và khôi phục dữ liệu', chuTro: true,
+      tuKhoa: 'sao luu backup tai ve khoi phuc phuc hoi mat du lieu xoa nham tep json',
+      buoc: ['Vào Cài đặt chung, bấm Tải bản sao lưu. Máy tải về một tệp .json chứa toàn bộ dữ liệu. Nên tải mỗi tháng một lần.',
+        'Tệp có số CCCD và số điện thoại của khách: cất ở nơi an toàn, không gửi cho người khác.',
+        'Lỡ xóa nhầm thì bấm Khôi phục từ tệp và chọn tệp đã tải. App cho xem trước sẽ thêm lại bao nhiêu mục; chỉ thêm những mục đã mất, không ghi đè và không xóa gì đang có.',
+        'Nhân viên và nhật ký không khôi phục từ tệp: thêm lại nhân viên ở Công ty/nhóm.'],
+      lienKet: { nhan: 'Mở Cài đặt chung', duong: '/config' } },
   ];
 
   /* ---------- Tìm kiếm ---------- */
