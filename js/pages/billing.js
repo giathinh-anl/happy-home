@@ -844,7 +844,8 @@
   HH.pages.payments = {
     render(ctx) {
       ctx._ptab = ctx._ptab || 'debt';
-      const contracts = S.contractsOf(ctx.bid).filter(c => c.status === 'active' || c.status === 'terminating' || c.status === 'expired');
+      // Gồm cả hợp đồng đã thanh lý: khách trả phòng mà cọc không đủ trừ thì phần còn thiếu vẫn phải theo dõi ở đây
+      const contracts = S.contractsOf(ctx.bid).filter(c => c.status === 'active' || c.status === 'terminating' || c.status === 'expired' || c.status === 'terminated');
       const rows = contracts.map(c => {
         const list = S.invoicesForContract(c.id).filter(i => i.status !== 'paid' && i.status !== 'cancelled');
         const debt = list.reduce((s, i) => s + (i.total - i.paid), 0);
@@ -874,7 +875,7 @@
           searchable: false,
           emptyTitle: 'Không có công nợ', emptyIcon: '✓', emptyDesc: 'Tất cả hóa đơn đã được thanh toán.',
           columns: [
-            { key: 'room', label: 'Phòng', render: x => `<b>${x.c.roomCode}</b>` },
+            { key: 'room', label: 'Phòng', render: x => `<b>${x.c.roomCode}</b>${x.c.status === 'terminated' ? ' <span class="badge s-neutral">Đã trả phòng</span>' : ''}` },
             { key: 'tenant', label: 'Khách thuê', render: x => U.esc(x.c.tenantName) },
             { key: 'count', label: 'Số HĐ nợ', align: 'right', render: x => x.count },
             { key: 'oldest', label: 'Kỳ nợ cũ nhất', render: x => x.oldest ? S.periodLabel(x.oldest.period) : '-' },

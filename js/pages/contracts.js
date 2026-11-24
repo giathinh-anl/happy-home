@@ -1235,7 +1235,7 @@ QUY TẮC:
       ctx._c = c;
       // mặc định trả phòng vào ngày cuối tháng này
       const eom = new Date(U.today().getFullYear(), U.today().getMonth() + 1, 0);
-      ctx._t = { step: 0, returnDate: U.dateKey(eom), reason: '', assets: {}, checks: { shown: false, paid: false } };
+      ctx._t = { step: 0, returnDate: U.dateKey(eom), reason: 'Hết hạn hợp đồng', assets: {}, checks: { shown: false, paid: false }, phat: 0 };
       const assets = S.assetsOf(ctx.bid, c.roomCode);
       assets.forEach(a => ctx._t.assets[a.id] = { condition: 'good', compensation: 0 });
       return h`<div class="page-head">
@@ -1327,69 +1327,168 @@ QUY TẮC:
     tWire(ctx);
   }
 
+  /* Bước 3: công nợ cũ + tiền KỲ CUỐI (kỳ chứa ngày trả phòng). Trước đây ô "Chỉ số điện chốt" không được dùng và tiền kỳ cuối không được tính.
+     Tiền phòng, nước, dịch vụ cố định của kỳ cuối tính theo số ngày khách ở; điện tính theo chỉ số cuối (js/settlement.js, S.hoaDonKyCuoi). */
   function tStep3(ctx, body) {
-    const c = ctx._c;
-    const invs = S.invoicesForContract(c.id).filter(i => i.status !== 'paid' && i.status !== 'cancelled');
-    const debt = invs.reduce((s, i) => s + (i.total - i.paid), 0);
-    ctx._t.debt = debt;
-    const rows = invs.length ? invs.map(i => `<div class="alloc-row"><span>${i.id} · ${i.period}</span>
+    const c = ctx._c, t = ctx._t, St = HH.settlement;
+    const ngay = HH.dates.chuoiNgay(t.returnDate), ky = ngay.slice(0, 7);
+    const cuaHd = S.invoicesForContract(c.id);
+    const daCo = cuaHd.find(i => i.period === ky && i.status !== 'cancelled') || null;
+    const rdKy = S.reading(ctx.bid, c.roomCode, ky);
+    const truoc = S.elecPrevOf(ctx.bid, c.roomCode, ky);
+    const pn = St.phanNgayO(ky, c.start, ngay), thieu = St.kyTruocChuaLap(ky, c.start, cuaHd);
+    t.daCo = daCo;
+    if (t.chiSoCuoiKy !== ky) { t.chiSoCuoiKy = ky; t.chiSoCuoi = rdKy && rdKy.elecCurr != null ? rdKy.elecCurr : null; }
+    const invs = cuaHd.filter(i => i.status !== 'paid' && i.status !== 'cancelled').sort((a, b) => String(a.period).localeCompare(String(b.period)));
+    t.hoaDonCu = invs;
+    t.debt = invs.reduce((s, i) => s + (i.total - i.paid), 0);
+    const rows = invs.length ? invs.map(i => `<div class="alloc-row"><span>${U.esc(i.id)} · ${S.periodLabel(i.period)}</span>
       <span class="a-amt">${U.currency(i.total - i.paid)}</span></div>`).join('') : '<p class="muted">Không còn công nợ hóa đơn.</p>';
-    body.innerHTML = `<h3 style="margin-bottom:16px">Chốt công nợ</h3>
-      <div class="field"><label>Chỉ số điện chốt</label><input class="input mono" placeholder="Nhập chỉ số cuối"></div>
+    const canh = (loai, txt) => `<div class="alert alert-${loai}" style="margin-bottom:12px"><span class="ic">${HH.ic(loai === 'warning' ? 'alert' : 'info', 16)}</span><div>${txt}</div></div>`;
+    body.innerHTML = `<h3 style="margin-bottom:16px">Chốt công nợ và tiền kỳ cuối</h3>
+      ${canh('info', `Kỳ cuối <b>${S.periodLabel(ky)}</b>: khách ở <b>${pn.soNgayO}/${pn.soNgayThang} ngày</b> (${U.fmtDate(pn.tu)} đến ${U.fmtDate(pn.den)}).`)}
+      ${thieu ? canh('warning', `Kỳ <b>${S.periodLabel(thieu)}</b> chưa có hóa đơn. Nên lập hóa đơn kỳ đó trước (Hóa đơn → Chốt sổ tháng) rồi mới thanh lý, kẻo sót tiền.`) : ''}
+      ${daCo ? canh('info', `Kỳ ${S.periodLabel(ky)} đã có hóa đơn <b>${U.esc(daCo.id)}</b> nên không tính thêm tiền kỳ cuối; hóa đơn đó (nếu chưa trả) nằm trong công nợ bên dưới. Khách ở chưa hết tháng thì sửa hóa đơn đó cho đúng số ngày trước khi thanh lý.`)
+        : `<div class="field"><label for="tElecEnd">Chỉ số điện cuối, lúc khách rời đi</label>
+            <input class="input mono" id="tElecEnd" inputmode="decimal" autocomplete="off" placeholder="Ví dụ ${U.number(truoc + 120)}" value="${t.chiSoCuoi == null ? '' : U.number(t.chiSoCuoi)}" style="max-width:220px">
+            <span class="hint">Chỉ số kỳ trước: <b class="mono">${U.number(truoc)}</b>. Để trống thì kỳ cuối không tính tiền điện.</span>
+            <p class="field-error" id="tElecErr" style="color:var(--danger);margin-top:6px"></p></div>
+          <h4 style="margin:18px 0 8px">Tiền kỳ cuối</h4><div class="alloc-box" id="tStub"></div>`}
       <h4 style="margin:20px 0 8px">Công nợ hóa đơn còn lại</h4>
-      <div class="alloc-box">${rows}<div class="alloc-row" style="border-top:2px solid var(--neutral-200);margin-top:4px"><b>Tổng công nợ</b><b class="a-amt">${U.currency(debt)}</b></div></div>
+      <div class="alloc-box">${rows}<div class="alloc-row" style="border-top:2px solid var(--neutral-200);margin-top:4px"><b>Tổng công nợ</b><b class="a-amt">${U.currency(t.debt)}</b></div></div>
+      <div class="alloc-row" id="tTong" style="margin-top:12px;font-size:16px"></div>
       ${tFoot(ctx)}`;
-    tWire(ctx);
+    const inp = body.querySelector('#tElecEnd'), loi = body.querySelector('#tElecErr');
+    const ve = () => {
+      t.hoaDonCuoi = daCo ? null : S.hoaDonKyCuoi(c.id, ngay, t.chiSoCuoi);
+      const stub = body.querySelector('#tStub');
+      if (stub) stub.innerHTML = t.hoaDonCuoi.lines.map(l => `<div class="alloc-row"><span>${U.esc(l.label)}<div class="muted text-xs">${U.esc(l.meta || '')}</div></span><span class="a-amt">${U.currency(l.amount)}</span></div>`).join('')
+        + (t.chiSoCuoi == null ? '<div class="muted text-xs" style="margin-top:4px">Chưa nhập chỉ số điện cuối: chưa tính tiền điện kỳ cuối.</div>' : '')
+        + `<div class="alloc-row" style="border-top:2px solid var(--neutral-200);margin-top:4px"><b>Tổng kỳ cuối</b><b class="a-amt">${U.currency(t.hoaDonCuoi.total)}</b></div>`;
+      body.querySelector('#tTong').innerHTML = `<b>Tổng phải trả khi trả phòng</b><b class="a-amt">${U.currency(t.debt + (t.hoaDonCuoi ? t.hoaDonCuoi.total : 0))}</b>`;
+    };
+    const doc = () => {                                         // đọc ô chỉ số; trả lời nhắc nếu sai
+      if (!inp) return '';
+      const s = inp.value.trim();
+      if (!s) { t.chiSoCuoi = null; return ''; }
+      const n = U.parseNum(s);
+      if (!(n >= 0)) return 'Chỉ số điện phải là số.';
+      t.chiSoCuoi = n;
+      return n < truoc ? `Chỉ số cuối nhỏ hơn chỉ số kỳ trước (${U.number(truoc)}). Kiểm tra lại đồng hồ.` : '';
+    };
+    if (inp) inp.oninput = () => { const e = doc(); loi.textContent = e; if (!e) ve(); };
+    ve();
+    tWire(ctx, () => { const e = doc(); if (loi) loi.textContent = e; if (e) { inp.focus(); return false; } ve(); return true; });
   }
 
+  /* Bước 4: quyết toán. Cọc trả cho công nợ cũ nhất trước, rồi tiền kỳ cuối, bồi thường, phạt (HH.settlement.chiaCoc).
+     Phạt trả trước hạn: trước đây luôn bằng 0; nay chủ trọ chọn mức (gợi ý theo điều khoản hợp đồng mẫu) khi khách trả trước ngày hết hạn. */
+  /* Bồi thường và phạt được ghi thành dòng của HÓA ĐƠN THANH LÝ (cùng hóa đơn với tiền kỳ cuối, hoặc một hóa đơn riêng nếu kỳ cuối đã có hóa đơn).
+     Nhờ vậy phần cọc không đủ trừ vẫn nằm ở trang Công nợ như mọi hóa đơn khác, không chỉ là một con số ghi trong hợp đồng. */
+  function tQuyetToan(ctx) {
+    const c = ctx._c, t = ctx._t, St = HH.settlement;
+    const ngay = HH.dates.chuoiNgay(t.returnDate);
+    const hong = S.assetsOf(ctx.bid, c.roomCode).filter(a => (t.assets[a.id] || {}).compensation > 0);
+    const boiThuong = hong.reduce((s, a) => s + t.assets[a.id].compensation, 0);
+    const gy = St.goiYPhat({ ngayTra: ngay, ngayHetHan: c.end, tienPhong: c.rent, tienCoc: c.deposit });
+    const phat = gy.truocHan ? Math.max(0, t.phat || 0) : 0;
+    const kyCuoi = t.hoaDonCuoi && t.hoaDonCuoi.total > 0 ? t.hoaDonCuoi : null;
+    const them = hong.map(a => ({ label: 'Bồi thường: ' + a.name, amount: t.assets[a.id].compensation, meta: 'Tài sản hư hỏng khi trả phòng', type: 'thanh-ly' }));
+    if (phat) them.push({ label: 'Phạt trả phòng trước hạn', amount: phat, meta: `Trả sớm ${gy.soNgayConLai} ngày so với hợp đồng`, type: 'thanh-ly' });
+    let hoaDon = null;
+    if (kyCuoi || them.length) {
+      const goc = kyCuoi || S.hoaDonKyCuoi(c.id, ngay, null);
+      const lines = (kyCuoi ? kyCuoi.lines : []).concat(them);
+      hoaDon = Object.assign({}, goc, { lines, total: lines.reduce((s, l) => s + l.amount, 0) });
+    }
+    const ds = (t.hoaDonCu || []).map(i => ({ id: i.id, conNo: i.total - i.paid }));
+    if (hoaDon) ds.push({ id: hoaDon.id, conNo: hoaDon.total });
+    return { ngay, boiThuong, hong, gy, phat, kyCuoi, hoaDon, chia: St.chiaCoc(c.deposit, ds, 0, 0) };
+  }
   function tStep4(ctx, body) {
     const c = ctx._c, t = ctx._t;
-    const deposit = c.deposit;
-    const debt = t.debt || 0;
-    const compensation = Object.values(t.assets).reduce((s, a) => s + (a.compensation || 0), 0);
-    const penalty = t.reason === 'Khách chủ động trả sớm' ? 0 : 0;
-    const refund = deposit - debt - compensation - penalty;
-    const compAssets = Object.entries(t.assets).filter(([, a]) => a.compensation > 0)
-      .map(([id]) => id).join(', ');
+    const q0 = tQuyetToan(ctx);
+    const compAssets = q0.hong.map(a => a.name).join(', ');
+    const tru = (nhan, sub, tien) => `<div class="settle-row"><span>${nhan}${sub ? `<div class="sub">${sub}</div>` : ''}</span>${tien ? `<span class="amt" style="color:var(--danger)">−${U.currency(tien)}</span>` : '<span class="amt">0 ₫</span>'}</div>`;
     body.innerHTML = `<h3 style="margin-bottom:16px">Quyết toán hợp đồng</h3>
       <div class="card" style="box-shadow:none"><div class="card-pad">
-        <div class="settle-row"><span class="b">Tiền cọc đang giữ</span><span class="amt">${U.currency(deposit)}</span></div>
+        <div class="settle-row"><span class="b">Tiền cọc đang giữ</span><span class="amt">${U.currency(c.deposit)}</span></div>
         <div style="margin:10px 0 4px" class="muted b">Trừ các khoản:</div>
-        <div class="settle-row"><span>Công nợ hóa đơn còn lại</span><span class="amt" style="color:var(--danger)">−${U.currency(debt)}</span></div>
-        <div class="settle-row"><span>Bồi thường tài sản hư hỏng<div class="sub">${compAssets || 'Không'}</div></span><span class="amt" style="color:var(--danger)">−${U.currency(compensation)}</span></div>
-        <div class="settle-row"><span>Phạt trả phòng trước hạn</span><span class="amt" style="color:var(--danger)">−${U.currency(penalty)}</span></div>
+        ${tru('Công nợ hóa đơn còn lại', (t.hoaDonCu || []).map(i => U.esc(i.id)).join(', ') || 'Không', t.debt || 0)}
+        ${q0.kyCuoi ? tru('Tiền kỳ cuối ' + S.periodLabel(q0.ngay.slice(0, 7)), q0.kyCuoi.lines.map(l => U.esc(l.label) + ' ' + U.currency(l.amount)).join(' · '), q0.kyCuoi.total) : ''}
+        ${tru('Bồi thường tài sản hư hỏng', U.esc(compAssets) || 'Không', q0.boiThuong)}
+        ${q0.gy.truocHan ? `<div class="settle-phat">Phạt trả phòng trước hạn
+            <div class="sub muted text-xs">Hợp đồng hết hạn ${U.fmtDate(c.end)}, khách trả sớm ${q0.gy.soNgayConLai} ngày. Hợp đồng mẫu: phải báo trước ít nhất 30 ngày; tự ý chấm dứt thì khấu trừ cọc theo thỏa thuận.</div>
+            <div class="phat-chon">${q0.gy.goiY.map(g => `<button type="button" class="btn btn-sm btn-outline" data-phat="${g.soTien}">${g.nhan}${g.soTien ? ' · ' + U.currency(g.soTien) : ''}</button>`).join('')}
+            <input class="input money mono" id="tPhat" aria-label="Tiền phạt trả trước hạn" inputmode="numeric" value="${U.number(q0.phat)}"></div></div>`
+          : '<div class="settle-row"><span>Phạt trả phòng trước hạn<div class="sub">Không: khách trả đúng hoặc sau ngày hết hạn hợp đồng.</div></span><span class="amt">0 ₫</span></div>'}
       </div></div>
-      <div class="settle-total ${refund >= 0 ? 'pos' : 'neg'}" style="margin-top:16px">
-        <span>${refund >= 0 ? 'Số tiền hoàn trả khách thuê' : 'Khách thuê còn phải thanh toán'}</span>
-        <span class="amt">${U.currency(Math.abs(refund))}</span></div>
+      <div id="tKetQua"></div>
       <div class="col" style="gap:8px;margin-top:16px">
         <label class="check"><input type="checkbox" data-chk="shown"> Đã trình bày bảng quyết toán cho khách thuê</label>
-        <label class="check"><input type="checkbox" data-chk="paid"> Đã ${refund >= 0 ? 'chi trả số tiền hoàn cọc' : 'thu số tiền còn thiếu'}</label>
+        <label class="check"><input type="checkbox" data-chk="paid"> <span id="tChkPaid"></span></label>
       </div>
       <div class="alert alert-info" style="margin-top:16px"><span class="ic">${HH.ic('info', 16)}</span><div>Sau khi xác nhận, hệ thống sẽ:
-        <ul class="consequence" style="margin:6px 0 0"><li>Thanh lý hợp đồng</li><li>Thu hồi toàn bộ mã mở cửa</li>
-        <li>Chuyển phòng sang trạng thái dọn dẹp</li><li>Chuyển tài khoản khách sang chế độ chỉ đọc</li></ul></div></div>
-      <div class="between" style="margin-top:24px">
+        <ul class="consequence" style="margin:6px 0 0"><li>Ghi hóa đơn thanh lý (tiền kỳ cuối, bồi thường, phạt) và chỉ số điện cuối (nếu có)</li><li>Trừ cọc vào từng hóa đơn (phiếu thu "Trừ vào tiền cọc"); phần còn thiếu hiện ở trang Công nợ</li>
+        <li>Thanh lý hợp đồng, ngày kết thúc là ngày trả phòng</li><li>Chuyển phòng sang trạng thái dọn dẹp, gỡ khách khỏi phòng</li></ul></div></div>
+      <div class="between" style="margin-top:24px;flex-wrap:wrap;gap:8px">
         <button class="btn btn-outline" data-tback>← Quay lại</button>
-        <button class="btn btn-danger btn-lg" data-settle disabled>Xác nhận thanh lý</button></div>`;
-    const btn = body.querySelector('[data-settle]');
+        <span class="row-gap-2" style="flex-wrap:wrap;justify-content:flex-end"><button class="btn btn-outline" type="button" id="tIn">${HH.ic('print', 16)} In bảng quyết toán</button>
+        <button class="btn btn-danger btn-lg" data-settle disabled>Xác nhận thanh lý</button></span></div>`;
+    const btn = body.querySelector('[data-settle]'), phatEl = body.querySelector('#tPhat');
+    const veKetQua = () => {
+      const q = tQuyetToan(ctx), k = q.chia;
+      body.querySelector('#tKetQua').innerHTML = `<div class="settle-total ${k.conThieu > 0 ? 'neg' : 'pos'}" style="margin-top:16px">
+        <span>${k.conThieu > 0 ? 'Khách thuê còn phải thanh toán' : 'Số tiền hoàn trả khách thuê'}</span>
+        <span class="amt">${U.currency(k.conThieu > 0 ? k.conThieu : k.hoan)}</span></div>`;
+      body.querySelector('#tChkPaid').textContent = k.conThieu > 0 ? 'Đã thu số tiền còn thiếu' : (k.hoan > 0 ? 'Đã chi trả số tiền hoàn cọc' : 'Đã đối chiếu xong với khách');
+    };
     const check = () => { btn.disabled = !(t.checks.shown && t.checks.paid); };
+    if (phatEl) {
+      phatEl.oninput = () => { const n = U.parseNum(phatEl.value) || 0; t.phat = n; phatEl.value = n ? U.number(n) : ''; veKetQua(); };
+      body.querySelectorAll('[data-phat]').forEach(b => b.onclick = () => { t.phat = +b.dataset.phat; phatEl.value = U.number(t.phat); veKetQua(); });
+    }
+    veKetQua();
     body.querySelectorAll('[data-chk]').forEach(c2 => c2.onchange = () => { t.checks[c2.dataset.chk] = c2.checked; check(); });
     body.querySelector('[data-tback]').onclick = () => { t.step--; renderTStep(ctx); };
+    body.querySelector('#tIn').onclick = () => printSettlement(ctx, tQuyetToan(ctx));
     btn.onclick = () => {
       btn.classList.add('loading');
+      const q = tQuyetToan(ctx);
       setTimeout(() => {
-        const room = S.room(ctx.bid, c.roomCode);
-        c.status = 'terminated'; room.status = 'cleaning'; room.tenantName = null; room.tenantId = null;
-        room.contractId = null; room.contractEnd = null; room.debt = 0;
-        // gỡ khách thuê khỏi phòng (giữ hồ sơ để tra cứu lịch sử)
-        S.tenantsOf(ctx.bid).filter(t => t.roomCode === c.roomCode)
-          .forEach(t => S.updateTenant(t.id, { roomCode: null, isRep: false }));
-        S.log('contract.terminate', `Thanh lý hợp đồng ${c.roomCode}, hoàn ${U.currency(refund)}`);
-        S.persist();
-        UI.toast('Đã thanh lý hợp đồng', { type: 'ok' });
+        const r = S.thanhLyHopDong(c.id, { returnDate: q.ngay, lyDo: t.reason, hoaDonCuoi: q.hoaDon, chiSoCuoi: t.daCo ? null : t.chiSoCuoi,
+          chia: q.chia, boiThuong: q.boiThuong, phat: q.phat });
+        if (!r) { btn.classList.remove('loading'); UI.toast('Chưa thanh lý được, thử lại', { type: 'error' }); return; }
+        UI.toast(q.chia.conThieu > 0 ? `Đã thanh lý. Khách còn nợ ${U.currency(q.chia.conThieu)}` : 'Đã thanh lý hợp đồng', { type: 'ok' });
         HH.router.go(`/b/${ctx.bid}/contracts`);
-      }, 700);
+      }, 400);
     };
+  }
+
+  /* In bảng quyết toán (biên bản thanh lý) để hai bên ký. Mọi chữ lấy từ dữ liệu đều qua U.esc. */
+  function printSettlement(ctx, q) {
+    const c = ctx._c, t = ctx._t, b = S.building(ctx.bid) || {}, k = q.chia;
+    const win = window.open('', '_blank', 'width=860,height=1000');
+    if (!win) { UI.toast('Trình duyệt chặn cửa sổ in. Hãy cho phép popup.', { type: 'error' }); return; }
+    const dong = (nhan, tien, dam) => `<tr><td>${nhan}</td><td style="text-align:right;white-space:nowrap">${dam ? '<b>' : ''}${tien}${dam ? '</b>' : ''}</td></tr>`;
+    const tsHong = q.hong.map(a => dong('Bồi thường: ' + U.esc(a.name), '−' + U.currency(t.assets[a.id].compensation))).join('');
+    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Biên bản thanh lý ${U.esc(c.roomCode)}</title><style>${PRINT_CSS}</style></head><body>
+      <div class="head"><div class="nation">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div><div class="slogan">Độc lập – Tự do – Hạnh phúc</div>
+        <h1>BIÊN BẢN THANH LÝ HỢP ĐỒNG THUÊ PHÒNG</h1><div class="muted">Hợp đồng số: ${U.esc(c.id)}</div></div>
+      <p>Hôm nay, ngày ${U.fmtDate(q.ngay)}, tại ${U.esc(b.address || b.name || '')}, hai bên thống nhất thanh lý hợp đồng thuê phòng <b>${U.esc(c.roomCode)}</b>
+        của khách <b>${U.esc(c.tenantName || '')}</b> (thuê từ ${U.fmtDate(c.start)}). Lý do: ${U.esc(t.reason || 'Hết hạn hợp đồng')}.</p>
+      <table class="tbl"><tbody>
+        ${dong('Tiền cọc bên A đang giữ', U.currency(c.deposit), true)}
+        ${(t.hoaDonCu || []).map(i => dong('Hóa đơn ' + U.esc(i.id) + ' (' + S.periodLabel(i.period) + ') còn nợ', '−' + U.currency(i.total - i.paid))).join('')}
+        ${q.kyCuoi ? q.kyCuoi.lines.map(l => dong('Kỳ cuối: ' + U.esc(l.label) + ' <i>(' + U.esc(l.meta || '') + ')</i>', '−' + U.currency(l.amount))).join('') : ''}
+        ${tsHong}
+        ${q.phat ? dong('Phạt trả phòng trước hạn', '−' + U.currency(q.phat)) : ''}
+        ${dong(k.conThieu > 0 ? 'Bên B còn phải thanh toán' : 'Bên A hoàn trả bên B', U.currency(k.conThieu > 0 ? k.conThieu : k.hoan), true)}
+      </tbody></table>
+      <p>Hai bên đã đối chiếu các khoản trên, không còn khiếu nại gì khác. Biên bản lập thành hai bản, mỗi bên giữ một bản.</p>
+      <div class="sign"><div><b>BÊN CHO THUÊ (Bên A)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(b.contactName || S.prefs.userName || '')}</div>
+        <div><b>BÊN THUÊ (Bên B)</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${U.esc(c.tenantName || '')}</div></div>
+      <script>window.onload=function(){window.print()}<\/script></body></html>`);
+    win.document.close();
   }
 })();

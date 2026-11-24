@@ -117,6 +117,16 @@ Hầm để xe, tầng hầm đồng hồ điện thường mất sóng. Trướ
 - **Cần chạy một lần** `supabase/migration-renewal-history.sql` (thêm cột `contracts.renewal_history`, chạy lại nhiều lần được, không đụng dữ liệu có sẵn). Chưa chạy thì gia hạn vẫn bình thường, chỉ lịch sử không lưu lên máy chủ; app báo ngay hộp thoại sau khi gia hạn để chủ trọ in phụ lục liền.
 - `js/renewal.js` thuần: 41 ca kiểm thử `tests/renewal.test.js` (hạn còn / hết / hết đúng hôm nay, tràn tháng, giá, lịch sử, nội dung phụ lục) + 15 ca cộng tháng trong `tests/dates.test.js` (thử ở ba múi giờ), thử phá 35 chỗ đều bị bắt. `tests/db/renewal-history.test.py`: 8 ca cho cột mới. Thử như người dùng thật: gõ giá quá thấp bị chặn kèm lý do, đổi giá và giữ giá, in lại từ lịch sử sau khi tải lại trang.
 
+## Trả phòng, thanh lý đủ tiền và tiền tháng lẻ
+
+- **Tiền tháng lẻ:** khách vào hoặc rời giữa tháng thì tiền phòng, tiền nước theo đầu người và dịch vụ cố định tính theo **số ngày ở** (ngày vào và ngày ra đều tính; tiền × ngày ở / ngày của tháng, làm tròn nghìn đồng, không bao giờ vượt cả tháng). Điện vẫn tính theo chỉ số. Trước đây hóa đơn luôn tính đủ cả tháng và ghi cứng "Trọn kỳ". Dòng ghi chú nay ghi rõ, ví dụ *18/30 ngày (1/11 đến 18/11)*. Áp dụng cho cả chốt sổ tháng và bảng xem trước.
+- **Trả phòng 4 bước** (Hợp đồng → Trả phòng): thông tin → kiểm kê tài sản → **chốt công nợ và tiền kỳ cuối** → quyết toán. Bước 3 nhận **chỉ số điện cuối** (trước đây ô này có nhưng không dùng tới), chặn số nhỏ hơn kỳ trước, tính ngay tiền kỳ cuối theo số ngày ở; kỳ cuối đã có hóa đơn thì không tính trùng; kỳ trước chưa lập hóa đơn thì nhắc.
+- **Phạt trả trước hạn** (trước đây luôn bằng 0): khách trả trước ngày hết hạn thì chủ trọ chọn mức (không phạt, một tháng tiền phòng, mất cả cọc) hoặc gõ số khác, theo điều khoản hợp đồng mẫu.
+- **Cọc trừ đúng thứ tự:** hóa đơn cũ nhất trước, rồi hóa đơn thanh lý. Mỗi khoản trừ là một phiếu thu *Trừ vào tiền cọc* nên hóa đơn không còn treo. Tiền kỳ cuối, bồi thường, phạt nằm chung một **hóa đơn thanh lý**; cọc không đủ thì phần còn thiếu **hiện ở trang Công nợ** (có nhãn *Đã trả phòng*), không chỉ là một con số ghi trong hợp đồng. Ngày kết thúc hợp đồng ghi đúng ngày khách rời đi.
+- **In biên bản thanh lý** để hai bên ký (mọi chữ lấy từ dữ liệu đều được thoát HTML).
+- Không cần chạy SQL nào (dùng các bảng hóa đơn, phiếu thu, hợp đồng sẵn có).
+- `js/settlement.js` thuần: 27 ca kiểm thử `tests/settlement.test.js` (ngày ở, tháng nhuận, làm tròn, 3000 bộ số ngẫu nhiên cho chia cọc, gợi ý phạt, đối chiếu mã nguồn), thử phá 28 chỗ, bắt được 26, hai chỗ còn lại là biến thể tương đương. Thử như người dùng thật trên máy tính và điện thoại: gõ chỉ số sai bị chặn, chọn mức phạt, in biên bản, cọc không đủ thì khách còn nợ hiện ở Công nợ; cọc dư thì báo số tiền hoàn.
+
 ## Ràng buộc dữ liệu ở tầng DB
 
 - **Lưới an toàn cuối cùng** sau `js/validate.js`: `supabase/migration-constraints.sql` chặn số âm (giá phòng, giá thuê, tiền cọc, đơn giá dịch vụ, chỉ số điện, đã thu, thanh toán), hợp đồng kết thúc trước khi bắt đầu, cuối kỳ hóa đơn trước đầu kỳ, kỳ không đúng dạng năm-tháng, ngày chốt ngoài 1–31, CCCD không phải 9 hoặc 12 số, số điện thoại không phải số di động 10 số (nhận +84, khoảng trắng, dấu chấm, gạch, ngoặc, đúng như luật ở app). Lỗi trả mã `23514` kèm lời nhắn tiếng Việt.
@@ -226,7 +236,7 @@ Giới hạn: mã 6 số được bảo vệ bằng khóa 15 phút sau 5 lần s
 | Công ty | **Tổng quan** (4 thẻ KPI có xu hướng, dòng tiền 6 kỳ, vòng cung tiến độ thu, 3 biểu đồ tròn, tiêu thụ điện nước, hiệu suất từng tòa, chi phí theo hạng mục, phiếu thu gần đây, top công nợ, việc cần xử lý) · Tòa nhà · Nhật ký hệ thống |
 | Phòng | Sơ đồ theo tầng + chế độ bảng · tooltip · **tạo phòng hàng loạt** (2 bước, phát hiện trùng mã) · **đổi trạng thái** (DangerDialog, máy trạng thái) |
 | Khách thuê | Danh sách · **thêm bằng ảnh CCCD**: Gemini đọc chữ trên thẻ rồi điền sẵn họ tên, số CCCD, ngày sinh, quê quán, thường trú; ảnh mặt sau cho ngày cấp; ô nào chữ mờ thì gắn cờ độ tin cậy thấp; đọc không được thì để trống chứ không điền bừa · **bắt điền đủ 8 ô** (kiểm cả định dạng) mới cho lưu · **điểm thanh toán** của từng phòng (xem mục dưới) |
-| Hợp đồng | Danh sách · **lập hợp đồng 5 bước** (Phòng → Khách → Điều khoản → Dịch vụ → Bàn giao → xác nhận) · lưu nháp · **trả phòng & thanh lý** (kiểm kê tài sản, quyết toán cọc) |
+| Hợp đồng | Danh sách · **lập hợp đồng 5 bước** (Phòng → Khách → Điều khoản → Dịch vụ → Bàn giao → xác nhận) · lưu nháp · **trả phòng & thanh lý** (kiểm kê tài sản, chỉ số điện cuối, tiền kỳ cuối theo ngày, phạt trả trước hạn, quyết toán cọc, in biên bản) |
 | Điện nước | **Ghi chỉ số** nhập nhanh (Tab/Enter xuống dòng, tính tiêu thụ tức thì, cảnh báo bất thường, chỉ số khách tự ghi chờ duyệt, xử lý quay vòng đồng hồ) |
 | Hóa đơn | Danh sách + 4 thẻ chỉ số + chọn kỳ · **sinh hóa đơn hàng loạt** (kiểm tra điều kiện) · **phát hành** (tiến trình từng bước) · **chi tiết hóa đơn** (căn cứ tính từng dòng, lịch sử thanh toán, dải "đã chỉnh sửa") · **hủy hóa đơn** (DangerDialog) |
 | Thanh toán | **Ghi nhận thanh toán** với **phân bổ tự động** (trả trước kỳ cũ nhất) · trang công nợ |
@@ -542,6 +552,7 @@ js/
   listing.js          # trang công khai giới thiệu phòng: mã ngẫu nhiên, link, số điện thoại, ảnh, tin chia sẻ (không đụng DOM, có kiểm thử)
   rewards.js          # điểm thưởng đóng tiền đúng hạn: luật điểm, chuỗi, đổi điểm, tin nhắn (không đụng DOM, có kiểm thử)
   renewal.js          # gia hạn hợp đồng: tính hạn mới, lịch sử, nội dung phụ lục (không đụng DOM, có kiểm thử)
+  settlement.js       # tiền tháng lẻ theo ngày ở, chia cọc khi trả phòng, gợi ý phạt trả trước hạn (không đụng DOM, có kiểm thử)
   offline.js          # hàng đợi chỉ số chưa gửi, đối chiếu với máy chủ, ảnh chụp ngoại tuyến (không đụng DOM, có kiểm thử)
   offline-ui.js       # đăng ký service worker, thanh trạng thái mạng, hộp thoại chỉ số xung đột, mở ngoại tuyến
   onboarding.js       # khách tự khai qua link: kiểm hồ sơ, trạng thái, token, tin nhắn mời (không đụng DOM, có kiểm thử)
@@ -594,6 +605,7 @@ tests/
   seasons.test.js     # kiểm thử âm lịch, chọn mùa/lễ theo ngày, độ rõ chữ của bảng màu: node tests/seasons.test.js
   season-ui.test.js   # kiểm thử hình, hạt, tranh của giao diện theo mùa và việc nối vào app khách: node tests/season-ui.test.js
   tenant-tour.test.js # kiểm thử hướng dẫn từng bước của app khách (bước, đặt thẻ, đối chiếu mã nguồn): node tests/tenant-tour.test.js
+  settlement.test.js  # kiểm thử tiền tháng lẻ và quyết toán trả phòng: node tests/settlement.test.js
 ```
 
 ## Kiểm thử
@@ -624,6 +636,7 @@ node tests/birthday.test.js
 node tests/seasons.test.js
 node tests/season-ui.test.js
 node tests/tenant-tour.test.js
+node tests/settlement.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.

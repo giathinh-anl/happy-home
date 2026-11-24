@@ -384,7 +384,7 @@ HH.store = (function () {
   }
 
   // Dựng hóa đơn nháp từ hợp đồng + chỉ số + dịch vụ (dùng khi sinh hóa đơn thật)
-  function runtimeInvoice(bid, contract, reading, period, svcs) {
+  function runtimeInvoice(bid, contract, reading, period, svcs, opt) {
     const [y, m] = period.split('-').map(Number);
     const periodStart = new Date(y, m - 1, 1);
     const periodEnd = new Date(y, m, 0);
@@ -394,7 +394,14 @@ HH.store = (function () {
     const flats = svcs.filter(s => s.method === 'flat');
     const roomTenants = tenants.filter(t => t.buildingId === bid && t.roomCode === contract.roomCode);
     const occ = Math.max(1, roomTenants.length);
-    const lines = [{ label: 'Tiền phòng', amount: contract.rent, meta: `Trọn kỳ, ${periodEnd.getDate()}/${periodEnd.getDate()} ngày` }];
+    /* Khách vào giữa tháng (hoặc rời giữa tháng) thì tiền phòng, nước theo đầu người và dịch vụ cố định tính theo SỐ NGÀY Ở (js/settlement.js).
+       Trước đây luôn tính đủ cả tháng và dòng ghi chú ghi cứng "Trọn kỳ, N/N ngày". Điện tính theo chỉ số nên không chia theo ngày. */
+    const St = HH.settlement;
+    const ketThuc = (opt && opt.ketThuc) || (contract.status === 'terminated' ? contract.end : null);
+    const pn = (St && St.phanNgayO(period, contract.start, ketThuc)) || { soNgayO: periodEnd.getDate(), soNgayThang: periodEnd.getDate(), tronKy: true };
+    const theoNgay = (tien) => (St ? St.tienTheoNgay(tien, pn.soNgayO, pn.soNgayThang) : tien);
+    const ghiNgay = pn.tronKy ? '' : ` · tính ${pn.soNgayO}/${pn.soNgayThang} ngày`;
+    const lines = [{ label: 'Tiền phòng', amount: theoNgay(contract.rent), meta: St ? St.moTaNgayO(pn) : `Trọn kỳ, ${periodEnd.getDate()}/${periodEnd.getDate()} ngày` }];
     if (elec && reading.elecCurr != null) {
       const use = api.consumptionOf(reading, 'elec') || 0;
       const extra = reading.elecExtra || 0;
@@ -403,8 +410,8 @@ HH.store = (function () {
           + (extra ? ` (+${U.number(extra)} bù đồng hồ)` : '')
           + ` · ${U.number(use)} kWh × ${U.number(elec.unit)} ₫` });
     }
-    if (water) lines.push({ label: 'Tiền nước', amount: occ * water.unit, meta: `${occ} người × ${U.number(water.unit)} ₫/người` });
-    flats.forEach(f => lines.push({ label: f.name, amount: f.unit, meta: 'Cố định theo tháng' }));
+    if (water) lines.push({ label: 'Tiền nước', amount: theoNgay(occ * water.unit), meta: `${occ} người × ${U.number(water.unit)} ₫/người` + ghiNgay });
+    flats.forEach(f => lines.push({ label: f.name, amount: theoNgay(f.unit), meta: 'Cố định theo tháng' + ghiNgay }));
     const total = lines.reduce((s, l) => s + l.amount, 0);
     // Số thứ tự kế tiếp = số lớn nhất đang có + 1 (không dùng "đếm số hóa đơn"): xóa nháp / hoàn tác đợt làm số đếm
     // tụt xuống, đếm cũ sẽ sinh ra mã trùng một hóa đơn đã có, và phát hành / thu tiền sẽ rơi nhầm vào hóa đơn kia.
@@ -1442,6 +1449,41 @@ HH.store = (function () {
       });
       if (created.length && !o.batchId) { api.log('invoice.generate', `Sinh ${created.length} hóa đơn kỳ ${api.periodLabel(period)}`); persist(); }
       return { created, skipped };
+    },
+
+    /* ---------- TRẢ PHÒNG: tiền kỳ cuối và thanh lý (tính toán ở js/settlement.js, giao diện ở js/pages/contracts.js) ---------- */
+    // Hóa đơn của kỳ cuối (kỳ chứa ngày trả phòng), CHƯA ghi vào sổ: tiền phòng, nước, dịch vụ cố định tính theo số ngày ở, điện theo chỉ số cuối.
+    // chiSoCuoi = chỉ số điện khi khách rời đi (null = chưa nhập: chưa có dòng điện). Gọi nhiều lần vẫn ra cùng một mã hóa đơn cho tới khi được ghi vào sổ.
+    hoaDonKyCuoi(contractId, returnDate, chiSoCuoi) {
+      const c = contracts.find(x => x.id === contractId), ngay = HH.dates.chuoiNgay(returnDate);
+      if (!c || !ngay) return null;
+      const bid = c.buildingId, ky = ngay.slice(0, 7);
+      const rd = { elecPrev: api.elecPrevOf(bid, c.roomCode, ky), elecCurr: chiSoCuoi == null ? null : chiSoCuoi, elecExtra: 0 };
+      const inv = runtimeInvoice(bid, c, rd, ky, services.filter(s => s.buildingId === bid), { ketThuc: ngay });
+      inv.periodEnd = ngay; inv.dueDate = ngay;          // hóa đơn tất toán: kỳ kết thúc đúng ngày khách rời đi, đóng ngay khi trả phòng
+      return inv;
+    },
+    // Thanh lý hợp đồng sau khi chủ trọ chốt bảng quyết toán. o = { returnDate, lyDo, hoaDonCuoi (từ hoaDonKyCuoi, hoặc null nếu kỳ cuối đã có hóa đơn),
+    // chiSoCuoi, chia (kết quả HH.settlement.chiaCoc), boiThuong, phat }. Việc làm, theo thứ tự: ghi chỉ số cuối, ghi hóa đơn kỳ cuối, trừ cọc vào từng hóa đơn
+    // (mỗi khoản một phiếu thu "Trừ vào tiền cọc" nên hóa đơn không còn nằm treo thành công nợ), rồi đóng hợp đồng, dọn phòng, gỡ khách khỏi phòng.
+    thanhLyHopDong(contractId, o) {
+      const c = contracts.find(x => x.id === contractId), ngay = o && HH.dates.chuoiNgay(o.returnDate);
+      if (!c || !ngay) return null;
+      const bid = c.buildingId, ky = ngay.slice(0, 7), chia = o.chia || { traHoaDon: [], hoan: 0, conThieu: 0 };
+      if (o.chiSoCuoi != null) { const rd = api.readingFor(bid, c.roomCode, ky); rd.elecCurr = o.chiSoCuoi; rd.approved = true; }
+      if (o.hoaDonCuoi) { o.hoaDonCuoi.status = 'issued'; invoices.push(o.hoaDonCuoi); }
+      chia.traHoaDon.forEach(x => { if (x.soTien > 0) api.recordPayment(x.id, x.soTien, 'Trừ vào tiền cọc', ngay, 'Quyết toán trả phòng ' + c.roomCode); });
+      const room = rooms.find(r => r.buildingId === bid && r.code === c.roomCode);
+      c.status = 'terminated'; c.end = ngay; c.debt = chia.conThieu || 0;          // ngày kết thúc ghi đúng ngày khách rời đi
+      if (room) { room.status = 'cleaning'; room.tenantName = null; room.tenantId = null; room.contractId = null; room.contractEnd = null; room.debt = 0; }
+      // gỡ khách thuê khỏi phòng (giữ hồ sơ để tra cứu lịch sử)
+      tenants.filter(t => t.buildingId === bid && t.roomCode === c.roomCode).forEach(t => { t.roomCode = null; t.isRep = false; });
+      api.log('contract.terminate', `Thanh lý hợp đồng ${c.roomCode} ngày ${U.fmtDate(ngay)}, hoàn ${U.currency(chia.hoan)}`
+        + (chia.conThieu ? `, khách còn nợ ${U.currency(chia.conThieu)}` : '')
+        + (o.hoaDonCuoi ? `, hóa đơn thanh lý ${o.hoaDonCuoi.id} ${U.currency(o.hoaDonCuoi.total)}` : '')
+        + (o.boiThuong ? `, bồi thường ${U.currency(o.boiThuong)}` : '') + (o.phat ? `, phạt ${U.currency(o.phat)}` : ''), o.lyDo || undefined);
+      persist();
+      return { ok: true, hoaDonCuoi: o.hoaDonCuoi || null };
     },
 
     /* ---------- CHỐT SỔ THÁNG ---------- */

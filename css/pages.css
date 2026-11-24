@@ -516,13 +516,18 @@ table.dt tr.disabled-row td { color: var(--neutral-400); background: var(--neutr
 .progress-fill { height: 100%; background: var(--brand-500); border-radius: var(--r-pill); transition: width .2s ease; }
 
 /* ---------- Quyết toán ---------- */
-.settle-row { display: flex; justify-content: space-between; padding: var(--sp-2) 0; }
+.settle-row { display: flex; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-2) 0; }
 .settle-row .sub { font-size: var(--text-xs); color: var(--neutral-500,var(--neutral-600)); }
-.settle-row .amt { font-variant-numeric: tabular-nums; font-variant-numeric: tabular-nums; font-weight: 600; }
-.settle-total { border-radius: var(--r-card); padding: var(--sp-4); display: flex; justify-content: space-between; align-items: center; font-size: var(--text-lg); font-weight: 700; }
+.settle-row .amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+/* Phạt trả trước hạn: nút gợi ý và ô nhập xuống dòng được trên điện thoại, không đẩy ô ra ngoài màn hình */
+.settle-phat { padding: var(--sp-2) 0; }
+.settle-phat .phat-chon { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-2); }
+.settle-phat .phat-chon .btn { white-space: normal; text-align: left; height: auto; min-height: 32px; }
+.settle-phat .phat-chon .input { width: 150px; max-width: 100%; text-align: right; margin-left: auto; }
+.settle-total { border-radius: var(--r-card); padding: var(--sp-4); display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); flex-wrap: wrap; font-size: var(--text-lg); font-weight: 700; }
 .settle-total.pos { background: var(--success-bg); color: var(--success); }
 .settle-total.neg { background: var(--danger-bg); color: var(--danger); }
-.settle-total .amt { font-variant-numeric: tabular-nums; font-variant-numeric: tabular-nums; font-size: var(--text-2xl); }
+.settle-total .amt { font-variant-numeric: tabular-nums; font-size: var(--text-2xl); white-space: nowrap; }
 
 /* allocation trong ghi nhận thanh toán */
 .alloc-box { background: var(--neutral-50); border: 1px solid var(--neutral-200); border-radius: var(--r-card); padding: var(--sp-3); }
