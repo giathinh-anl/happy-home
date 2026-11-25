@@ -590,6 +590,17 @@ HH.store = (function () {
       } catch (e) { codeReqs = []; }
       return codeReqs.length;
     },
+    // Đã cấp mã mới cho khách đó: yêu cầu coi như xong (máy chủ cũng tự coi là xong vì app_code_set_at mới hơn lúc xin)
+    xongYeuCauMa(tenantId) { codeReqs = codeReqs.filter(r => r.tenantId !== tenantId); },
+    // Chủ trọ không muốn cấp (ví dụ người lạ gõ nhầm số): bỏ yêu cầu trên máy chủ (owner_dismiss_code_requests)
+    async boQuaYeuCauMa(tenantId) {
+      if (!usingBackend() || !api.isOwner()) return { ok: false, loi: 'Chỉ chủ trọ làm được việc này.' };
+      let r;
+      try { r = await HH.backend.rpc('owner_dismiss_code_requests', { p_tenant_id: tenantId }); } catch (e) { return { ok: false, loi: 'Không kết nối được máy chủ.' }; }
+      if (r.error || (r.data && r.data.error)) return { ok: false, loi: 'Máy chủ chưa bỏ được yêu cầu, thử lại sau.' };
+      api.xongYeuCauMa(tenantId);
+      return { ok: true };
+    },
 
     /* Tải lại dữ liệu từ máy chủ.
        Khách gửi chỉ số, báo hỏng hay báo chuyển khoản trong lúc web đang mở thì
@@ -793,7 +804,7 @@ HH.store = (function () {
         }
         if (api.isOwner() && usingBackend()) {
           const xin = codeReqs.filter(r => r.buildingId === bid);
-          if (xin.length) add({ id: 'xinma:' + bid, loai: 'xinma', muc: 1, n: xin.length, tieuDe: `${xin.length} khách xin cấp lại mã vào app`,
+          if (xin.length) add({ id: 'xinma:' + bid, loai: 'xinma', muc: 1, ghim: true, n: xin.length, tieuDe: `${xin.length} khách xin cấp lại mã vào app`,
             phuDe: xin.slice(0, 4).map(r => `${r.name || 'Khách'} (P${String(r.roomCode || '').replace(/^P/i, '')})`).join(', ') + (xin.length > 4 ? '…' : ''),
             href: `#/b/${bid}/tenants`, nhanNut: 'Cấp mã' });
         }

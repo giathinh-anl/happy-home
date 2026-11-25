@@ -15,8 +15,10 @@
   /** Khóa ngày theo giờ địa phương (không dùng toISOString: lệch ngày ở múi giờ + 7) */
   const ngayKey = (d) => { const x = d ? new Date(d) : new Date(); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); };
 
+  /* Việc có `ghim: true` (khách đang bị chặn, ví dụ quên mã không vào được app) luôn đứng đầu, trước cả việc gấp có nhiều tiền:
+     trước đây nó xếp sau mọi việc nhắc nợ nên nằm thứ 8 trong khung, phải cuộn mới thấy, chủ trọ tưởng là không có. */
   function sapXep(items) {
-    return (items || []).slice().sort((a, b) => (a.muc - b.muc) || ((b.tien || 0) - (a.tien || 0)) || ((b.n || 0) - (a.n || 0)) || String(a.id).localeCompare(String(b.id)));
+    return (items || []).slice().sort((a, b) => ((b.ghim ? 1 : 0) - (a.ghim ? 1 : 0)) || (a.muc - b.muc) || ((b.tien || 0) - (a.tien || 0)) || ((b.n || 0) - (a.n || 0)) || String(a.id).localeCompare(String(b.id)));
   }
 
   /** Ngày hết hoãn: mặc định sang ngày mai */

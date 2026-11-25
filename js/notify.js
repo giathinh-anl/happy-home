@@ -10,6 +10,7 @@
   // Thứ tự = thứ tự ưu tiên khi chọn trang để mở lúc bấm vào thông báo
   const LOAI = [
     { ma: 'tinNhan', quyen: 'tenants', chiChu: true, ten: 'tin nhắn mới từ khách', duong: (bid) => `/b/${bid}/support` },
+    { ma: 'xinMa', quyen: 'tenants', chiChu: true, ten: 'khách quên mã, xin cấp lại mã vào app', duong: (bid) => `/b/${bid}/tenants` },
     { ma: 'chuyenKhoan', quyen: 'payments', ten: 'khách báo đã chuyển khoản', duong: () => '/transfers' },
     { ma: 'suCo', quyen: 'incidents', ten: 'sự cố mới', duong: (bid) => `/b/${bid}/incidents` },
     { ma: 'giaHan', quyen: 'contracts', ten: 'khách xin gia hạn', duong: (bid) => `/b/${bid}/contracts` },

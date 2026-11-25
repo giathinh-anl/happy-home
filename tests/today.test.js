@@ -46,5 +46,22 @@ console.log('Tóm tắt');
 test('đếm theo mức', () => assert.deepStrictEqual(T.tomTat([v('a', 1, 1), v('b', 1, 1), v('c', 2, 1), v('d', 3, 1)]), { tong: 4, gap: 2, homNay: 1, sapToi: 1 }));
 test('không có việc nào', () => assert.deepStrictEqual(T.tomTat([]), { tong: 0, gap: 0, homNay: 0, sapToi: 0 }));
 
+console.log('Việc ghim lên đầu (khách quên mã, đang bị chặn ngoài app)');
+test('việc ghim đứng đầu, kể cả trước việc gấp có nhiều tiền; các việc khác giữ thứ tự cũ', () => {
+  const r = T.boLoc([v('no-1', 1, 10, 9e6), v('no-2', 1, 7, 5e6), Object.assign(v('xinma', 1, 3), { ghim: true }), v('chiso', 2, 22)], {}, HN);
+  assert.deepStrictEqual(r.hien.map((x) => x.id), ['xinma', 'no-1', 'no-2', 'chiso']);
+});
+test('nhiều việc ghim thì giữa chúng vẫn xếp theo mức gấp; ghim mà đã hoãn thì vẫn vào nhóm đã hoãn', () => {
+  const g = (id, muc) => Object.assign(v(id, muc, 1), { ghim: true });
+  assert.deepStrictEqual(T.boLoc([g('g2', 2), v('a', 1, 1, 1e6), g('g1', 1)], {}, HN).hien.map((x) => x.id), ['g1', 'g2', 'a']);
+  const h = T.themHoan({}, g('g1', 1), HN);
+  const r = T.boLoc([g('g1', 1), v('a', 1, 1)], h, HN);
+  assert.deepStrictEqual([r.hien.map((x) => x.id), r.daHoan.map((x) => x.id)], [['a'], ['g1']]);
+});
+test('store.js ghim việc "khách xin cấp lại mã vào app"', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../js/store.js'), 'utf8');
+  assert.match(src, /loai: 'xinma', muc: 1, ghim: true,/);
+});
+
 console.log(`\n${ok} đạt, ${hong} hỏng`);
 process.exit(hong ? 1 : 0);

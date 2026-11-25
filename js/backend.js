@@ -311,6 +311,8 @@ HH.backend = (function () {
     suCo: (q) => q.from('incidents').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     giaHan: (q) => q.from('renewal_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     chiSo: (q) => q.from('readings').select('id', { count: 'exact', head: true }).eq('source', 'tenant').eq('approved', false),
+    // khách quên mã: bảng yêu cầu khóa kín, chỉ đọc qua hàm owner_code_requests (danh sách ngắn, chỉ yêu cầu còn mở)
+    xinMa: async (q) => { const { data, error } = await q.rpc('owner_code_requests'); return { count: Array.isArray(data) ? data.length : 0, error }; },
   };
   async function demViec(loai) {
     if (!enabled || !client) return { error: { message: 'Chưa kết nối máy chủ' } };

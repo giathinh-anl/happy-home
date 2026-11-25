@@ -39,6 +39,7 @@ for f in ["stubs.sql", "schema.sql", "migration-tenant-app.sql", "migration-tena
           "migration-late-fee.sql", "migration-invoice-batches.sql", "migration-incident-tracking.sql"]:
     load(f)
 load("migration-tenant-auth.sql", strip_ext=True)
+load("migration-tenant-code-self.sql")
 load("migration-nightly.sql")
 load("migration-push.sql")
 load("migration-chat-photos.sql")
@@ -177,6 +178,22 @@ def t_read():
     reset(); role("anon"); one("select public.tenant_submit_reading(%s, '2026-11', 8310.5, null, '[]'::jsonb)", (tokA,))
     b = calls()[0][1]; expect(b["body"] == "Kỳ 2026-11: 8310.5. Chờ anh/chị duyệt.", b)
 test("gửi chỉ số: báo lần đầu, gửi lại đúng số cũ thì thôi, sửa số thì báo lại", t_read)
+def t_xin_ma():
+    reset(); role("anon"); expect(one("select public.tenant_request_code('0921111700')") == {"ok": True})
+    c = calls(); expect(len(c) == 2, f"{len(c)} lời gọi (số này có ở cả chủ A và chủ B)")
+    theo = {tuple(sorted(s["endpoint"] for s in b["subs"])): b for _, b, _ in c}
+    bA = theo[("https://fcm.googleapis.com/fcm/send/a-dt", "https://web.push.apple.com/a-ip")]
+    expect(bA["title"] == "Khách quên mã vào app · P101" and bA["body"] == "An xin cấp lại mã vào app. Bấm để cấp mã mới." and bA["url"] == "#/b/b1/tenants", bA)
+    expect(("https://fcm.googleapis.com/fcm/send/b-dt",) in theo, "chủ B cũng phải được báo cho khách của B")
+    reset(); role("anon"); one("select public.tenant_request_code('0921111700')")
+    expect(calls() == [], "trong 1 giờ khách xin lại thì không ghi yêu cầu mới, không báo lại")
+    reset(); role("anon"); one("select public.tenant_request_code('0999999999')"); expect(calls() == [], "số không có khách nào: không báo")
+test("khách quên mã xin cấp lại: báo đúng chủ trọ có khách đó, mở trang Khách thuê; xin lại trong 1 giờ không báo lại", t_xin_ma)
+def t_xin_ma_tay():
+    reset(); role("postgres"); conn.execute("select set_config('request.jwt.claim.sub', %s, false)", (A,))
+    conn.execute("insert into public.tenant_code_requests(owner_id, tenant_id) values (%s, 'tn-a1')", (A,))
+    expect(calls() == [], "lệnh mang tài khoản đăng nhập thì không báo")
+test("yêu cầu ghi bằng lệnh có tài khoản đăng nhập (không phải từ app khách): không báo", t_xin_ma_tay)
 def t_owner_writes():
     reset(); role("authenticated", A)
     conn.execute("insert into public.payment_claims(owner_id, id, building_id, room_code, amount, status) values (%s, 'cl-tay', 'b1', 'P101', 1, 'pending')", (A,))

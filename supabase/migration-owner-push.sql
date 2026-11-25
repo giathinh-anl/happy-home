@@ -7,6 +7,7 @@
 --   * báo hỏng (incidents, trạng thái 'open')
 --   * xin gia hạn hợp đồng (renewal_requests)
 --   * tự gửi chỉ số điện chờ duyệt (readings, source = 'tenant', approved = false)
+--   * quên mã, xin cấp lại mã vào app (tenant_code_requests)
 -- Việc do chính chủ trọ hay nhân viên ghi từ web (đang đăng nhập) thì KHÔNG báo: chỉ báo khi lệnh không mang tài khoản
 -- đăng nhập nào (auth.uid() rỗng), tức là đến từ app khách thuê.
 --
@@ -16,7 +17,7 @@
 --   * Trigger KHÔNG BAO GIỜ làm hỏng việc khách gửi tin, gửi chỉ số... (mọi lỗi khi gửi thông báo bị nuốt).
 --   * Chỉ nhận địa chỉ đăng ký của dịch vụ đẩy Google, Mozilla, Apple, Microsoft (chặn việc nhét địa chỉ nội bộ).
 --
--- Chạy SAU migration-push.sql. Chạy lại nhiều lần vẫn an toàn. Không xóa, không sửa dữ liệu có sẵn
+-- Chạy SAU migration-push.sql và migration-tenant-code-self.sql. Chạy lại nhiều lần vẫn an toàn. Không xóa, không sửa dữ liệu có sẵn
 -- (chỉ có lệnh xóa bên trong hàm: bỏ máy cũ nhất khi một tài khoản đăng ký quá 5 máy, và khi chủ trọ tự tắt trên một máy).
 -- ============================================================
 
@@ -173,6 +174,25 @@ begin
 exception when others then
   return null;
 end $$;
+
+-- Khách quên mã, bấm "Quên mã? Nhờ chủ nhà cấp lại" ở app khách (tenant_request_code, mỗi khách tối đa 1 lần/giờ):
+-- báo ngay, vì khách đang không vào được app. Bấm vào mở trang Khách thuê của đúng tòa (có khung "khách quên mã" ở đầu trang).
+create or replace function public._owner_push_on_code_request() returns trigger language plpgsql security definer set search_path = public, extensions as $$
+declare v_t public.tenants;
+begin
+  if auth.uid() is not null then return null; end if;
+  select * into v_t from public.tenants where owner_id = new.owner_id and id = new.tenant_id;
+  if v_t.id is null then return null; end if;
+  perform public._owner_push_send(new.owner_id, 'Khách quên mã vào app · ' || coalesce(nullif(v_t.room_code, ''), '?'),
+    coalesce(nullif(btrim(v_t.full_name), ''), 'Khách') || ' xin cấp lại mã vào app. Bấm để cấp mã mới.',
+    public._owner_push_url(v_t.building_id, 'tenants'));
+  return null;
+exception when others then
+  return null;
+end $$;
+drop trigger if exists owner_push_on_code_request on public.tenant_code_requests;
+create trigger owner_push_on_code_request after insert on public.tenant_code_requests for each row execute function public._owner_push_on_code_request();
+revoke execute on function public._owner_push_on_code_request() from public, anon, authenticated;
 
 drop trigger if exists owner_push_on_message on public.support_messages;
 create trigger owner_push_on_message after insert on public.support_messages for each row execute function public._owner_push_on_message();

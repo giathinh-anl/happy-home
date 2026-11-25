@@ -98,6 +98,19 @@
       const noTamtru = S.tenantsOf(ctx.bid).filter(t => !t.tamtru).length;
       const cho = S.isOwner() ? S.pendingInvites(ctx.bid).length : 0;     // hồ sơ khách tự khai chờ duyệt
       const g = renderGroups(ctx); ctx._g = g;
+      // Khách quên mã (bấm "Quên mã?" ở app khách): đứng đầu trang, mỗi người một nút cấp mã. Trước đây chỉ có một dòng ở Tổng quan
+      // dẫn tới danh sách khách chung, chủ trọ phải tự dò người đang xin.
+      const xin = S.isOwner() && S.codeRequests ? S.codeRequests().filter(r => r.buildingId === ctx.bid) : [];
+      const p2 = (n) => String(n).padStart(2, '0');
+      const luc = (s) => { const d = new Date(s); return isNaN(d) ? '' : `${p2(d.getHours())}:${p2(d.getMinutes())} ngày ${d.getDate()}/${d.getMonth() + 1}`; };
+      const xinHtml = xin.length ? `<div class="alert alert-warning" id="tnXinMa" style="margin-bottom:16px"><span class="ic">${HH.ic('lock', 16)}</span>
+          <div style="flex:1;min-width:0"><b>${xin.length} khách quên mã, xin cấp lại mã vào app</b>
+            <div class="muted text-xs">Cấp mã mới rồi gửi cho khách (Zalo, tin nhắn). Không phải khách của bạn thì bấm Bỏ qua.</div>
+            ${xin.map(r => `<div class="between wrap" style="gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+              <span><b>${U.esc(r.name || 'Khách')}</b> · ${U.esc(r.roomCode || '')}${r.requestedAt ? ` <span class="muted text-xs">· xin lúc ${U.esc(luc(r.requestedAt))}</span>` : ''}</span>
+              <span class="row-gap-2"><button class="btn btn-sm btn-primary" type="button" data-xinma="${U.esc(r.tenantId)}">Cấp mã mới</button>
+                <button class="btn btn-sm btn-ghost" type="button" data-boquama="${U.esc(r.tenantId)}">Bỏ qua</button></span></div>`).join('')}
+          </div></div>` : '';
       return h`
         <div class="page-head">
           <div><div class="page-title-lg">Khách thuê</div>
@@ -112,6 +125,7 @@
             <button class="btn btn-primary" data-primary-new>${raw(HH.icon('plus', 16))} Thêm khách thuê</button>
           </div>
         </div>
+        ${raw(xinHtml)}
         ${raw(cho ? `<div class="alert alert-info" style="margin-bottom:16px"><span class="ic">${HH.ic('info', 16)}</span>
           <div><b>${cho} khách đã tự khai thông tin</b>, chờ bạn xem và duyệt.
           <button class="btn btn-sm btn-primary" id="tnInvList" style="margin-left:8px">Xem và duyệt</button></div></div>` : '')}
@@ -138,6 +152,17 @@
       const acc = document.getElementById('tnAccess'); if (acc) acc.onclick = () => HH.tenantAccess.bulkDialog(ctx);
       const inv = document.getElementById('tnInvite'); if (inv) inv.onclick = () => HH.onboardingUI.inviteDialog(ctx);
       const invL = document.getElementById('tnInvList'); if (invL) invL.onclick = () => HH.onboardingUI.listDialog(ctx);
+      document.querySelectorAll('[data-xinma]').forEach(b => b.onclick = () => {
+        const t = S.tenantById(b.dataset.xinma);
+        if (!t) { UI.toast('Không thấy hồ sơ khách này, bấm tải lại dữ liệu rồi thử lại', { type: 'warning' }); return; }
+        HH.tenantAccess.dialog(ctx, t);
+      });
+      document.querySelectorAll('[data-boquama]').forEach(b => b.onclick = async () => {
+        b.disabled = true;
+        const r = await S.boQuaYeuCauMa(b.dataset.boquama);
+        if (!r.ok) { b.disabled = false; UI.toast(r.loi, { type: 'error' }); return; }
+        UI.toast('Đã bỏ qua yêu cầu', { type: 'ok' }); HH.router.render();
+      });
       // đi từ "Hôm nay cần làm gì": mở thẳng danh sách hồ sơ chờ duyệt (một lần, rồi bỏ khỏi địa chỉ)
       if (/[?&]invites=1/.test(HH.router.current() || '') && S.isOwner()) {
         try { history.replaceState(null, '', location.href.split('?')[0].split('#')[0] + '#' + location.hash.slice(1).split('?')[0]); } catch (e) {}

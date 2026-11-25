@@ -33,7 +33,8 @@
     return { data: d };
   }
 
-  const ghiNho = (id, v) => { const t = S.tenantById(id); if (t) { t.appCodeSetAt = v; S.persist(); } };
+  // Cấp mã xong thì yêu cầu "quên mã" của khách đó (nếu có) cũng xong: khung trên trang Khách thuê và việc ở Tổng quan tự mất
+  const ghiNho = (id, v) => { const t = S.tenantById(id); if (t) { t.appCodeSetAt = v; S.persist(); } if (v && S.xongYeuCauMa) S.xongYeuCauMa(id); };
 
   function chep(text, nhan) {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(
@@ -138,7 +139,7 @@
           const list = r.data.codes || [];
           if (!list.length) { res.innerHTML = '<p class="muted">Không có khách nào cần cấp mã.</p>'; return; }
           const now = new Date().toISOString();
-          list.forEach(c => { const t = S.tenantById(c.tenantId); if (t) t.appCodeSetAt = now; });
+          list.forEach(c => { const t = S.tenantById(c.tenantId); if (t) t.appCodeSetAt = now; if (S.xongYeuCauMa) S.xongYeuCauMa(c.tenantId); });
           S.persist();
           el.querySelector('#acBulkTop').style.display = 'none'; go.style.display = 'none';
           const rows = list.map(c => `<tr><td data-label="Phòng" class="dt-title"><b>${U.esc(c.roomCode || '')}</b></td><td data-label="Khách">${U.esc(c.name || '')}${c.isRep ? ' <span class="tn-tag rep">Đại diện</span>' : ''}</td>

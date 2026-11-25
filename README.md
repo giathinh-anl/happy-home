@@ -471,7 +471,7 @@ Ai thấy được: chủ trọ, và nhân viên nào được cấp quyền **B
 
 **Gửi chỉ số điện: AI đọc số từ ảnh.** Khách chụp đồng hồ, AI (cùng đường dẫn Gemini đang dùng để đọc CCCD) điền sẵn số vào ô; khách luôn tự xem lại rồi mới gửi. Ảnh mờ thì ghi chú "xem kỹ lại"; không đọc được thì để khách nhập tay. Khi gửi, app soát số: nhỏ hơn kỳ trước hoặc vọt hơn 3 lần mức thường thì hỏi lại ("Sửa lại" / "Số này đúng, vẫn gửi").
 
-**Đổi mã vào app, quên mã.** Tài khoản → *Đổi mã vào app* (nhập mã cũ, mã mới hai lần). Mã mới phải đủ 6 số, không phải 6 số giống nhau hay dãy liên tiếp (123456, 654321), không trùng 6 số cuối điện thoại. Máy chủ kiểm mã cũ, sai 5 lần thì khóa 15 phút (chung bộ đếm với đăng nhập), đổi xong các máy khác bị đăng xuất. Màn nhập mã có nút *Quên mã? Nhờ chủ nhà cấp lại*: yêu cầu hiện ở chủ trọ thành việc "N khách xin cấp lại mã vào app" trong *Hôm nay cần làm gì*, cấp mã là yêu cầu tự hết. Trợ lý ảo hiểu "đổi mã / quên mã" và dặn khách **đừng gõ mã vào khung chat** (tin chat nhân viên đọc được). Cần chạy `supabase/migration-tenant-code-self.sql` (sau `migration-tenant-auth.sql`); chưa chạy thì app báo rõ "chưa bật" chứ không hỏng. Kiểm thử trên Postgres thật: `tests/db/tenant-code-self.test.py` (41 ca, thử phá 15 chỗ đều bị bắt). Hàm thuần của app khách ở `tenant-app/js/helpers.js` (74 ca, thử phá 31 chỗ đều bị bắt).
+**Đổi mã vào app, quên mã.** Tài khoản → *Đổi mã vào app* (nhập mã cũ, mã mới hai lần). Mã mới phải đủ 6 số, không phải 6 số giống nhau hay dãy liên tiếp (123456, 654321), không trùng 6 số cuối điện thoại. Máy chủ kiểm mã cũ, sai 5 lần thì khóa 15 phút (chung bộ đếm với đăng nhập), đổi xong các máy khác bị đăng xuất. Màn nhập mã có nút *Quên mã? Nhờ chủ nhà cấp lại*: yêu cầu hiện ở chủ trọ thành việc "N khách xin cấp lại mã vào app" **luôn đứng đầu** *Hôm nay cần làm gì* (trước đây xếp sau các việc nhắc nợ, nằm thứ 8 trong khung nên chủ trọ tưởng không có); bấm *Cấp mã* sang trang Khách thuê, ở đầu trang có khung **"khách quên mã"** liệt kê từng người (tên, phòng, giờ xin) với nút *Cấp mã mới* mở thẳng hộp cấp mã của đúng khách và nút *Bỏ qua*; cấp mã là yêu cầu tự hết. Khách vừa xin thì web đang mở báo ngay (số trên tab, tiếng "ting"), và điện thoại đã bật thông báo đẩy cũng được báo (trigger `owner_push_on_code_request` trong `migration-owner-push.sql`, đã chạy trên máy chủ thật 25/11/2026). Kiểm thử `tests/code-requests.test.js`, `tests/today.test.js`, `tests/db/owner-push.test.py`. Trợ lý ảo hiểu "đổi mã / quên mã" và dặn khách **đừng gõ mã vào khung chat** (tin chat nhân viên đọc được). Cần chạy `supabase/migration-tenant-code-self.sql` (sau `migration-tenant-auth.sql`); chưa chạy thì app báo rõ "chưa bật" chứ không hỏng. Kiểm thử trên Postgres thật: `tests/db/tenant-code-self.test.py` (41 ca, thử phá 15 chỗ đều bị bắt). Hàm thuần của app khách ở `tenant-app/js/helpers.js` (74 ca, thử phá 31 chỗ đều bị bắt).
 
 **Chấm sao sau khi sửa xong.** Sự cố đã "Hoàn tất" thì app khách hiện "Việc sửa xong rồi. Anh/chị thấy thế nào?" với 1 đến 5 sao và một dòng nhận xét (không bắt buộc), chấm lại được. Chủ trọ thấy sao và nhận xét ngay ở cột Trạng thái của danh sách sự cố (bấm "Hiện cả đã xong"), sao thấp tô đỏ. Khách chỉ chấm được sự cố của phòng mình và chỉ khi đã hoàn tất; trình duyệt chủ trọ không ghi đè được sao khách đã chấm. Cần chạy `supabase/migration-incident-rating.sql`; chưa chạy thì phần chấm sao tự ẩn. Kiểm thử trên Postgres thật: `tests/db/incident-rating.test.py` (17 ca, thử phá 10 chỗ đều bị bắt).
 
@@ -639,6 +639,7 @@ tests/
   rpc-lite.test.js    # kiểm thử hàm gọi máy chủ nhẹ của app khách (fetch giả): node tests/rpc-lite.test.js
   a11y.test.js        # kiểm thử dễ dùng: nhãn nút, phóng to, cỡ chữ ô nhập, vùng chạm, không còn confirm(): node tests/a11y.test.js
   owner-push.test.js  # kiểm thử thông báo đẩy cho chủ trọ phía trình duyệt (luật, service worker): node tests/owner-push.test.js
+  code-requests.test.js # kiểm thử khách quên mã: khung ở trang Khách thuê, cấp mã / bỏ qua, báo đẩy: node tests/code-requests.test.js
 ```
 
 ## Kiểm thử
@@ -675,6 +676,7 @@ node tests/notify.test.js
 node tests/rpc-lite.test.js
 node tests/a11y.test.js
 node tests/owner-push.test.js
+node tests/code-requests.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
