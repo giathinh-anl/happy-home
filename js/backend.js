@@ -154,12 +154,13 @@ HH.backend = (function () {
   /** Tìm bản ghi nhân viên theo email đang đăng nhập (nếu người này được chủ trọ thêm vào) */
   async function findStaffByEmail(email) {
     if (!enabled || !email) return null;
-    const { data, error } = await client.from('staff').select('*')
-      .ilike('email', email).eq('status', 'active').limit(1);
+    // Lấy cả dòng đã khóa để báo "tài khoản bị khóa" (trước đây nhân viên bị khóa đăng nhập vào thành "chủ trọ mới" tài khoản trống)
+    const { data, error } = await client.from('staff').select('*').ilike('email', email).limit(5);
     if (error) { if (!isMissingTable(error)) console.info('[staff lookup]', error.message); return null; }
-    if (!data || !data[0]) return null;
+    if (!data || !data.length) return null;
+    const dong = data.find((r) => r.status === 'active') || data[0];
     // rowToJs bỏ cột owner_id; ở đây CẦN nó: đó là chủ trọ mà nhân viên làm cho (ghi dữ liệu dưới tên chủ trọ này)
-    return Object.assign(rowToJs('staff', data[0]), { ownerId: data[0].owner_id || null });
+    return Object.assign(rowToJs('staff', dong), { ownerId: dong.owner_id || null });
   }
 
   /* ---------- Dữ liệu ---------- */
@@ -216,7 +217,8 @@ HH.backend = (function () {
   async function saveSupportPhotos(messageId, photos) {
     if (!enabled || !Array.isArray(photos) || !photos.length) return { ok: true };
     const rows = photos.map((d, i) => ({ owner_id: chuGhi(), message_id: messageId, idx: i, data: d }));
-    const { error } = await client.from(ANH_CHAT).upsert(rows, { onConflict: 'owner_id,message_id,idx' });
+    // Nhân viên: máy chủ chỉ cho THÊM ảnh (xem chiThem); chủ trọ giữ upsert như cũ
+    const { error } = chuDuLieu ? await chiThem(ANH_CHAT, rows) : await client.from(ANH_CHAT).upsert(rows, { onConflict: 'owner_id,message_id,idx' });
     if (error) return isMissingTable(error) ? { missing: true } : { error };
     return { ok: true };
   }
@@ -250,6 +252,13 @@ HH.backend = (function () {
     if (!todo.length) return { error: null };
 
     let rows = todo.map((o) => jsToRow(kind, o));
+    // Nhân viên ghi nhật ký: máy chủ chỉ cho THÊM (supabase/migration-staff-scope.sql), mà upsert (INSERT ... ON CONFLICT) đòi cả quyền
+    // xem dòng đó; nhật ký không bao giờ sửa nên thêm thuần, dòng đã có (trùng khóa) thì coi như xong.
+    if (chuDuLieu && kind === 'auditLog') {
+      const r = await chiThem(KINDS[kind], rows);
+      if (!r.error) sigs.forEach(([k, s]) => sentSig.set(k, s));
+      return r;
+    }
     // Thử lưu; nếu DB thiếu cột mới (chưa chạy migration) thì bỏ cột đó rồi thử lại
     for (let attempt = 0; attempt < 4; attempt++) {
       const { error } = await client.from(KINDS[kind]).upsert(rows, { onConflict: 'owner_id,id' });
@@ -267,6 +276,18 @@ HH.backend = (function () {
     return { error: null };
   }
   async function saveOne(kind, obj) { return saveMany(kind, [obj]); }
+  const trungKhoa = (e) => !!e && (String(e.code) === '23505' || /duplicate key/i.test(e.message || ''));
+  /** INSERT thuần (không ON CONFLICT). Trùng khóa = dòng đã lên máy chủ từ lần trước: coi như xong; một dòng trùng thì thử từng dòng. */
+  async function chiThem(bang, rows) {
+    const { error } = await client.from(bang).insert(rows);
+    if (!error) return { error: null };
+    if (!trungKhoa(error)) { if (!isMissingTable(error)) console.error('[thêm ' + bang + ']', error.message); return { error: isMissingTable(error) ? null : error }; }
+    for (const r of rows) {
+      const k = await client.from(bang).insert([r]);
+      if (k.error && !trungKhoa(k.error)) { console.error('[thêm ' + bang + ']', k.error.message); return { error: k.error }; }
+    }
+    return { error: null };
+  }
 
   /** Máy chủ đã có cột này chưa? (chưa chạy migration thì chưa có)
       Dùng để báo thẳng cho người dùng thay vì âm thầm bỏ cột rồi mất dữ liệu.

@@ -526,7 +526,11 @@ HH.app = (function () {
       try {
         const session = await HH.backend.getSession();
         if (session && navigator.onLine === false && HH.offlineUI.thuMoNgoaiTuyen()) { /* mất mạng hẳn: vào thẳng trang ngoại tuyến, đỡ chờ tải thử */ }
-        else if (session) khongVao = (await S.onSignedIn(session.user)) === 'error';
+        else if (session) {
+          const kq = await S.onSignedIn(session.user);
+          khongVao = kq === 'error';
+          if (kq === 'locked') setTimeout(() => HH.ui.toast('Tài khoản nhân viên của bạn đang bị chủ trọ khóa. Liên hệ chủ trọ để mở lại.', { type: 'warning', sticky: true }), 600);
+        }
         else { S.prefs.auth = false; khongVao = navigator.onLine === false; }
       } catch (e) { console.error('Khởi tạo backend lỗi:', e); S.prefs.auth = false; khongVao = true; }
       if (!S.prefs.auth && !HH.offline.mode && khongVao) HH.offlineUI.thuMoNgoaiTuyen();

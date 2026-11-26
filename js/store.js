@@ -365,6 +365,18 @@ HH.store = (function () {
     ra.auditLog = [];          // nhật ký ghi việc của mọi tòa, không lọc theo tòa được
     return ra;
   }
+  /* Máy chủ chặn theo tòa (supabase/migration-staff-scope.sql) thì nhân viên KHÔNG tải được hóa đơn / phiếu thu tòa khác, nên locTheoToa
+     không còn thấy mã của họ. Hỏi riêng hàm nv_ma_da_dung (chỉ trả MÃ, không tiền, không tòa) rồi gộp vào soAn để đánh số không trùng.
+     Máy chủ chưa có hàm (chưa chạy SQL) thì thôi: lúc đó web vẫn tải đủ mọi tòa và locTheoToa đã nhớ mã. */
+  async function napMaDaDung() {
+    if (!phamViToa() || !usingBackend() || !HH.backend.rpc || !prefs.ownerId) return;
+    try {
+      const r = await HH.backend.rpc('nv_ma_da_dung', { p_owner: prefs.ownerId });
+      const d = r && !r.error && r.data;
+      if (d && Array.isArray(d.hd)) soAn.hd = Array.from(new Set(soAn.hd.concat(d.hd)));
+      if (d && Array.isArray(d.pt)) soAn.pt = Array.from(new Set(soAn.pt.concat(d.pt)));
+    } catch (e) { /* mạng lỗi: dùng mã đã có */ }
+  }
   /** Số thứ tự lớn nhất trong các mã bắt đầu bằng tiền tố (tính cả mã của tòa bị ẩn với nhân viên) */
   const soLonNhat = (dsMa, tien) => dsMa.reduce((mx, ma) => (ma && ma.startsWith(tien) ? Math.max(mx, parseInt(ma.slice(tien.length), 10) || 0) : mx), 0);
   function replaceAll(data) {
@@ -552,6 +564,14 @@ HH.store = (function () {
       // Nếu email này được chủ trọ thêm làm nhân viên -> vào với vai trò & quyền tương ứng
       let st = null;
       try { st = await HH.backend.findStaffByEmail(email); } catch (e) {}
+      // Nhân viên đã bị chủ trọ khóa: báo rõ và không cho vào (trước đây thành "chủ trọ mới" với tài khoản trống).
+      // Trừ khi chính email này cũng là một chủ trọ có tòa nhà riêng: vẫn vào bằng tài khoản chủ của họ.
+      if (st && st.status !== 'active') {
+        if (HH.backend.datChuDuLieu) HH.backend.datChuDuLieu(null);
+        const rieng = HH.backend.loadKind ? await HH.backend.loadKind('buildings') : { data: [] };
+        if (rieng.data && rieng.data.length) st = null;
+        else { try { await HH.backend.signOut(); } catch (e) {} prefs.auth = false; savePrefs(); return 'locked'; }
+      }
       if (st) {
         prefs.role = 'staff'; prefs.staffId = st.id; prefs.ownerId = st.ownerId || null;
         prefs.permissions = Array.isArray(st.permissions) ? st.permissions : DEFAULT_STAFF_PERMS;
@@ -566,6 +586,7 @@ HH.store = (function () {
       const res0 = await HH.backend.loadAll({ bo: khongTai() });
       if (res0.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
       const res = { data: locTheoToa(res0.data) };           // nhân viên chỉ được giao vài tòa: chỉ giữ dữ liệu các tòa đó
+      await napMaDaDung();
       const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
       prefs.auth = true; savePrefs();
       layGoc(res.data.readings || []); luuAnhChup(res.data);      // ảnh chụp để mở được trang ghi chỉ số khi lần sau mất mạng
@@ -649,7 +670,24 @@ HH.store = (function () {
       const before = stamp();
       const res0 = await HH.backend.loadAll({ bo: khongTai() });
       if (res0.error) return { ok: false, reason: 'error' };
+      // Nhân viên: đọc lại dòng của chính mình. Chủ trọ khóa / xóa thì đăng xuất ngay; đổi quyền hay tòa được giao thì áp dụng ngay
+      // (trước đây phải đợi nhân viên tải lại trang hoặc đăng nhập lại)
+      let doiQuyen = false;
+      if (prefs.role === 'staff' && Array.isArray(res0.data.staff)) {
+        const toi = res0.data.staff.find(s => s.id === prefs.staffId);
+        if (!toi || toi.status !== 'active') {
+          api.logout();
+          if (HH.ui) HH.ui.toast('Tài khoản nhân viên của bạn đã bị chủ trọ khóa hoặc xóa. Liên hệ chủ trọ nếu cần vào lại.', { type: 'warning', sticky: true });
+          if (HH.router) HH.router.go('/login');
+          return { ok: false, reason: 'locked' };
+        }
+        const q = Array.isArray(toi.permissions) ? toi.permissions : [], t = Array.isArray(toi.buildingIds) ? toi.buildingIds : [];
+        if (JSON.stringify(q) !== JSON.stringify(prefs.permissions || []) || JSON.stringify(t) !== JSON.stringify(prefs.buildingIds || [])) {
+          prefs.permissions = q.slice(); prefs.buildingIds = t.slice(); savePrefs(); doiQuyen = true;
+        }
+      }
       const res = { data: locTheoToa(res0.data) };
+      await napMaDaDung();
       capNhatHangDoi();      // chụp lại số vừa gõ trong lúc chờ tải (và số chưa gửi được) trước khi dữ liệu mới thay vào
       layGoc(res.data.readings || []); luuAnhChup(res.data);
       replaceAll(res.data);
@@ -662,7 +700,7 @@ HH.store = (function () {
       if (tuGhi && HH.ui) HH.ui.toast(`Tiền về tài khoản: đã tự ghi thu ${tuGhi} khoản, công nợ tương ứng đã xóa`, { type: 'ok', sticky: true, celebrate: true });
       try { await api.loadInvites(); await api.loadCodeRequests(); } catch (e) { console.info('Tải lời mời / yêu cầu mã lỗi:', e && e.message); }
       api.refreshExpiryFlags(); api.refreshInvoiceStatus();
-      return { ok: true, changed: before !== stamp() || !!gan || tuGhi > 0, tuGhi };
+      return { ok: true, changed: before !== stamp() || !!gan || tuGhi > 0 || doiQuyen, tuGhi };
     },
 
     /* ---------- Ngoại tuyến ---------- */
@@ -1313,8 +1351,9 @@ HH.store = (function () {
     mergeSupport(rows) {
       if (!Array.isArray(rows)) return 0;
       const seen = new Set(supportMsgs.map(m => m.id));
+      const pv = phamViToa(), co = pv ? new Set(pv) : null;      // nhân viên chỉ được giao vài tòa: chỉ tin của các tòa đó (máy chủ cũng chặn)
       let added = 0;
-      rows.forEach(r => { if (r && r.id && !seen.has(r.id)) { supportMsgs.push(r); seen.add(r.id); added++; } });
+      rows.forEach(r => { if (r && r.id && !seen.has(r.id) && (!co || co.has(r.buildingId))) { supportMsgs.push(r); seen.add(r.id); added++; } });
       return added;
     },
 
@@ -1441,6 +1480,7 @@ HH.store = (function () {
     updateBuilding(id, patch) { const b = buildings.find(x => x.id === id); if (b) { Object.assign(b, patch); persist(); } return b; },
     // Xóa tòa nhà + toàn bộ dữ liệu liên quan
     async removeBuilding(id) {
+      if (!api.isOwner()) return;          // chỉ chủ trọ xóa được tòa nhà (trước đây nhân viên có quyền Cấu hình cũng xóa được cả tòa)
       const b = buildings.find(x => x.id === id); if (!b) return;
       const scoped = [rooms, tenants, contracts, services, readings, invoices, assets, incidents, transactions, renewals, invoiceBatches];
       scoped.forEach(arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i].buildingId === id) arr.splice(i, 1); });

@@ -9,7 +9,8 @@
 (function (root) {
   // Thứ tự = thứ tự ưu tiên khi chọn trang để mở lúc bấm vào thông báo
   const LOAI = [
-    { ma: 'tinNhan', quyen: 'tenants', chiChu: true, ten: 'tin nhắn mới từ khách', duong: (bid) => `/b/${bid}/support` },
+    // Tin nhắn khách: nhân viên có quyền Khách thuê cũng được báo (từ 26/11 máy chủ cho họ đọc và trả lời, theo tòa được giao)
+    { ma: 'tinNhan', quyen: 'tenants', ten: 'tin nhắn mới từ khách', duong: (bid) => `/b/${bid}/support` },
     { ma: 'xinMa', quyen: 'tenants', chiChu: true, ten: 'khách quên mã, xin cấp lại mã vào app', duong: (bid) => `/b/${bid}/tenants` },
     { ma: 'chuyenKhoan', quyen: 'payments', ten: 'khách báo đã chuyển khoản', duong: () => '/transfers' },
     // Tiền về tài khoản qua SePay: chỉ chủ trọ (giao dịch ngân hàng có cả tiền riêng của chủ). Số tăng -> tải về, web tự khớp hóa đơn ngay.
@@ -23,7 +24,7 @@
   const MAC_DINH = { tieuDe: true, tieng: true, manHinh: false };
   const HIEN = 30000, NEN = 60000, TRAN = 10 * 60000;
 
-  /** Những loại việc người đang dùng được báo: chủ trọ thấy hết; nhân viên chỉ loại thuộc quyền được cấp. Tin nhắn chỉ chủ trọ (máy chủ chỉ cho chủ đọc). */
+  /** Những loại việc người đang dùng được báo: chủ trọ thấy hết; nhân viên chỉ loại thuộc quyền được cấp (khách xin mã, tiền về tài khoản chỉ chủ trọ). */
   function loaiTheoQuyen(o) {
     const chu = !!(o && o.chu), can = (o && typeof o.can === 'function') ? o.can : () => false;
     return LOAI.filter((l) => chu || (!l.chiChu && can(l.quyen))).map((l) => l.ma);

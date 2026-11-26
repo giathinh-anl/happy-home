@@ -153,6 +153,7 @@ HH.pages = HH.pages || {};
         if (!res.data.session) { unlock(); showErr('Tài khoản đã tạo. Vui lòng kiểm tra email xác nhận rồi đăng nhập.'); return; }
         const outcome = await S.onSignedIn(res.data.user);
         if (outcome === 'error') { unlock(); showErr('Kết nối máy chủ chưa ổn định. Vui lòng bấm lại sau vài giây.'); return; }
+        if (outcome === 'locked') { unlock(); showErr('Tài khoản nhân viên của bạn đang bị chủ trọ khóa. Liên hệ chủ trọ để mở lại.'); return; }
         if (!S.isOwner()) UI.toast(`Đăng nhập với vai trò nhân viên · ${S.myPermissions().length} quyền`, { type: 'ok' });
         HH.router.go(HH.router.landingPath());
       } catch (err) { unlock(); showErr(mapErr(err.message)); }

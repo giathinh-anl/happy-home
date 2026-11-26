@@ -14,10 +14,11 @@ const test = (ten, fn) => cho.push([ten, fn]);
 /* ============================================================
    Luật
    ============================================================ */
-test('loaiTheoQuyen: chủ trọ thấy cả 7 loại; nhân viên chỉ loại thuộc quyền, không bao giờ thấy tin nhắn, khách xin mã hay tiền về tài khoản', () => {
+test('loaiTheoQuyen: chủ trọ thấy cả 7 loại; nhân viên chỉ loại thuộc quyền (tin nhắn khách nếu có quyền Khách thuê), không bao giờ thấy khách xin mã hay tiền về tài khoản', () => {
   assert.deepStrictEqual(N.loaiTheoQuyen({ chu: true }), ['tinNhan', 'xinMa', 'chuyenKhoan', 'tienVe', 'suCo', 'giaHan', 'chiSo']);
   assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: (q) => q === 'payments' }), ['chuyenKhoan']);
-  assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: () => true }), ['chuyenKhoan', 'suCo', 'giaHan', 'chiSo']);
+  assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: (q) => q === 'tenants' }), ['tinNhan']);
+  assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: () => true }), ['tinNhan', 'chuyenKhoan', 'suCo', 'giaHan', 'chiSo']);
   assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: () => false }), []);
   assert.deepStrictEqual(N.loaiTheoQuyen(null), []);
 });

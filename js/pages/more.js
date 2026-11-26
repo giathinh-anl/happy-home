@@ -133,11 +133,11 @@
         ${raw(nguon)}<div id="bankWarn"></div>
         ${raw(bankForm)}
       </div></div>
-      <div class="card" style="border-color:#fecaca;margin-top:16px;max-width:520px"><div class="card-pad">
+      ${raw(laChu ? `<div class="card" style="border-color:#fecaca;margin-top:16px;max-width:520px"><div class="card-pad">
         <h3 style="color:var(--danger)">Vùng nguy hiểm</h3>
         <p class="muted text-sm" style="margin:6px 0 12px">Xóa tòa nhà sẽ xóa vĩnh viễn toàn bộ phòng, khách thuê, hợp đồng, hóa đơn… của tòa này.</p>
         <button class="btn btn-danger" id="delBuilding">${HH.ic('trash', 16)} Xóa tòa nhà này</button>
-      </div></div>`;
+      </div></div>` : '')}`;
     },
     mount(ctx) {
       const bRules = UI.formRules(document, [
@@ -205,7 +205,8 @@
           });
         };
       }
-      document.getElementById('delBuilding').onclick = () => {
+      const xoaToa = document.getElementById('delBuilding');      // chỉ chủ trọ có nút này
+      if (xoaToa) xoaToa.onclick = () => {
         UI.dangerDialog({
           title: `Xóa tòa nhà "${ctx.building.name}"`,
           description: 'Toàn bộ phòng, khách thuê, hợp đồng, hóa đơn, thanh toán… của tòa này sẽ bị xóa vĩnh viễn.',
@@ -1133,7 +1134,7 @@
     const bids = new Set(existing && Array.isArray(existing.buildingIds) ? existing.buildingIds : []);
     const permHtml = S.PERMISSIONS.map(p => `<label class="perm-item ${perms.has(p.key) ? 'on' : ''}" data-permwrap="${p.key}">
       <input type="checkbox" data-perm="${p.key}" ${perms.has(p.key) ? 'checked' : ''}>
-      <span><b>${p.label}</b>${p.sensitive ? ' <span class="badge s-warning" style="font-size:10px;padding:1px 6px">Nhạy cảm</span>' : ''}
+      <span><b>${p.label}</b>${p.sensitive ? ' <span class="badge s-neutral" style="font-size:10px;padding:1px 6px" title="Liên quan tiền bạc hoặc cấu hình: chỉ cấp khi thật cần">Hạn chế</span>' : ''}
         <div class="muted text-xs">${p.desc}</div></span></label>`).join('');
     const bHtml = S.buildings.map(b => `<label class="check" style="display:block;padding:5px 0">
       <input type="checkbox" data-bld="${b.id}" ${bids.has(b.id) ? 'checked' : ''}> ${U.esc(b.name)}</label>`).join('');

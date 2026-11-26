@@ -133,7 +133,7 @@
 
       return h`<div class="page-head">
         <div><div class="page-title-lg">Hỏi đáp khách thuê</div>
-          <div class="page-sub">Tất cả tòa nhà · ${threads.length} cuộc trò chuyện${cho ? ', ' + cho + ' khách đang chờ trả lời' : ''}</div></div>
+          <div class="page-sub">${S.phamViToa && S.phamViToa() ? S.buildings.map(b => b.name).join(', ') : 'Tất cả tòa nhà'} · ${threads.length} cuộc trò chuyện${cho ? ', ' + cho + ' khách đang chờ trả lời' : ''}</div></div>
       </div>
       ${raw(banner)}
       <div class="sp-wrap">
