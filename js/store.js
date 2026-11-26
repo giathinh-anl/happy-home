@@ -338,6 +338,9 @@ HH.store = (function () {
     if (HH.offlineUI) HH.offlineUI.baoGui(!loi);
     return loi ? { ok: false, message: loi.message || 'Không gửi được lên máy chủ' } : { ok: true };
   }
+  // Bảng KHÔNG tải về máy khi đăng nhập: nhân viên không tải giao dịch ngân hàng (SePay gửi về cả tiền riêng của chủ trọ;
+  // máy chủ cũng chặn, xem supabase/migration-bank-owner-only.sql)
+  const khongTai = () => prefs.role === 'owner' ? [] : ['bankTx'];
   function replaceAll(data) {
     Object.keys(groups).forEach(k => { groups[k].length = 0; (data[k] || []).forEach(x => groups[k].push(x)); });
   }
@@ -530,7 +533,7 @@ HH.store = (function () {
         prefs.role = 'owner'; prefs.staffId = null; prefs.ownerId = null; prefs.permissions = null;
         prefs.userName = (user && (user.user_metadata && user.user_metadata.full_name)) || email || 'Chủ trọ';
       }
-      const res = await HH.backend.loadAll();
+      const res = await HH.backend.loadAll({ bo: khongTai() });
       if (res.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
       const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
       prefs.auth = true; savePrefs();
@@ -610,20 +613,24 @@ HH.store = (function () {
       const stamp = () => JSON.stringify([incidents.length, claims.length, readings.length,
         invoices.length, payments.length, tenants.length, invoices.reduce((s, i) => s + (i.total || 0), 0), invites.filter(i => i.status === 'submitted').length,
         incidents.map(x => x.status).join(''), claims.map(x => x.status).join(''),
-        renewals.length, renewals.map(x => x.status).join('')]);
+        renewals.length, renewals.map(x => x.status).join(''), bankTx.length, bankTx.filter(t => t.handled).length]);
       if (HH.offline && HH.offline.mode) return { ok: false, reason: 'offline' };
       const before = stamp();
-      const res = await HH.backend.loadAll();
+      const res = await HH.backend.loadAll({ bo: khongTai() });
       if (res.error) return { ok: false, reason: 'error' };
       capNhatHangDoi();      // chụp lại số vừa gõ trong lúc chờ tải (và số chưa gửi được) trước khi dữ liệu mới thay vào
       layGoc(res.data.readings || []); luuAnhChup(res.data);
       replaceAll(res.data);
       const gan = ganHangDoi(res.data.readings || []);
       if (gan && HH.offlineUI) HH.offlineUI.sauKhiGan(gan);
-      await api.loadInvites();
-      await api.loadCodeRequests();
+      // Tiền về qua SePay trong lúc web đang mở: khớp hóa đơn và ghi thu NGAY khi có dữ liệu mới (trước đây chỉ khớp lúc mở web / đăng nhập lại).
+      // Làm trước các lần hỏi máy chủ bên dưới: chúng chậm hay lỗi thì tiền về vẫn được ghi.
+      let tuGhi = 0;
+      try { api.refreshInvoiceStatus(); tuGhi = api.autoReconcile().done.length; } catch (e) { console.info('Đối soát tự động bỏ qua:', e && e.message); }
+      if (tuGhi && HH.ui) HH.ui.toast(`Tiền về tài khoản: đã tự ghi thu ${tuGhi} khoản, công nợ tương ứng đã xóa`, { type: 'ok', sticky: true, celebrate: true });
+      try { await api.loadInvites(); await api.loadCodeRequests(); } catch (e) { console.info('Tải lời mời / yêu cầu mã lỗi:', e && e.message); }
       api.refreshExpiryFlags(); api.refreshInvoiceStatus();
-      return { ok: true, changed: before !== stamp() || !!gan };
+      return { ok: true, changed: before !== stamp() || !!gan || tuGhi > 0, tuGhi };
     },
 
     /* ---------- Ngoại tuyến ---------- */
@@ -1887,6 +1894,7 @@ HH.store = (function () {
     autoReconcile(opts) {
       opts = opts || {};
       const out = { done: [], review: [], skipped: [] };
+      if (!api.isOwner()) return out;          // giao dịch ngân hàng chỉ chủ trọ xem và đối soát (nhân viên không tải bảng này)
       bankTx.filter(t => !t.handled && (+t.amount > 0)).forEach(t => {
         const m = api.matchTransfer(t);
         if (m.status !== 'matched') { t.matchNote = m.reason; out.review.push({ tx: t, match: m }); return; }

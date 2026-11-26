@@ -39,19 +39,10 @@ drop policy if exists "bank_tx_own" on public.bank_transactions;
 create policy "bank_tx_own" on public.bank_transactions
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
--- Nhân viên được xem/đối soát dữ liệu của chủ trọ mình
+-- Nhân viên KHÔNG được xem giao dịch ngân hàng (26/11/2026): SePay gửi về cả tiền riêng của chủ trọ.
+-- Bản cũ có quy tắc "bank_tx_staff" cho mọi nhân viên đọc/sửa bảng này; đã gỡ (xem migration-bank-owner-only.sql).
+-- Chạy lại tệp này cũng không mở lại quyền đó.
 drop policy if exists "bank_tx_staff" on public.bank_transactions;
-create policy "bank_tx_staff" on public.bank_transactions
-  for all using (exists (
-    select 1 from public.staff s
-    where s.owner_id = bank_transactions.owner_id
-      and lower(s.email) = lower(auth.jwt() ->> 'email')
-      and s.status = 'active'))
-  with check (exists (
-    select 1 from public.staff s
-    where s.owner_id = bank_transactions.owner_id
-      and lower(s.email) = lower(auth.jwt() ->> 'email')
-      and s.status = 'active'));
 
 -- ============================================================
 -- 4) Cổng nhận giao dịch từ webhook ngân hàng

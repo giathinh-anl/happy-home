@@ -519,7 +519,7 @@ HH.ai = (function () {
     kw: ['bao chuyen khoan', 'bao da chuyen', 'cho duyet', 'xac nhan chuyen', 'phieu chuyen khoan', 'khach chuyen khoan', 'chuyen khoan', 'doi soat'],
     run(sl) {
       const list = S.claimsOf(sl.buildingId || null, 'pending');
-      const bank = S.unhandledBankTx ? S.unhandledBankTx() : [];
+      const bank = S.unhandledBankTx && S.isOwner() ? S.unhandledBankTx() : [];      // giao dịch ngân hàng: chỉ chủ trọ
       const facts = { số_phiếu_chờ_duyệt: list.length, giao_dịch_ngân_hàng_chờ: bank.length,
         danh_sách: list.slice(0, 10).map((c) => ({ phòng: c.roomCode, số_tiền: money(c.amount), ngày: U.fmtDate(c.createdAt) })) };
       if (!list.length && !bank.length) return { facts, html: 'Không có phiếu chuyển khoản hay giao dịch nào chờ đối soát ✓' };

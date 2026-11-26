@@ -14,8 +14,8 @@ const test = (ten, fn) => cho.push([ten, fn]);
 /* ============================================================
    Luật
    ============================================================ */
-test('loaiTheoQuyen: chủ trọ thấy cả 6 loại; nhân viên chỉ loại thuộc quyền, không bao giờ thấy tin nhắn hay khách xin mã', () => {
-  assert.deepStrictEqual(N.loaiTheoQuyen({ chu: true }), ['tinNhan', 'xinMa', 'chuyenKhoan', 'suCo', 'giaHan', 'chiSo']);
+test('loaiTheoQuyen: chủ trọ thấy cả 7 loại; nhân viên chỉ loại thuộc quyền, không bao giờ thấy tin nhắn, khách xin mã hay tiền về tài khoản', () => {
+  assert.deepStrictEqual(N.loaiTheoQuyen({ chu: true }), ['tinNhan', 'xinMa', 'chuyenKhoan', 'tienVe', 'suCo', 'giaHan', 'chiSo']);
   assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: (q) => q === 'payments' }), ['chuyenKhoan']);
   assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: () => true }), ['chuyenKhoan', 'suCo', 'giaHan', 'chiSo']);
   assert.deepStrictEqual(N.loaiTheoQuyen({ chu: false, can: () => false }), []);
@@ -23,8 +23,8 @@ test('loaiTheoQuyen: chủ trọ thấy cả 6 loại; nhân viên chỉ loại 
 });
 test('chuanHoa: số âm, chữ, NaN, thiếu thì null; số thực làm tròn xuống; loại lạ bị bỏ', () => {
   assert.deepStrictEqual(N.chuanHoa({ tinNhan: 3, chuyenKhoan: '2', suCo: -1, giaHan: 'abc', chiSo: 1.7, la: 9 }),
-    { tinNhan: 3, xinMa: null, chuyenKhoan: 2, suCo: null, giaHan: null, chiSo: 1 });
-  assert.deepStrictEqual(N.chuanHoa(null), { tinNhan: null, xinMa: null, chuyenKhoan: null, suCo: null, giaHan: null, chiSo: null });
+    { tinNhan: 3, xinMa: null, chuyenKhoan: 2, tienVe: null, suCo: null, giaHan: null, chiSo: 1 });
+  assert.deepStrictEqual(N.chuanHoa(null), { tinNhan: null, xinMa: null, chuyenKhoan: null, tienVe: null, suCo: null, giaHan: null, chiSo: null });
   assert.strictEqual(N.chuanHoa({ tinNhan: Infinity }).tinNhan, null);
   assert.strictEqual(N.chuanHoa({ tinNhan: '' }).tinNhan, null);
 });
@@ -63,6 +63,14 @@ test('duongDen: mở trang của loại ưu tiên cao nhất; mã tòa được 
   assert.strictEqual(N.duongDen({ giaHan: 1 }, null), '/dashboard');
   assert.strictEqual(N.duongDen({ chuyenKhoan: 1 }, null), '/transfers');
   assert.strictEqual(N.duongDen({}, 'b1'), '/dashboard');
+});
+test('tiền về tài khoản (SePay): chỉ chủ trọ, câu báo rõ, mở trang Khách chuyển khoản', () => {
+  const l = N.LOAI.find((x) => x.ma === 'tienVe');
+  assert.ok(l && l.chiChu === true, 'phải chỉ chủ trọ');
+  assert.ok(!N.loaiTheoQuyen({ chu: false, can: () => true }).includes('tienVe'), 'nhân viên có đủ quyền vẫn không được');
+  assert.strictEqual(N.noiDung({ tienVe: 2 }), '2 khoản tiền mới về tài khoản');
+  assert.strictEqual(N.duongDen({ tienVe: 1 }, 'b1'), '/transfers');
+  assert.strictEqual(N.duongDen({ tienVe: 1 }, null), '/transfers');
 });
 test('duongDen: mọi trang trỏ tới đều là route có thật trong router.js', () => {
   const router = doc('js/router.js');
@@ -135,7 +143,7 @@ function moiTruong(o) {
     phat(t) { (nghe[t] || []).forEach((f) => f()); },
   };
 }
-const du = (o) => Object.assign({ tinNhan: 0, xinMa: 0, chuyenKhoan: 0, suCo: 0, giaHan: 0, chiSo: 0 }, o);
+const du = (o) => Object.assign({ tinNhan: 0, xinMa: 0, chuyenKhoan: 0, tienVe: 0, suCo: 0, giaHan: 0, chiSo: 0 }, o);
 
 test('chạy: hỏi lần đầu sau 3 giây; số việc có sẵn hiện trên tiêu đề nhưng KHÔNG báo việc mới', async () => {
   const m = moiTruong();
@@ -143,7 +151,7 @@ test('chạy: hỏi lần đầu sau 3 giây; số việc có sẵn hiện trên
   assert.strictEqual(m.henCuoi(), 3000);
   m.dem(du({ tinNhan: 2, suCo: 1 }));
   await m.chay();
-  assert.deepStrictEqual(m.ghi.hoi[0], ['tinNhan', 'xinMa', 'chuyenKhoan', 'suCo', 'giaHan', 'chiSo']);
+  assert.deepStrictEqual(m.ghi.hoi[0], ['tinNhan', 'xinMa', 'chuyenKhoan', 'tienVe', 'suCo', 'giaHan', 'chiSo']);
   assert.strictEqual(m.document.title, '(3) Happy Home — Quản lý nhà cho thuê');
   assert.deepStrictEqual(m.ghi.toast, []); assert.strictEqual(m.ghi.taiLai, 0);
   assert.strictEqual(m.henCuoi(), 30000);
@@ -287,10 +295,11 @@ test('index.html nạp notify.js trước notify-ui.js, và cả hai trước ap
   const vt = (f) => html.indexOf('src="js/' + f);
   assert.ok(vt('notify.js') > 0 && vt('notify.js') < vt('notify-ui.js') && vt('notify-ui.js') < vt('app.js'));
 });
-test('máy chủ: chỉ đếm (head: true), không tải dữ liệu; đủ 6 loại, đúng điều kiện chờ xử lý', () => {
+test('máy chủ: chỉ đếm (head: true), không tải dữ liệu; đủ 7 loại, đúng điều kiện chờ xử lý', () => {
   const i = be.indexOf('const DEM_VIEC'), k = be.slice(i, be.indexOf('async function demViec', i));
   N.MA.forEach((m) => assert.match(k, new RegExp(m + ': (async )?\\(q\\) =>'), m));
-  assert.strictEqual((k.match(/head: true/g) || []).length, 5);
+  assert.strictEqual((k.match(/head: true/g) || []).length, 6);
+  assert.match(k, /bank_transactions'\)[^\n]*eq\('handled', false\)\.gt\('amount', 0\)/);
   assert.match(k, /xinMa: async \(q\) => \{ const \{ data, error \} = await q\.rpc\('owner_code_requests'\); return \{ count: Array\.isArray\(data\) \? data\.length : 0, error \}; \}/);
   assert.ok(!/select\('\*'\)/.test(k));
   assert.match(k, /eq\('sender', 'tenant'\)\.eq\('read_by_staff', false\)/);

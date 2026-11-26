@@ -12,6 +12,8 @@
     { ma: 'tinNhan', quyen: 'tenants', chiChu: true, ten: 'tin nhắn mới từ khách', duong: (bid) => `/b/${bid}/support` },
     { ma: 'xinMa', quyen: 'tenants', chiChu: true, ten: 'khách quên mã, xin cấp lại mã vào app', duong: (bid) => `/b/${bid}/tenants` },
     { ma: 'chuyenKhoan', quyen: 'payments', ten: 'khách báo đã chuyển khoản', duong: () => '/transfers' },
+    // Tiền về tài khoản qua SePay: chỉ chủ trọ (giao dịch ngân hàng có cả tiền riêng của chủ). Số tăng -> tải về, web tự khớp hóa đơn ngay.
+    { ma: 'tienVe', quyen: 'payments', chiChu: true, ten: 'khoản tiền mới về tài khoản', duong: () => '/transfers' },
     { ma: 'suCo', quyen: 'incidents', ten: 'sự cố mới', duong: (bid) => `/b/${bid}/incidents` },
     { ma: 'giaHan', quyen: 'contracts', ten: 'khách xin gia hạn', duong: (bid) => `/b/${bid}/contracts` },
     { ma: 'chiSo', quyen: 'readings', ten: 'chỉ số khách tự gửi chờ duyệt', duong: (bid) => `/b/${bid}/readings` },
@@ -55,7 +57,7 @@
   function duongDen(moi, bid) {
     const l = LOAI.find((x) => moi && moi[x.ma] > 0);
     if (!l) return '/dashboard';
-    return bid ? l.duong(encodeURIComponent(bid)) : (l.ma === 'chuyenKhoan' ? '/transfers' : '/dashboard');
+    return bid ? l.duong(encodeURIComponent(bid)) : (l.ma === 'chuyenKhoan' || l.ma === 'tienVe' ? '/transfers' : '/dashboard');
   }
 
   /** Tiêu đề tab: "(3) Happy Home — ..." ; 0 việc thì bỏ số. Gỡ số cũ nếu tiêu đề gốc đã có sẵn. */

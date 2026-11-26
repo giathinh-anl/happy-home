@@ -156,10 +156,13 @@ HH.backend = (function () {
   /* ---------- Dữ liệu ---------- */
   // Trả về { data } khi thành công, hoặc { error } nếu tải lỗi (đã thử lại vài lần).
   // Không bao giờ trả dữ liệu trống một phần -> tránh nhầm "tài khoản rỗng" rồi tạo trùng.
-  async function loadAll() {
+  // opts.bo = các loại KHÔNG tải (để rỗng). Nhân viên không tải bankTx: giao dịch ngân hàng có cả tiền riêng của chủ trọ.
+  async function loadAll(opts) {
+    const bo = new Set((opts && opts.bo) || []);
     for (let attempt = 0; attempt < 3; attempt++) {
       const out = {}; let failedMsg = null;
       for (const kind of Object.keys(KINDS)) {
+        if (bo.has(kind)) { out[kind] = []; continue; }
         const { data, error } = await client.from(KINDS[kind]).select('*');
         if (error) {
           if (isMissingTable(error)) { out[kind] = []; continue; } // bảng chưa tạo -> rỗng
@@ -308,6 +311,8 @@ HH.backend = (function () {
   const DEM_VIEC = {
     tinNhan: (q) => q.from('support_messages').select('id', { count: 'exact', head: true }).eq('sender', 'tenant').eq('read_by_staff', false),
     chuyenKhoan: (q) => q.from('payment_claims').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    // tiền về tài khoản (SePay) chưa ghi thu: tăng lên là có tiền mới về -> web tải về và tự khớp hóa đơn ngay (chỉ chủ trọ)
+    tienVe: (q) => q.from('bank_transactions').select('id', { count: 'exact', head: true }).eq('handled', false).gt('amount', 0),
     suCo: (q) => q.from('incidents').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     giaHan: (q) => q.from('renewal_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     chiSo: (q) => q.from('readings').select('id', { count: 'exact', head: true }).eq('source', 'tenant').eq('approved', false),

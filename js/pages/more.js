@@ -489,13 +489,17 @@
       const total = rows.reduce((s, r) => s + r.p.amount, 0);
       const autoCount = rows.filter(r => r.p.auto).length;
       const pending = S.claimsOf(null, 'pending').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      const waiting = S.unhandledBankTx();
+      // Đối soát ngân hàng chỉ chủ trọ: SePay gửi về MỌI khoản tiền vào tài khoản, kể cả tiền riêng của chủ trọ.
+      // Nhân viên chỉ duyệt phiếu khách báo và xem các khoản đã ghi thu.
+      const chu = S.isOwner();
+      if (!chu && trTab.tab === 'bank') trTab.tab = 'claims';
+      const waiting = chu ? S.unhandledBankTx() : [];
 
       const tabs = `<div class="view-toggle" style="margin-bottom:16px">
         <button data-trtab="claims" class="${trTab.tab === 'claims' ? 'active' : ''}">
           Khách báo chuyển khoản${pending.length ? ` (${pending.length})` : ''}</button>
-        <button data-trtab="bank" class="${trTab.tab === 'bank' ? 'active' : ''}">
-          Đối soát ngân hàng${waiting.length ? ` (${waiting.length})` : ''}</button>
+        ${chu ? `<button data-trtab="bank" class="${trTab.tab === 'bank' ? 'active' : ''}">
+          Đối soát ngân hàng${waiting.length ? ` (${waiting.length})` : ''}</button>` : ''}
         <button data-trtab="done" class="${trTab.tab === 'done' ? 'active' : ''}">Đã ghi thu (${rows.length})</button>
       </div>`;
 
@@ -506,9 +510,9 @@
         <div><div class="page-title-lg">Khách chuyển khoản</div>
           <div class="page-sub">${pending.length} phiếu chờ duyệt, ${rows.length} giao dịch đã ghi thu</div></div>
       </div>
-      <div class="metric-grid" style="grid-template-columns:repeat(4,1fr);max-width:1000px;margin-bottom:16px">
+      <div class="metric-grid" style="grid-template-columns:repeat(${chu ? 4 : 3},1fr);max-width:1000px;margin-bottom:16px">
         ${raw(UI.metricCard({ label: 'Phiếu khách báo · chờ duyệt', value: pending.length, format: 'number', intent: pending.length ? 'warning' : 'default' }))}
-        ${raw(UI.metricCard({ label: 'Giao dịch NH chờ đối soát', value: waiting.length, format: 'number', intent: waiting.length ? 'warning' : 'default' }))}
+        ${raw(chu ? UI.metricCard({ label: 'Giao dịch NH chờ đối soát', value: waiting.length, format: 'number', intent: waiting.length ? 'warning' : 'default' }) : '')}
         ${raw(UI.metricCard({ label: 'Tổng đã nhận qua CK', value: total, format: 'currency', intent: 'success' }))}
         ${raw(UI.metricCard({ label: 'Tự động ghi thu', value: autoCount, format: 'number' }))}
       </div>

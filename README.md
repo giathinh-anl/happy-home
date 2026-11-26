@@ -358,6 +358,10 @@ Ngân hàng Việt Nam không mở API cho tài khoản cá nhân, nên có 3 đ
 Mọi khoản thu đều sinh **phiếu thu có số**, ghi vào nhật ký, và có chống ghi trùng theo mã giao dịch
 ngân hàng. Xem ở **Khách chuyển khoản → Đối soát ngân hàng**.
 
+**Hai đường thu chuyển khoản, khác nhau ở chỗ ai phải làm:** *Khách báo chuyển khoản* (khách bấm "Tôi đã chuyển khoản", gửi ảnh) thì chủ trọ hoặc nhân viên phải xem rồi bấm duyệt. *Đối soát ngân hàng* thì không ai phải làm gì: SePay báo tiền về, app đọc mã hóa đơn trong nội dung (khách quét VietQR là luôn có) rồi tự ghi thu; chỉ khoản không khớp mới cần chọn tay. Web đang mở thì khớp ngay (phần báo việc mới đếm cả "khoản tiền mới về tài khoản", 30 giây một lần), không cần tải lại trang; trước 26/11 chỉ khớp lúc mở web.
+
+**Chỉ chủ trọ thấy Đối soát ngân hàng** (từ 26/11/2026). SePay gửi về MỌI khoản tiền vào tài khoản đã nối, kể cả tiền riêng của chủ trọ, kèm nội dung. Bản cũ cho mọi nhân viên đọc bảng ank_transactions (quy tắc ank_tx_staff) và web tải bảng đó về máy nhân viên. Nay: nhân viên không tải bảng này, không thấy tab, không được báo tiền về; trên máy chủ chạy supabase/migration-bank-owner-only.sql (chỉ gỡ quy tắc, không xóa dữ liệu). Nhân viên vẫn duyệt được phiếu khách báo và xem các khoản đã ghi thu. Nên dùng một tài khoản riêng cho tiền phòng và chỉ chọn tài khoản đó trong webhook SePay. Kiểm thử: 	ests/db/bank-owner-only.test.py (11 ca trên Postgres thật: thấy lỗ hổng trước khi sửa, sau khi sửa nhân viên/chủ khác/khách vô danh không đọc, sửa, xóa, chèn được; webhook vẫn ghi; chạy lại tệp cũ không mở lại quyền), 	ests/bank-owner-only.test.js.
+
 **Webhook bắt buộc có mã bí mật.** Hàm `bank-webhook` từ chối (401) mọi lời gọi không mang đúng mã, nhận mã từ header `Authorization: Apikey <mã>` (SePay), header `secure-token` (Casso V1) hoặc `?key=<mã>` trên link. Bản cũ chỉ kiểm khi lời gọi có kèm header `Authorization`, nên yêu cầu không kèm gì vẫn lọt: ai biết link đều bơm được giao dịch "tiền vào" giả để app tự xóa công nợ. Đã vá; phần kiểm mã tách ở `supabase/functions/bank-webhook/auth.ts`, 21 ca `tests/bank-webhook-auth.test.js`, thử phá 13 chỗ (chỉ còn một kiểu tương đương, chỉ khác thời gian chạy). Các bước đăng ký SePay / Casso / Zalo OA / SMS: xem `HUONG_DAN_DANG_KY.md`.
 
 ## Tài khoản nhận tiền của từng tòa (nhập ngay trong app)
@@ -641,6 +645,8 @@ tests/
   owner-push.test.js  # kiểm thử thông báo đẩy cho chủ trọ phía trình duyệt (luật, service worker): node tests/owner-push.test.js
   code-requests.test.js # kiểm thử khách quên mã: khung ở trang Khách thuê, cấp mã / bỏ qua, báo đẩy: node tests/code-requests.test.js
   tenant-class-collision.test.js # app khách: lớp phủ toàn màn hình (.tt của phần hướng dẫn) không trùng tên lớp với phần tử khác: node tests/tenant-class-collision.test.js
+  menu.test.js        # menu nổi (nút Thêm, các nút ⋯): mở/đóng nhiều lần không để bộ nghe treo (chạy thật đoạn mã trên trang giả): node tests/menu.test.js
+  bank-owner-only.test.js # giao dịch ngân hàng chỉ chủ trọ thấy; web đang mở thì tiền về tự ghi thu: node tests/bank-owner-only.test.js
 ```
 
 ## Kiểm thử
@@ -678,6 +684,9 @@ node tests/rpc-lite.test.js
 node tests/a11y.test.js
 node tests/owner-push.test.js
 node tests/code-requests.test.js
+node tests/tenant-class-collision.test.js
+node tests/menu.test.js
+node tests/bank-owner-only.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.
