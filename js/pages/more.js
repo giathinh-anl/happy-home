@@ -1153,7 +1153,7 @@
           </select></div>
         </div>
         <div class="field" style="margin-top:16px">
-          <label>Phạm vi tòa nhà <span class="hint" style="font-weight:400">· không chọn = tất cả</span></label>
+          <label>Phạm vi tòa nhà <span class="hint" style="font-weight:400">· nhân viên chỉ thấy các tòa được chọn; không chọn = tất cả</span></label>
           <div class="card" style="box-shadow:none"><div class="card-pad" style="padding:10px 12px">${raw(bHtml || '<span class="faint">Chưa có tòa nhà</span>')}</div></div>
         </div>
         <div class="field" style="margin-top:16px">

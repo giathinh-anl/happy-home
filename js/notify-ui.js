@@ -77,7 +77,7 @@ HH.baoViecUI = (function () {
     const lan = ++soLan;
     let r, hetGio = null;
     try {
-      r = await Promise.race([HH.backend.demViec(loai),
+      r = await Promise.race([HH.backend.demViec(loai, { toa: st.phamViToa ? st.phamViToa() : null }),     // nhân viên chỉ được giao vài tòa: chỉ đếm việc các tòa đó
         new Promise((res) => { hetGio = setTimeout(() => res({ error: { message: 'Máy chủ không trả lời' } }), HET_GIO); })]);
     } catch (e) { r = { error: e }; }
     finally { clearTimeout(hetGio); }

@@ -11,7 +11,14 @@ HH.backend = (function () {
   const enabled = configured && hasSDK;
 
   let client = null;
-  let ownerId = null;
+  let ownerId = null;          // tài khoản đang đăng nhập
+  /* Chủ của DỮ LIỆU. Nhân viên đăng nhập bằng tài khoản riêng nhưng làm trên dữ liệu của chủ trọ đã thêm họ.
+     Lỗi cũ (thấy trên máy chủ thật 26/11): mọi dòng nhân viên lưu đều mang owner_id = tài khoản của NHÂN VIÊN, mà khóa là
+     (owner_id, id), nên "sửa" một hóa đơn thật ra là tạo bản sao mang tên nhân viên; chủ trọ không bao giờ thấy việc nhân viên làm.
+     Nay: nhân viên ghi với owner_id = chủ trọ, và chỉ tải dữ liệu của chủ trọ (bỏ qua các bản sao cũ). null = chính người đăng nhập. */
+  let chuDuLieu = null;
+  const chuGhi = () => chuDuLieu || ownerId;
+  function datChuDuLieu(id) { chuDuLieu = id || null; }
 
   // key trong bộ nhớ (store) -> tên bảng trong DB
   const KINDS = {
@@ -67,7 +74,7 @@ HH.backend = (function () {
     const alias = ALIAS[kind] || {};
     const dateKeys = DATE_FIELDS[kind] || [];
     const serverKeys = SERVER_FIELDS[kind] || [];
-    const row = { owner_id: ownerId, updated_at: new Date().toISOString() };
+    const row = { owner_id: chuGhi(), updated_at: new Date().toISOString() };
     // Tài khoản nhận tiền của tòa chỉ CHỦ được ghi (DB chặn nhân viên, supabase/migration-bank-info.sql). Nhân viên lưu tòa nhà thì
     // đừng gửi lại cột này: bản trong máy họ có thể cũ hơn bản chủ vừa đổi, gửi lên là bị chặn và cả lần lưu hỏng.
     const laChu = !(HH.store && HH.store.isOwner) || HH.store.isOwner();
@@ -112,7 +119,7 @@ HH.backend = (function () {
     if (!error && data.user) ownerId = data.user.id;
     return { data, error };
   }
-  async function signOut() { try { await client.auth.signOut(); } catch (e) {} ownerId = null; }
+  async function signOut() { try { await client.auth.signOut(); } catch (e) {} ownerId = null; chuDuLieu = null; }
   async function getSession() {
     const { data } = await client.auth.getSession();
     if (data.session) ownerId = data.session.user.id;
@@ -150,10 +157,14 @@ HH.backend = (function () {
     const { data, error } = await client.from('staff').select('*')
       .ilike('email', email).eq('status', 'active').limit(1);
     if (error) { if (!isMissingTable(error)) console.info('[staff lookup]', error.message); return null; }
-    return (data && data[0]) ? rowToJs('staff', data[0]) : null;
+    if (!data || !data[0]) return null;
+    // rowToJs bỏ cột owner_id; ở đây CẦN nó: đó là chủ trọ mà nhân viên làm cho (ghi dữ liệu dưới tên chủ trọ này)
+    return Object.assign(rowToJs('staff', data[0]), { ownerId: data[0].owner_id || null });
   }
 
   /* ---------- Dữ liệu ---------- */
+  // Nhân viên: chỉ lấy dòng của chủ trọ (máy chủ còn cho họ thấy cả các bản sao cũ mang tên chính họ, xem chuDuLieu ở trên)
+  const chiCuaChu = (q) => (chuDuLieu ? q.eq('owner_id', chuDuLieu) : q);
   // Trả về { data } khi thành công, hoặc { error } nếu tải lỗi (đã thử lại vài lần).
   // Không bao giờ trả dữ liệu trống một phần -> tránh nhầm "tài khoản rỗng" rồi tạo trùng.
   // opts.bo = các loại KHÔNG tải (để rỗng). Nhân viên không tải bankTx: giao dịch ngân hàng có cả tiền riêng của chủ trọ.
@@ -163,7 +174,7 @@ HH.backend = (function () {
       const out = {}; let failedMsg = null;
       for (const kind of Object.keys(KINDS)) {
         if (bo.has(kind)) { out[kind] = []; continue; }
-        const { data, error } = await client.from(KINDS[kind]).select('*');
+        const { data, error } = await chiCuaChu(client.from(KINDS[kind]).select('*'));
         if (error) {
           if (isMissingTable(error)) { out[kind] = []; continue; } // bảng chưa tạo -> rỗng
           failedMsg = '[load ' + kind + '] ' + error.message; break;
@@ -180,7 +191,7 @@ HH.backend = (function () {
       Bảng chưa tạo thì trả mảng rỗng chứ không làm hỏng trang đang mở. */
   async function loadKind(kind) {
     if (!enabled || !KINDS[kind]) return { data: [] };
-    const { data, error } = await client.from(KINDS[kind]).select('*');
+    const { data, error } = await chiCuaChu(client.from(KINDS[kind]).select('*'));
     if (error) {
       if (isMissingTable(error)) return { data: [], missing: true };
       return { error };
@@ -204,7 +215,7 @@ HH.backend = (function () {
   /** Ghi ảnh của một tin (chủ trọ trả lời kèm ảnh). { ok: true }, { missing: true } hoặc { error } */
   async function saveSupportPhotos(messageId, photos) {
     if (!enabled || !Array.isArray(photos) || !photos.length) return { ok: true };
-    const rows = photos.map((d, i) => ({ owner_id: ownerId, message_id: messageId, idx: i, data: d }));
+    const rows = photos.map((d, i) => ({ owner_id: chuGhi(), message_id: messageId, idx: i, data: d }));
     const { error } = await client.from(ANH_CHAT).upsert(rows, { onConflict: 'owner_id,message_id,idx' });
     if (error) return isMissingTable(error) ? { missing: true } : { error };
     return { ok: true };
@@ -275,7 +286,7 @@ HH.backend = (function () {
   }
   async function deleteOne(kind, id) {
     if (!enabled) return;
-    const { error } = await client.from(KINDS[kind]).delete().eq('id', id);
+    const { error } = await client.from(KINDS[kind]).delete().eq('owner_id', chuGhi()).eq('id', id);   // chỉ dòng của chủ dữ liệu
     if (error) console.error('[del ' + kind + ']', error.message);
   }
   async function deleteAll() {
@@ -319,13 +330,20 @@ HH.backend = (function () {
     // khách quên mã: bảng yêu cầu khóa kín, chỉ đọc qua hàm owner_code_requests (danh sách ngắn, chỉ yêu cầu còn mở)
     xinMa: async (q) => { const { data, error } = await q.rpc('owner_code_requests'); return { count: Array.isArray(data) ? data.length : 0, error }; },
   };
-  async function demViec(loai) {
+  // Loại đếm trên bảng có cột building_id: nhân viên chỉ được giao vài tòa thì chỉ đếm việc của các tòa đó
+  const DEM_THEO_TOA = { tinNhan: 1, chuyenKhoan: 1, suCo: 1, giaHan: 1, chiSo: 1 };
+  /** o.toa = mảng mã tòa (nhân viên bị giới hạn tòa) hoặc null (tất cả) */
+  async function demViec(loai, o) {
     if (!enabled || !client) return { error: { message: 'Chưa kết nối máy chủ' } };
     const ds = (loai || []).filter((k) => DEM_VIEC[k]), out = {};
+    const toa = o && Array.isArray(o.toa) ? o.toa : null;
     let mang = 0;
     await Promise.all(ds.map(async (k) => {
       try {
-        const { count, error } = await DEM_VIEC[k](client);
+        let q = DEM_VIEC[k](client);
+        if (chuDuLieu && q && typeof q.eq === 'function') q = q.eq('owner_id', chuDuLieu);
+        if (toa && DEM_THEO_TOA[k] && q && typeof q.in === 'function') q = q.in('building_id', toa);
+        const { count, error } = await q;
         out[k] = error ? (isMissingTable(error) ? 0 : null) : (count || 0);
         if (error && !isMissingTable(error) && /fetch|network/i.test(error.message || '')) mang++;
       } catch (e) { out[k] = null; mang++; }
@@ -358,7 +376,7 @@ HH.backend = (function () {
     return { error: { message: msg } };
   }
 
-  return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail,
+  return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail, datChuDuLieu,
     loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, demViec,
     client: () => client, KINDS };
 })();

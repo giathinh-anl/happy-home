@@ -324,6 +324,8 @@ HH.store = (function () {
     if (!usingBackend() || (HH.offline && HH.offline.mode)) return { ok: true };
     let loi = null;
     for (const k of Object.keys(groups)) {
+      // Danh sách nhân viên và giao dịch ngân hàng chỉ chủ trọ ghi (máy chủ cũng chặn nhân viên); nhân viên gửi lên chỉ làm hỏng lần lưu
+      if (prefs.role !== 'owner' && (k === 'staff' || k === 'bankTx')) continue;
       // chữ ký chỉ số đúng lúc gửi: saveMany đọc dữ liệu ngay đầu hàm, nên số gõ thêm trong lúc chờ không bị tính nhầm là đã gửi
       const daGui = k === 'readings' ? chuKyCa(readings) : null;
       const r = await HH.backend.saveMany(k, groups[k]);
@@ -341,6 +343,30 @@ HH.store = (function () {
   // Bảng KHÔNG tải về máy khi đăng nhập: nhân viên không tải giao dịch ngân hàng (SePay gửi về cả tiền riêng của chủ trọ;
   // máy chủ cũng chặn, xem supabase/migration-bank-owner-only.sql)
   const khongTai = () => prefs.role === 'owner' ? [] : ['bankTx'];
+
+  /* ---------- Nhân viên chỉ được giao vài tòa (Công ty / nhóm → Phạm vi tòa nhà) ----------
+     Chỉ giữ trong máy dữ liệu của các tòa được giao: tòa khác không hiện ở đâu cả (danh sách tòa, báo cáo, chuyển khoản...).
+     Nhưng mã hóa đơn (HD-2611-005) và số phiếu thu (PT-2611-012) đánh tiếp theo số lớn nhất đang có của CẢ chủ trọ:
+     nếu chỉ nhìn các tòa được giao sẽ tạo trùng mã của tòa khác và ghi đè hóa đơn của họ. Nên nhớ riêng các mã đã dùng
+     ở tòa bị ẩn (soAn) để đánh số không trùng. Chủ trọ và nhân viên không giới hạn tòa thì không lọc gì. */
+  const phamViToa = () => (prefs.role === 'staff' && Array.isArray(prefs.buildingIds) && prefs.buildingIds.length) ? prefs.buildingIds.slice() : null;
+  const soAn = { hd: [], pt: [] };
+  const THEO_TOA = ['rooms', 'tenants', 'contracts', 'services', 'readings', 'invoices', 'payments', 'assets', 'incidents',
+    'transactions', 'claims', 'renewals', 'invoiceBatches', 'supportMsgs'];
+  function locTheoToa(data) {
+    const pv = phamViToa();
+    soAn.hd = []; soAn.pt = [];
+    if (!pv || !data) return data;
+    const co = new Set(pv), ra = Object.assign({}, data);
+    soAn.hd = (data.invoices || []).filter(i => !co.has(i.buildingId)).map(i => i.id);
+    soAn.pt = (data.payments || []).filter(p => !co.has(p.buildingId)).map(p => p.receiptNo).filter(Boolean);
+    ra.buildings = (data.buildings || []).filter(b => co.has(b.id));
+    THEO_TOA.forEach(k => { if (data[k]) ra[k] = data[k].filter(x => co.has(x.buildingId)); });
+    ra.auditLog = [];          // nhật ký ghi việc của mọi tòa, không lọc theo tòa được
+    return ra;
+  }
+  /** Số thứ tự lớn nhất trong các mã bắt đầu bằng tiền tố (tính cả mã của tòa bị ẩn với nhân viên) */
+  const soLonNhat = (dsMa, tien) => dsMa.reduce((mx, ma) => (ma && ma.startsWith(tien) ? Math.max(mx, parseInt(ma.slice(tien.length), 10) || 0) : mx), 0);
   function replaceAll(data) {
     Object.keys(groups).forEach(k => { groups[k].length = 0; (data[k] || []).forEach(x => groups[k].push(x)); });
   }
@@ -419,7 +445,7 @@ HH.store = (function () {
     // Số thứ tự kế tiếp = số lớn nhất đang có + 1 (không dùng "đếm số hóa đơn"): xóa nháp / hoàn tác đợt làm số đếm
     // tụt xuống, đếm cũ sẽ sinh ra mã trùng một hóa đơn đã có, và phát hành / thu tiền sẽ rơi nhầm vào hóa đơn kia.
     const pre = `HD-${period.slice(2, 4)}${String(m).padStart(2, '0')}-`;
-    const num = String(invoices.reduce((mx, i) => (i.id && i.id.startsWith(pre) ? Math.max(mx, parseInt(i.id.slice(pre.length), 10) || 0) : mx), 0) + 1).padStart(3, '0');
+    const num = String(soLonNhat(invoices.map(i => i.id).concat(soAn.hd), pre) + 1).padStart(3, '0');      // soAn: mã của tòa bị ẩn với nhân viên
     const rep = roomTenants.find(t => t.isRep) || roomTenants[0] || {};
     return {
       id: pre + num,
@@ -487,6 +513,7 @@ HH.store = (function () {
     logout() { prefs.auth = false; savePrefs(); gocNap = false; if (HH.offline) HH.offline.xoaAnh(); if (usingBackend()) HH.backend.signOut(); if (HH.offlineUI) HH.offlineUI.capNhat(); },
     dropPending() { if (HH.offline) HH.offline.luuHangDoi(null); soCho = 0; soXungDot = 0; if (HH.offlineUI) HH.offlineUI.capNhat(); },
     isOwner() { return prefs.role === 'owner'; },
+    phamViToa,              // mã các tòa nhân viên được giao, null = mọi tòa (chủ trọ / nhân viên không giới hạn)
 
     /* ---------- Nhân viên & quyền ---------- */
     staff,
@@ -528,13 +555,17 @@ HH.store = (function () {
       if (st) {
         prefs.role = 'staff'; prefs.staffId = st.id; prefs.ownerId = st.ownerId || null;
         prefs.permissions = Array.isArray(st.permissions) ? st.permissions : DEFAULT_STAFF_PERMS;
+        prefs.buildingIds = Array.isArray(st.buildingIds) ? st.buildingIds.slice() : [];     // [] = mọi tòa
         prefs.userName = st.fullName || email;
       } else {
-        prefs.role = 'owner'; prefs.staffId = null; prefs.ownerId = null; prefs.permissions = null;
+        prefs.role = 'owner'; prefs.staffId = null; prefs.ownerId = null; prefs.permissions = null; prefs.buildingIds = null;
         prefs.userName = (user && (user.user_metadata && user.user_metadata.full_name)) || email || 'Chủ trọ';
       }
-      const res = await HH.backend.loadAll({ bo: khongTai() });
-      if (res.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
+      // Nhân viên ghi và đọc dữ liệu của CHỦ TRỌ đã thêm họ, không phải của tài khoản riêng (xem chuDuLieu ở js/backend.js)
+      if (HH.backend.datChuDuLieu) HH.backend.datChuDuLieu(st ? st.ownerId : null);
+      const res0 = await HH.backend.loadAll({ bo: khongTai() });
+      if (res0.error) { prefs.auth = false; savePrefs(); return 'error'; } // không nạp được -> KHÔNG tạo trùng
+      const res = { data: locTheoToa(res0.data) };           // nhân viên chỉ được giao vài tòa: chỉ giữ dữ liệu các tòa đó
       const total = Object.values(res.data).reduce((s, a) => s + a.length, 0);
       prefs.auth = true; savePrefs();
       layGoc(res.data.readings || []); luuAnhChup(res.data);      // ảnh chụp để mở được trang ghi chỉ số khi lần sau mất mạng
@@ -616,8 +647,9 @@ HH.store = (function () {
         renewals.length, renewals.map(x => x.status).join(''), bankTx.length, bankTx.filter(t => t.handled).length]);
       if (HH.offline && HH.offline.mode) return { ok: false, reason: 'offline' };
       const before = stamp();
-      const res = await HH.backend.loadAll({ bo: khongTai() });
-      if (res.error) return { ok: false, reason: 'error' };
+      const res0 = await HH.backend.loadAll({ bo: khongTai() });
+      if (res0.error) return { ok: false, reason: 'error' };
+      const res = { data: locTheoToa(res0.data) };
       capNhatHangDoi();      // chụp lại số vừa gõ trong lúc chờ tải (và số chưa gửi được) trước khi dữ liệu mới thay vào
       layGoc(res.data.readings || []); luuAnhChup(res.data);
       replaceAll(res.data);
@@ -1774,7 +1806,9 @@ HH.store = (function () {
     nextReceiptNo(date) {
       const d = date ? new Date(date) : new Date();
       const pre = `PT-${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const n = payments.filter(p => (p.receiptNo || '').startsWith(pre)).length + 1;
+      // Số lớn nhất + 1 (trước đây ĐẾM số phiếu + 1: hủy một phiếu là số tụt xuống, sinh trùng số phiếu đã có).
+      // Tính cả số phiếu của các tòa bị ẩn với nhân viên (soAn), kẻo trùng số phiếu của tòa khác.
+      const n = soLonNhat(payments.map(p => p.receiptNo || '').concat(soAn.pt), pre + '-') + 1;
       return `${pre}-${String(n).padStart(3, '0')}`;
     },
     // Ghi nhận 1 khoản thu cho 1 hóa đơn; trả về phiếu thu vừa tạo
