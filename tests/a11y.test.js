@@ -23,11 +23,13 @@ test('app khách: đăng xuất hỏi bằng tờ trượt của app (confirmShe
 });
 test('web chủ trọ: cấp lại mã cho TẤT CẢ khách xác nhận hai bước trong hộp thoại, không còn confirm()', () => {
   assert.ok(!/\bconfirm\(/.test(boChuThich(ta)));
-  const i = ta.indexOf('go.onclick = async'), k = ta.slice(i, i + 900);
+  const i = ta.indexOf('go.onclick = async'), k = ta.slice(i, ta.indexOf("goi('owner_issue_tenant_codes'", i) + 40);
+  assert.ok(i > 0 && k.length > 100, 'không thấy đoạn bấm nút cấp mã cả tòa');
   assert.match(k, /if \(mode === 'all' && !daCanh\) \{/);
   assert.match(k, /go\.className = 'btn btn-danger'/);
   assert.match(k, /return;\s*\}/, 'bấm lần đầu phải dừng, chưa gọi máy chủ');
-  assert.ok(k.indexOf("return;") < k.indexOf("goi('owner_issue_tenant_codes'"), 'cảnh báo phải đứng trước lệnh gọi máy chủ');
+  const kAll = k.slice(k.indexOf("if (mode === 'all' && !daCanh)"));
+  assert.ok(kAll.indexOf('return;') > 0 && kAll.indexOf('return;') < kAll.indexOf("goi('owner_issue_tenant_codes'"), 'cảnh báo phải đứng trước lệnh gọi máy chủ');
   assert.match(ta, /r\.onchange = boCanh/);
 });
 test('nút sao chép (chỉ có biểu tượng) ở app khách đều có tên đọc được', () => {

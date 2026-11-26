@@ -1267,15 +1267,18 @@
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
 
-  function contractCard(c) {
+  /* Thẻ hợp đồng. Nút dẫn tới trang hợp đồng: ở chính trang hợp đồng thì bỏ (bấm vào chỉ vẽ lại trang, tưởng như đơ).
+     Trước đây nút có nền trắng mờ, chữ trắng, nằm trên thẻ nền trắng nên gần như không thấy. */
+  function contractCard(c, o) {
     const dl = c.end ? daysLeft(c.end) : null;
     const cls = dl == null ? '' : (dl < 0 ? 'danger' : (dl <= 30 ? 'warn' : ''));
     const meta = dl == null ? '' : (dl < 0 ? `Đã hết hạn ${Math.abs(dl)} ngày trước` : `Còn ${dl} ngày`);
+    const nut = (o && o.khongNut) ? '' : `<button class="t-btn cc-btn" data-nav="#/contract">${state.data && state.data.renewal && state.data.renewal.status === 'pending' ? 'Đã xin gia hạn, chờ chủ nhà' : renewEligible() ? 'Xin gia hạn hợp đồng' : 'Xem hợp đồng & điều khoản'}</button>`;
     return `<div class="contract-card ${cls}">
         <div class="cc-label">Hợp đồng đến ngày</div>
         <div class="cc-date">${fmtDate(c.end)}</div>
         <div class="cc-meta">${meta}${c.rent ? ' · ' + vnd(c.rent) + '/tháng' : ''}</div>
-        <button class="t-btn" style="background:rgba(255,255,255,.22);margin-top:12px" data-nav="#/contract">${state.data && state.data.renewal && state.data.renewal.status === 'pending' ? 'Đã xin gia hạn, chờ chủ nhà' : renewEligible() ? 'Xin gia hạn hợp đồng' : 'Xem hợp đồng & điều khoản'}</button>
+        ${nut}
       </div>`;
   }
 
@@ -1300,7 +1303,7 @@
     const terms = src.map(t => ({ title: t.title, body: (t.body || '')
       .replace('{deposit}', vnd(c.deposit)).replace('{rent}', vnd(c.rent)).replace('{dueDays}', c.dueDays || 5) }));
     shell('Hợp đồng & điều khoản', `
-      ${contractCard(c)}
+      ${contractCard(c, { khongNut: true })}
       ${renewalCard(c)}
       <div class="t-card">
         <div class="t-section-head"><h3>Thông tin hợp đồng</h3></div>
@@ -1314,8 +1317,8 @@
       </div>
       <div class="t-card">
         <div class="t-section-head"><h3>Điều khoản (${terms.length})</h3></div>
-        ${terms.map((t, i) => `<div class="term-item"><div class="tt">Điều ${i + 1}. ${esc(t.title)}</div>
-          <div class="tb">${esc(t.body)}</div></div>`).join('')}
+        ${terms.map((t, i) => `<div class="term-item"><div class="term-t">Điều ${i + 1}. ${esc(t.title)}</div>
+          <div class="term-b">${esc(t.body)}</div></div>`).join('')}
       </div>`);
     document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
     wireRenewal(c);

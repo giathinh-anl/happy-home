@@ -230,7 +230,7 @@ Mỗi việc có nút làm ngay đi thẳng tới đúng chỗ (có sẵn bộ l
 
 Trước đây app khách thuê chỉ cần số điện thoại: ai biết một số là đọc được cả hồ sơ khách (CCCD, ngày sinh, hóa đơn, bạn cùng phòng) và gửi thay khách, còn OTP chỉ là mã cố định kiểm tra ngay trong trình duyệt. Giờ đăng nhập được kiểm ở **máy chủ**:
 
-1. **Chủ trọ cấp mã.** Trang Khách thuê: nút *Mã vào app* cấp hàng loạt cho cả tòa (danh sách chép / tải Excel / in), hoặc menu ⋯ của từng khách. Mã 6 số ngẫu nhiên, hiện **một lần duy nhất**; máy chủ chỉ lưu bản băm (bcrypt) nên chủ trọ cũng không xem lại được. Quên thì cấp mã mới. Chỉ **chủ** cấp được, nhân viên thì không.
+1. **Chủ trọ cấp mã.** Trang Khách thuê: nút *Mã vào app* có ba lựa chọn: khách **chưa có mã**, **một khách** (khách quên mã / đổi điện thoại: chỉ người đó nhận mã mới, khách đang xin cấp lại mã được chọn sẵn) và **tất cả** (cả tòa bị đăng xuất, phải bấm hai lần). Cấp nhiều người thì có danh sách chép / tải Excel / in. Cũng cấp được từ menu ⋯ của từng khách. Mã 6 số ngẫu nhiên, hiện **một lần duy nhất**; máy chủ chỉ lưu bản băm (bcrypt) nên chủ trọ cũng không xem lại được. Quên thì cấp mã mới. Chỉ **chủ** cấp được, nhân viên thì không.
 2. **Khách nhập số điện thoại + mã.** Hàm `tenant_login` kiểm ở máy chủ, đúng thì trả một token ngẫu nhiên (hiệu lực 30 ngày, lưu băm sha256). Mọi hàm `tenant_*` khác nhận token thay cho số điện thoại; các hàm cũ nhận số điện thoại đã bị **xóa**. Dữ liệu của khách chỉ được tải *sau* khi vào được (trước đây tải ngay khi nhập số).
 3. **Chống đoán mã.** Sai 5 lần liên tiếp thì khóa số đó 15 phút (kể cả mã đúng cũng bị từ chối trong lúc khóa). Số lạ và mã sai báo y hệt nhau nên không dò được số nào có trong hệ thống.
 4. **Thu hồi.** Cấp mã mới, hoặc *Thu hồi quyền vào app* (khách đã trả phòng, mất điện thoại), sẽ đăng xuất khách khỏi mọi thiết bị. Khách tự đăng xuất thì phiên bị xóa trên máy chủ.
@@ -640,6 +640,7 @@ tests/
   a11y.test.js        # kiểm thử dễ dùng: nhãn nút, phóng to, cỡ chữ ô nhập, vùng chạm, không còn confirm(): node tests/a11y.test.js
   owner-push.test.js  # kiểm thử thông báo đẩy cho chủ trọ phía trình duyệt (luật, service worker): node tests/owner-push.test.js
   code-requests.test.js # kiểm thử khách quên mã: khung ở trang Khách thuê, cấp mã / bỏ qua, báo đẩy: node tests/code-requests.test.js
+  tenant-class-collision.test.js # app khách: lớp phủ toàn màn hình (.tt của phần hướng dẫn) không trùng tên lớp với phần tử khác: node tests/tenant-class-collision.test.js
 ```
 
 ## Kiểm thử

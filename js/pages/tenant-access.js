@@ -42,6 +42,30 @@
     else UI.toast('Trình duyệt không hỗ trợ sao chép', { type: 'error' });
   }
 
+  /** Cấp mã mới cho MỘT khách rồi hiện mã + nút chép/Zalo trong khung res. Dùng ở hộp một khách và ở hộp cả tòa
+      (lựa chọn "Một khách": khách quên mã thì cấp lại cho riêng người đó, khách khác giữ mã cũ). Trả true nếu cấp được. */
+  async function capMotKhach(t, res, btn) {
+    btn.classList.add('loading'); btn.disabled = true; res.innerHTML = '';
+    const r = await goi('owner_issue_tenant_code', { p_tenant_id: t.id });
+    btn.classList.remove('loading'); btn.disabled = false;
+    if (r.loi) { res.innerHTML = `<div class="alert alert-danger"><span class="ic">${HH.ic('alert', 16)}</span><div>${U.esc(r.loi)}</div></div>`; return false; }
+    const code = r.data.code, msg = tinMoi(t.fullName, t.phone, code);
+    ghiNho(t.id, new Date().toISOString());
+    res.innerHTML = `<div class="ac-box"><div class="ac-lbl">Mã vào app của ${U.esc(t.fullName)}${t.roomCode ? ' · ' + U.esc(t.roomCode) : ''}</div>
+        <div class="ac-code" id="acCode">${U.esc(code)}</div>
+        <div class="muted text-xs">Hiện một lần duy nhất. Chép hoặc gửi cho khách ngay.</div>
+        <div class="row-gap-2 wrap" style="margin-top:12px">
+          <button class="btn btn-sm btn-primary" id="acCopyCode">Chép mã</button>
+          <button class="btn btn-sm btn-outline" id="acCopyMsg">Chép tin nhắn mời</button>
+          ${t.phone ? `<a class="btn btn-sm btn-outline" id="acZalo" href="https://zalo.me/${U.esc(String(t.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">Mở Zalo</a>` : ''}
+        </div></div>`;
+    res.querySelector('#acCopyCode').onclick = () => chep(code, 'mã');
+    res.querySelector('#acCopyMsg').onclick = () => chep(msg, 'tin nhắn mời');
+    const z = res.querySelector('#acZalo'); if (z) z.addEventListener('click', () => chep(msg, 'tin nhắn mời, dán vào Zalo'));
+    HH.router.render();                    // cập nhật nhãn "đã có mã" và khung khách quên mã phía sau hộp thoại
+    return true;
+  }
+
   /* ---------------- MỘT KHÁCH ---------------- */
   function dialog(ctx, t) {
     const co = !!t.appCodeSetAt;
@@ -60,26 +84,7 @@
         <button class="btn btn-primary" id="acIssue">${co ? 'Cấp mã mới' : 'Cấp mã'}</button>`,
       onMount(el) {
         const res = el.querySelector('#acRes'), btn = el.querySelector('#acIssue');
-        btn.onclick = async () => {
-          btn.classList.add('loading'); btn.disabled = true; res.innerHTML = '';
-          const r = await goi('owner_issue_tenant_code', { p_tenant_id: t.id });
-          btn.classList.remove('loading'); btn.disabled = false;
-          if (r.loi) { res.innerHTML = `<div class="alert alert-danger"><span class="ic">${HH.ic('alert', 16)}</span><div>${U.esc(r.loi)}</div></div>`; return; }
-          const code = r.data.code, msg = tinMoi(t.fullName, t.phone, code);
-          ghiNho(t.id, new Date().toISOString());
-          res.innerHTML = `<div class="ac-box"><div class="ac-lbl">Mã vào app của ${U.esc(t.fullName)}</div>
-              <div class="ac-code" id="acCode">${code}</div>
-              <div class="muted text-xs">Hiện một lần duy nhất. Chép hoặc gửi cho khách ngay.</div>
-              <div class="row-gap-2 wrap" style="margin-top:12px">
-                <button class="btn btn-sm btn-primary" id="acCopyCode">Chép mã</button>
-                <button class="btn btn-sm btn-outline" id="acCopyMsg">Chép tin nhắn mời</button>
-                ${t.phone ? `<a class="btn btn-sm btn-outline" id="acZalo" href="https://zalo.me/${U.esc(String(t.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">Mở Zalo</a>` : ''}
-              </div></div>`;
-          el.querySelector('#acCopyCode').onclick = () => chep(code, 'mã');
-          el.querySelector('#acCopyMsg').onclick = () => chep(msg, 'tin nhắn mời');
-          const z = el.querySelector('#acZalo'); if (z) z.addEventListener('click', () => chep(msg, 'tin nhắn mời, dán vào Zalo'));
-          HH.router.render();                    // cập nhật nhãn "đã có mã" phía sau hộp thoại
-        };
+        btn.onclick = () => capMotKhach(t, res, btn);
         const rv = el.querySelector('#acRevoke');
         if (rv) rv.onclick = () => UI.dangerDialog({
           title: `Thu hồi quyền vào app của ${t.fullName}`,
@@ -100,35 +105,72 @@
   /* ---------------- CẢ TÒA ---------------- */
   const coSdt = (t) => /^0\d{9}$/.test(HH.validate ? HH.validate.chuanSdt(t.phone) : String(t.phone || '').replace(/\D/g, ''));
 
+  /* Trước đây hộp này chỉ có "khách chưa có mã" và "tất cả": khách quên mã thì chủ trọ không biết cấp lại cho riêng
+     người đó ở đâu (phải vào menu ⋯ của từng dòng), dễ bấm "Tất cả" làm cả tòa bị đăng xuất. Nay có thêm "Một khách",
+     và khách đang xin cấp lại mã được chọn sẵn. */
   function bulkDialog(ctx) {
     const all = S.tenantsOf(ctx.bid).filter(coSdt);
     const thieu = all.filter(t => !t.appCodeSetAt);
+    const xin = (S.isOwner() && S.codeRequests ? S.codeRequests() : []).filter(r => r.buildingId === ctx.bid && all.some(t => t.id === r.tenantId));
+    const dangXin = new Set(xin.map(r => r.tenantId));
+    const theoPhong = (a, b) => String(a.roomCode || '').localeCompare(String(b.roomCode || ''), 'vi', { numeric: true }) || String(a.fullName || '').localeCompare(String(b.fullName || ''), 'vi');
+    const nhan = (t) => `${t.roomCode || '(chưa gắn phòng)'} · ${t.fullName || 'Khách'} · ${t.phone || ''}${t.appCodeSetAt ? '' : ' · chưa có mã'}`;
+    const opt = (t, chon) => `<option value="${U.esc(t.id)}"${chon ? ' selected' : ''}>${U.esc(nhan(t))}</option>`;
+    const chonSan = xin.length ? xin[0].tenantId : '';
+    const nhomXin = all.filter(t => dangXin.has(t.id)).sort(theoPhong), nhomCon = all.filter(t => !dangXin.has(t.id)).sort(theoPhong);
+    const options = nhomXin.length
+      ? `<optgroup label="Đang xin cấp lại mã">${nhomXin.map(t => opt(t, t.id === chonSan)).join('')}</optgroup><optgroup label="Khách khác">${nhomCon.map(t => opt(t, false)).join('')}</optgroup>`
+      : `<option value="">Chọn khách…</option>${nhomCon.map(t => opt(t, false)).join('')}`;
+    // Mặc định: có khách đang xin mã, hoặc ai cũng có mã rồi -> "Một khách"; còn khách chưa có mã -> cấp cho họ
+    const mode0 = (xin.length || !thieu.length) ? 'one' : 'missing';
+    const chk = (m) => mode0 === m ? 'checked' : '';
+    const xinTxt = xin.map(r => `${r.roomCode || ''} · ${r.name || 'Khách'}`).join(', ');
     UI.modal({
       title: `Cấp mã vào app · ${ctx.building.name}`, size: 'wide',
-      bodyHtml: h`
+      bodyHtml: `
         <div id="acBulkTop">
-          <p class="muted" style="margin-bottom:12px">Mỗi khách có số điện thoại hợp lệ sẽ nhận một mã 6 số riêng. Danh sách mã chỉ hiện <b>một lần</b>:
-            chép, tải file hoặc in ngay rồi gửi cho từng khách (Zalo, tin nhắn hoặc nói trực tiếp).</p>
-          <label class="check" style="display:block;margin-bottom:8px"><input type="radio" name="acMode" value="missing" checked>
+          ${xin.length ? `<div class="alert alert-warning" style="margin-bottom:12px"><span class="ic">${HH.ic('lock', 16)}</span>
+            <div><b>${xin.length} khách đang xin cấp lại mã:</b> ${U.esc(xinTxt)}. Đã chọn sẵn ở mục "Một khách" bên dưới.</div></div>` : ''}
+          <p class="muted" style="margin-bottom:12px">Mỗi khách nhận một mã 6 số riêng. Mã chỉ hiện <b>một lần</b>:
+            chép, tải file hoặc in ngay rồi gửi cho khách (Zalo, tin nhắn hoặc nói trực tiếp).</p>
+          <label class="check" style="display:block;margin-bottom:8px"><input type="radio" name="acMode" value="missing" ${chk('missing')}>
             Chỉ khách <b>chưa có mã</b> (${thieu.length} người)</label>
+          <label class="check" style="display:block;margin-bottom:6px"><input type="radio" name="acMode" value="one" ${chk('one')}>
+            <b>Một khách</b> (khách quên mã, đổi điện thoại). Chỉ người này nhận mã mới, khách khác vẫn dùng mã cũ.</label>
+          <div style="margin:0 0 10px 26px"><select class="select" id="acOne" aria-label="Chọn khách cần cấp mã mới">${options}</select></div>
           <label class="check" style="display:block"><input type="radio" name="acMode" value="all">
             <b>Tất cả</b> (${all.length} người). Mã cũ bị thay, khách đang dùng app sẽ bị đăng xuất.</label>
         </div>
         <div id="acBulkRes" style="margin-top:14px"></div>`,
-      footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span><button class="btn btn-primary" id="acBulkGo" ${thieu.length || all.length ? '' : 'disabled'}>Cấp mã</button>`,
+      footHtml: `<button class="btn btn-outline" data-close>Đóng</button><span class="spacer"></span><button class="btn btn-primary" id="acBulkGo" ${all.length ? '' : 'disabled'}>${mode0 === 'one' ? 'Cấp mã cho khách này' : 'Cấp mã'}</button>`,
       onMount(el) {
-        const go = el.querySelector('#acBulkGo'), res = el.querySelector('#acBulkRes');
+        const go = el.querySelector('#acBulkGo'), res = el.querySelector('#acBulkRes'), sel = el.querySelector('#acOne');
+        const cheDo = () => el.querySelector('input[name=acMode]:checked').value;
         // "Tất cả" đăng xuất mọi khách: bấm lần đầu chỉ hiện cảnh báo và đổi nút thành nút đỏ, bấm lần nữa mới làm
         // (trước đây dùng hộp confirm() của trình duyệt: chữ nhỏ, không theo giao diện, dễ bấm OK theo thói quen)
         let daCanh = false;
-        const boCanh = () => { daCanh = false; go.textContent = 'Cấp mã'; go.className = 'btn btn-primary'; res.innerHTML = ''; };
+        const boCanh = () => { daCanh = false; go.textContent = cheDo() === 'one' ? 'Cấp mã cho khách này' : 'Cấp mã'; go.className = 'btn btn-primary'; res.innerHTML = ''; };
         el.querySelectorAll('input[name=acMode]').forEach(r => r.onchange = boCanh);
+        // chạm vào danh sách khách là đã chọn "Một khách"; đổi người thì bỏ lời nhắc/cảnh báo cũ
+        const r1 = el.querySelector('input[name=acMode][value=one]');
+        sel.addEventListener('focus', () => { if (!r1.checked) { r1.checked = true; boCanh(); } });
+        sel.addEventListener('change', () => { r1.checked = true; boCanh(); });
         go.onclick = async () => {
-          const mode = el.querySelector('input[name=acMode]:checked').value;
+          const mode = cheDo();
+          if (mode === 'one') {
+            const t = sel.value ? S.tenantById(sel.value) : null;
+            if (!t) { res.innerHTML = `<div class="alert alert-warning" role="alert"><span class="ic">${HH.ic('alert', 16)}</span><div>Chọn khách cần cấp mã mới trong danh sách.</div></div>`; sel.focus(); return; }
+            if (await capMotKhach(t, res, go)) { el.querySelector('#acBulkTop').style.display = 'none'; go.style.display = 'none'; }
+            return;
+          }
+          if (mode === 'missing' && !thieu.length) {
+            res.innerHTML = `<div class="alert alert-info" role="status"><span class="ic">${HH.ic('info', 16)}</span><div>Khách nào cũng đã có mã. Khách quên mã thì chọn <b>Một khách</b> rồi chọn tên người đó.</div></div>`;
+            return;
+          }
           if (mode === 'all' && !daCanh) {
             daCanh = true; go.textContent = 'Đồng ý cấp lại cho tất cả'; go.className = 'btn btn-danger';
             res.innerHTML = `<div class="alert alert-danger" role="alert"><span class="ic">${HH.ic('alert', 16)}</span><div><b>Cấp lại mã cho cả ${all.length} khách?</b>
-              Mã cũ hết hiệu lực ngay, mọi khách đang dùng app bị đăng xuất và phải nhập mã mới. Bấm nút đỏ để làm, hoặc chọn "Chỉ khách chưa có mã".</div></div>`;
+              Mã cũ hết hiệu lực ngay, mọi khách đang dùng app bị đăng xuất và phải nhập mã mới. Bấm nút đỏ để làm. Chỉ một khách quên mã thì chọn "Một khách".</div></div>`;
             go.focus(); return;
           }
           res.innerHTML = '';

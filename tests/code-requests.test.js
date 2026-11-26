@@ -46,8 +46,24 @@ test('máy chủ: báo đẩy cho chủ trọ khi khách vừa xin cấp lại m
   assert.match(k, /public\._owner_push_url\(v_t\.building_id, 'tenants'\)/);
   assert.match(sql, /revoke execute on function public\._owner_push_on_code_request\(\) from public, anon, authenticated;/);
 });
+test('hộp "Cấp mã vào app" của cả tòa có lựa chọn "Một khách", khách đang xin mã được chọn sẵn', () => {
+  const k = ta.slice(ta.indexOf('function bulkDialog'), ta.indexOf('HH.tenantAccess ='));
+  assert.match(k, /value="one"/);
+  assert.match(k, /const chonSan = xin\.length \? xin\[0\]\.tenantId : '';/);
+  assert.match(k, /const mode0 = \(xin\.length \|\| !thieu\.length\) \? 'one' : 'missing';/, 'có khách xin mã hoặc ai cũng có mã thì mặc định "Một khách"');
+  assert.match(k, /if \(mode === 'one'\) \{[\s\S]{0,400}capMotKhach\(t, res, go\)/, '"Một khách" chỉ gọi hàm cấp mã cho một người');
+  assert.ok(k.indexOf("if (mode === 'one')") < k.indexOf("goi('owner_issue_tenant_codes'"), 'không được rơi xuống cấp cả tòa');
+  assert.match(k, /U\.esc\(nhan\(t\)\)/); assert.match(k, /U\.esc\(xinTxt\)/); assert.match(k, /value="\$\{U\.esc\(t\.id\)\}"/);
+});
+test('một hàm cấp mã cho một khách dùng chung cho cả hai hộp, cấp xong thì yêu cầu xin mã tự hết', () => {
+  assert.match(ta, /btn\.onclick = \(\) => capMotKhach\(t, res, btn\);/);
+  const k = ta.slice(ta.indexOf('async function capMotKhach'), ta.indexOf('/* ---------------- MỘT KHÁCH'));
+  assert.match(k, /goi\('owner_issue_tenant_code', \{ p_tenant_id: t\.id \}\)/);
+  assert.match(k, /ghiNho\(t\.id, new Date\(\)\.toISOString\(\)\)/);
+  assert.match(k, /U\.esc\(code\)/);
+});
 test('đã nâng số phiên bản các tệp đổi', () => {
-  assert.ok(+/js\/today\.js\?v=(\d+)/.exec(html)[1] >= 103 && +/pages\/tenants\.js\?v=(\d+)/.exec(html)[1] >= 118 && +/pages\/tenant-access\.js\?v=(\d+)/.exec(html)[1] >= 104);
+  assert.ok(+/js\/today\.js\?v=(\d+)/.exec(html)[1] >= 103 && +/pages\/tenants\.js\?v=(\d+)/.exec(html)[1] >= 118 && +/pages\/tenant-access\.js\?v=(\d+)/.exec(html)[1] >= 105);
   assert.ok(+/js\/store\.js\?v=(\d+)/.exec(html)[1] >= 118 && +/js\/backend\.js\?v=(\d+)/.exec(html)[1] >= 117 && +/js\/notify\.js\?v=(\d+)/.exec(html)[1] >= 3);
 });
 

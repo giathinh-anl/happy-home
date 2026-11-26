@@ -353,8 +353,11 @@ img { max-width: 100%; display: block; }
 /* Điều khoản */
 .term-item { padding: 10px 0; border-bottom: 1px solid var(--neutral-100); }
 .term-item:last-child { border-bottom: none; }
-.term-item .tt { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
-.term-item .tb { font-size: 13px; color: var(--neutral-700); line-height: 1.55; text-align: justify; }
+/* Tên lớp KHÔNG được là .tt: .tt là lớp phủ toàn màn hình của phần hướng dẫn (tour.js). Trước đây tiêu đề điều khoản
+   dùng .tt nên mỗi điều thành một lớp phủ vô hình che cả trang, vào xem hợp đồng xong không bấm, không cuộn được nữa. */
+.term-item .term-t { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.term-item .term-b { font-size: 13px; color: var(--neutral-700); line-height: 1.55; text-align: justify; }
+.contract-card .cc-btn { margin-top: 12px; }
 
 /* Tài sản trong phòng */
 .t-chips { display: flex; flex-wrap: wrap; gap: 6px; }
