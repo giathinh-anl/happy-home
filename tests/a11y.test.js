@@ -13,6 +13,12 @@ const test = (ten, fn) => {
 const boChuThich = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');      // ghi chú nhắc tới confirm() thì không tính
 const t = doc('tenant-app/js/tenant.js'), css = doc('tenant-app/css/tenant.css'), th = doc('tenant-app/index.html');
 const ta = doc('js/pages/tenant-access.js'), comp = doc('js/components.js'), more = doc('js/pages/more.js'), app = doc('js/app.js');
+test('app khách trên máy tính: nút trong hộp nổi (đăng xuất...) phủ đủ bề ngang hộp, không dồn sang trái', () => {
+  const i = css.indexOf('  .t-btn { max-width: 320px; }'), k = css.slice(i, css.indexOf('\n}', i));
+  assert.ok(i > 0, 'không thấy giới hạn 320px của nút trên máy tính');
+  assert.match(k, /\.t-sheet-box \.t-btn, \.contract-card \.t-btn \{ max-width: none; \}/);
+  assert.ok(+/tenant\.css\?v=(\d+)/.exec(th)[1] >= 54 && +/hh-tenant-v(\d+)/.exec(doc('tenant-app/sw.js'))[1] >= 34, 'chưa nâng phiên bản');
+});
 
 test('app khách: đăng xuất hỏi bằng tờ trượt của app (confirmSheet), không còn confirm() của trình duyệt', () => {
   assert.ok(!/\bconfirm\(/.test(boChuThich(t).replace(/confirmSheet\(/g, '')), 'còn confirm()');

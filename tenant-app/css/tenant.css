@@ -118,6 +118,9 @@ img { max-width: 100%; display: block; }
   .inv-item { padding: 16px 18px; border-radius: 14px; }
   .t-btn { max-width: 320px; }
   .due-card .t-btn { max-width: none; }
+  /* Nút trong hộp nổi (đăng xuất, hỏi lại, biên nhận...) xếp dọc, phủ đủ bề ngang hộp. Trước đây hộp rộng 440px mà
+     nút chỉ 320px nên dồn sang trái, trông lệch. */
+  .t-sheet-box .t-btn, .contract-card .t-btn { max-width: none; }
   .usage-chart { height: 150px; }
   .chat-wrap {
     height: calc(100vh - 44px); max-width: none; border-radius: 18px; overflow: hidden;
