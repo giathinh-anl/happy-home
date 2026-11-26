@@ -71,6 +71,9 @@ test('tiền về tài khoản (SePay): chỉ chủ trọ, câu báo rõ, mở t
   assert.strictEqual(N.noiDung({ tienVe: 2 }), '2 khoản tiền mới về tài khoản');
   assert.strictEqual(N.duongDen({ tienVe: 1 }, 'b1'), '/transfers');
   assert.strictEqual(N.duongDen({ tienVe: 1 }, null), '/transfers');
+  // không cộng vào số trên tiêu đề (36 khoản tiền riêng không khớp trên máy thật thì tiêu đề không được thành "(36)"), nhưng tăng vẫn là "có mới" để tải về
+  assert.strictEqual(N.tong(N.chuanHoa({ tienVe: 36, chuyenKhoan: 1 })), 1);
+  assert.deepStrictEqual(N.soSanh(N.chuanHoa({ tienVe: 36 }), N.chuanHoa({ tienVe: 37 })).moi, { tienVe: 1 });
 });
 test('duongDen: mọi trang trỏ tới đều là route có thật trong router.js', () => {
   const router = doc('js/router.js');

@@ -13,7 +13,8 @@
     { ma: 'xinMa', quyen: 'tenants', chiChu: true, ten: 'khách quên mã, xin cấp lại mã vào app', duong: (bid) => `/b/${bid}/tenants` },
     { ma: 'chuyenKhoan', quyen: 'payments', ten: 'khách báo đã chuyển khoản', duong: () => '/transfers' },
     // Tiền về tài khoản qua SePay: chỉ chủ trọ (giao dịch ngân hàng có cả tiền riêng của chủ). Số tăng -> tải về, web tự khớp hóa đơn ngay.
-    { ma: 'tienVe', quyen: 'payments', chiChu: true, ten: 'khoản tiền mới về tài khoản', duong: () => '/transfers' },
+    // khongDem: không cộng vào số trên tiêu đề tab (khoản không khớp thường là tiền riêng, không phải việc phải làm; trên máy thật có hàng chục khoản)
+    { ma: 'tienVe', quyen: 'payments', chiChu: true, khongDem: true, ten: 'khoản tiền mới về tài khoản', duong: () => '/transfers' },
     { ma: 'suCo', quyen: 'incidents', ten: 'sự cố mới', duong: (bid) => `/b/${bid}/incidents` },
     { ma: 'giaHan', quyen: 'contracts', ten: 'khách xin gia hạn', duong: (bid) => `/b/${bid}/contracts` },
     { ma: 'chiSo', quyen: 'readings', ten: 'chỉ số khách tự gửi chờ duyệt', duong: (bid) => `/b/${bid}/readings` },
@@ -35,7 +36,9 @@
     MA.forEach((m) => { ra[m] = soDem(d[m]); });
     return ra;
   }
-  const tong = (dem) => MA.reduce((s, m) => s + (dem && dem[m] > 0 ? dem[m] : 0), 0);
+  const MA_DEM = LOAI.filter((l) => !l.khongDem).map((l) => l.ma);
+  /** Số việc đang chờ hiện trên tiêu đề tab (bỏ các loại khongDem) */
+  const tong = (dem) => MA_DEM.reduce((s, m) => s + (dem && dem[m] > 0 ? dem[m] : 0), 0);
 
   /** So hai lần đếm. Chỉ số TĂNG mới là việc mới (giảm là đã xử lý). Lần đếm đầu (truoc = null) không báo gì: việc có sẵn lúc mở web không phải việc mới.
       Trả { moi: { loại: số tăng }, tongMoi, coMoi }. */
