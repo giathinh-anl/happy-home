@@ -500,9 +500,26 @@
         ${enabled ? '' : '<div id="cfgWarn">' + errBox(NO_CONFIG_MSG) + '</div>'}
       </div>
       <div class="tl-side">
+        <section class="tl-intro" aria-label="Giới thiệu app khách thuê Happy Home">
+          <div class="tl-intro-head"><span class="tl-kicker">App khách thuê</span>
+            <h2>Ở trọ nhẹ đầu,<br><b>tiền bạc rõ ràng</b></h2>
+            <p>Hóa đơn, thanh toán, chỉ số điện, báo hỏng: mọi việc với chủ nhà gọn trong một app.</p></div>
+          <div class="tl-qc" data-qc>
+            <div class="tl-qc-view">${QUANG_CAO.map((q, i) => `<article class="tl-qc-the${i ? '' : ' on'}" data-mau="${q.mau}" aria-hidden="${i ? 'true' : 'false'}">
+              <span class="tl-qc-ic">${ico(q.ic, 30)}</span><div><b>${esc(q.t)}</b><span>${esc(q.s)}</span></div></article>`).join('')}</div>
+            <div class="tl-qc-dots">${QUANG_CAO.map((q, i) => `<button type="button" class="${i ? '' : 'on'}" data-qci="${i}" aria-label="Xem: ${esc(q.t)}"><i></i></button>`).join('')}</div>
+          </div>
+          <ol class="tl-steps" aria-label="Vào app trong 3 bước">
+            <li><b>1</b><span>Nhập số điện thoại đã đăng ký với chủ nhà</span></li>
+            <li><b>2</b><span>Nhập mã 6 số chủ nhà gửi cho bạn</span></li>
+            <li><b>3</b><span>Xong. Lần sau mở app là vào thẳng</span></li>
+          </ol>
+          <a class="tl-more" href="../gioi-thieu/">Tìm hiểu về Happy Home →</a>
+        </section>
         <a href="../index.html" class="t-btn ghost">← Trang quản trị (chủ trọ)</a>
       </div>
     </div>`;
+    chayQuangCao();
     el('phone').addEventListener('keydown', e => { if (e.key === 'Enter') el('sendOtp').click(); });
     // giữ lời báo (phiên hết hạn...) qua các lần vẽ lại, chỉ xóa khi khách bấm Tiếp tục
     if (state.notice) el('loginErr').innerHTML = errBox(state.notice);
@@ -519,6 +536,36 @@
       // Chưa hỏi máy chủ gì ở bước này: số có trong hệ thống hay không chỉ lộ ra khi nhập đúng mã
       state.pendingPhone = phone; go('#/otp');
     };
+  }
+  /* Băng-rôn giới thiệu ở trang đăng nhập (trước đây trang này chỉ có ô nhập, máy tính trông trống trơn).
+     CHỈ ghi những việc app làm được thật. Nhẹ: không nạp thêm tệp nào (web chủ trọ dùng js/promo.js, app khách không nạp để mở nhanh). */
+  const QUANG_CAO = [
+    { ic: 'receipt', mau: 'teal',  t: 'Hóa đơn rõ từng khoản',       s: 'Tiền phòng, điện, nước, dịch vụ tách riêng. Xem lại được mọi tháng.' },
+    { ic: 'card',    mau: 'sky',   t: 'Quét mã VietQR là xong',       s: 'Đúng số tiền, đúng nội dung chuyển khoản, báo đã chuyển ngay trong app.' },
+    { ic: 'camera',  mau: 'leaf',  t: 'Chụp đồng hồ, gửi chỉ số',     s: 'Ảnh và số điện tới thẳng chủ nhà, khỏi nhắn tin qua lại.' },
+    { ic: 'wrench',  mau: 'coral', t: 'Báo hỏng, theo tới khi xong',  s: 'Gửi kèm ảnh, biết khi nào thợ tới, sửa xong thì chấm điểm.' },
+    { ic: 'chat',    mau: 'grape', t: 'Trợ lý ảo trả lời 24/7',       s: 'Hỏi tiền phòng, hạn hợp đồng, nội quy lúc nào cũng được.' },
+  ];
+  /** Tự chuyển tấm 4,5 giây một lần; rê chuột / chạm vào thì dừng; máy bật "giảm chuyển động" thì không tự chuyển (vẫn bấm chấm được).
+      Trang đã thay (khách bấm Tiếp tục) thì vòng hẹn tự dừng. */
+  function chayQuangCao() {
+    const box = document.querySelector('[data-qc]'); if (!box) return;
+    const the = box.querySelectorAll('.tl-qc-the'), dots = box.querySelectorAll('[data-qci]');
+    let i = 0, giu = false, hen = null;
+    const den = (k) => {
+      i = (k + the.length) % the.length;
+      the.forEach((x, j) => { x.classList.toggle('on', j === i); x.setAttribute('aria-hidden', j === i ? 'false' : 'true'); });
+      dots.forEach((d, j) => d.classList.toggle('on', j === i));
+    };
+    const tuChuyen = () => {
+      clearTimeout(hen);
+      if (HH.fx && HH.fx.reduce && HH.fx.reduce()) return;
+      hen = setTimeout(() => { if (!box.isConnected) return; if (!giu && document.visibilityState === 'visible') den(i + 1); tuChuyen(); }, 4500);
+    };
+    dots.forEach((d) => d.onclick = () => { den(+d.dataset.qci); tuChuyen(); });
+    box.addEventListener('pointerenter', () => { giu = true; });
+    box.addEventListener('pointerleave', () => { giu = false; });
+    tuChuyen();
   }
   const errBox = (m) => `<div class="t-err"><span>${HH.ic('alert', 16)}</span><div>${esc(m)}</div></div>`;
   // Tệp js/config.js chứa địa chỉ máy chủ nên cố ý không đưa lên GitHub -> máy khác tải mã về sẽ thiếu

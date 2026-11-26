@@ -501,7 +501,10 @@ img { max-width: 100%; display: block; }
    ============================================================ */
 h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.015em; }
 .t-btn { background: var(--teal-600); border-radius: var(--r-input); }
-.t-btn:hover { background: var(--teal-700); }
+/* Rê chuột chỉ làm đậm nút nền màu. Trước đây áp cho mọi .t-btn: nút chữ (ghost) và nút viền (outline) bị tô nền đậm
+   mà chữ vẫn tối/nhạt, gần như không đọc được; trên điện thoại chạm xong là "dính" trạng thái này. */
+.t-btn:not(.ghost):not(.outline):hover { background: var(--teal-700); }
+.t-btn.ghost:hover { text-decoration: underline; text-underline-offset: 3px; }
 .t-btn.outline { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
 
 .ic-svg { flex: 0 0 auto; display: inline-block; vertical-align: middle; }
@@ -666,6 +669,34 @@ button, a, [data-nav], [data-tab] { -webkit-tap-highlight-color: transparent; to
 /* Trên điện thoại hai khối gom chỉ để xếp cột ở máy tính: cho chúng "tàng hình" để mọi thứ nằm thẳng một cột. */
 .tl-form, .tl-side { display: contents; }
 
+/* --- Giới thiệu ở trang đăng nhập: băng-rôn tính năng + 3 bước vào app ---
+   Điện thoại: nằm dưới ô nhập, gọn (bỏ tiêu đề lớn vì đầu trang đã có logo). Máy tính: cột phải nền màu (xem @media bên dưới). */
+.tl-intro { margin-top: 26px; animation: fxUp .5s var(--ease-out) .24s backwards; }
+.tl-intro-head { display: none; }
+.tl-qc { border-radius: 18px; }
+.tl-qc-view { display: grid; }
+.tl-qc-the { grid-area: 1 / 1; display: flex; gap: 12px; align-items: flex-start; padding: 14px 14px; border-radius: 16px;
+  background: var(--qc-bg); color: var(--ink); opacity: 0; transform: translateY(6px); transition: opacity .45s var(--ease-out), transform .45s var(--ease-out); pointer-events: none; }
+.tl-qc-the.on { opacity: 1; transform: none; pointer-events: auto; }
+.tl-qc-the b { display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
+.tl-qc-the span:not(.tl-qc-ic) { display: block; font-size: 13px; line-height: 1.5; color: var(--ink-2); margin-top: 3px; }
+.tl-qc-ic { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: #fff; color: var(--qc-fg); }
+.tl-qc-the[data-mau="teal"]  { --qc-bg: var(--teal-50);  --qc-fg: var(--teal-600); }
+.tl-qc-the[data-mau="sky"]   { --qc-bg: var(--sky-bg);   --qc-fg: var(--sky); }
+.tl-qc-the[data-mau="leaf"]  { --qc-bg: #E8F6EC;         --qc-fg: #2E8B57; }
+.tl-qc-the[data-mau="coral"] { --qc-bg: var(--coral-bg); --qc-fg: var(--coral); }
+.tl-qc-the[data-mau="grape"] { --qc-bg: var(--grape-bg); --qc-fg: var(--grape); }
+.tl-qc-dots { display: flex; justify-content: center; gap: 2px; margin-top: 6px; }
+.tl-qc-dots button { width: 24px; height: 24px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; }
+.tl-qc-dots i { display: block; width: 6px; height: 6px; border-radius: 3px; background: var(--line-2); transition: width .3s var(--ease-out), background-color .3s; }
+.tl-qc-dots .on i { width: 18px; background: var(--teal-600); }
+.tl-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.tl-steps li { display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: var(--ink-2); line-height: 1.4; }
+.tl-steps li b { flex: 0 0 24px; height: 24px; border-radius: 12px; display: grid; place-items: center; font-size: 12px; background: var(--teal-50); color: var(--teal-700); }
+.tl-more { display: inline-block; margin-top: 14px; font-size: 13.5px; font-weight: 600; color: var(--teal-600); text-decoration: none; }
+.tl-more:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) { .tl-qc-the { transition: none; } .tl-intro { animation: none; } }
+
 /* --- Máy tính --- */
 @media (min-width: 900px) {
   body { background: var(--bg); }
@@ -678,6 +709,28 @@ button, a, [data-nav], [data-tab] { -webkit-tap-highlight-color: transparent; to
   }
   .t-login .t-btn { max-width: none; }
   .t-login .t-btn.ghost { margin-top: 18px; }
+
+  /* Đăng nhập trên máy tính: hai cột trong một thẻ, trái ô nhập, phải phần giới thiệu nền màu (trước đây chỉ một thẻ nhỏ giữa màn hình trống) */
+  .t-login:not(.hep) { max-width: 940px; margin: 9vh auto 48px; padding: 0; display: grid; grid-template-columns: minmax(340px, 400px) 1fr; overflow: hidden; }
+  .t-login:not(.hep) .tl-form { display: flex; flex-direction: column; justify-content: center; padding: 44px 36px 40px; }
+  .t-login:not(.hep) .tl-side { display: flex; flex-direction: column; padding: 38px 38px 26px; color: #fff;
+    background: radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,.14), transparent 55%), linear-gradient(155deg, var(--teal-500), var(--teal-800)); }
+  .t-login:not(.hep) .tl-intro { margin-top: 0; flex: 1; display: flex; flex-direction: column; }
+  .t-login:not(.hep) .tl-intro-head { display: block; margin-bottom: 22px; }
+  .tl-kicker { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.16); }
+  .t-login:not(.hep) .tl-intro-head h2 { margin: 12px 0 8px; font-size: 30px; line-height: 1.2; font-weight: 700; color: #fff; }
+  .t-login:not(.hep) .tl-intro-head h2 b { color: var(--wood-300); font-weight: 800; }
+  .t-login:not(.hep) .tl-intro-head p { margin: 0; font-size: 14.5px; line-height: 1.55; color: rgba(255,255,255,.86); max-width: 440px; }
+  .t-login:not(.hep) .tl-qc-the { box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 16px 18px; }
+  .t-login:not(.hep) .tl-qc-dots i { background: rgba(255,255,255,.4); }
+  .t-login:not(.hep) .tl-qc-dots .on i { background: #fff; }
+  .t-login:not(.hep) .tl-steps li { color: rgba(255,255,255,.9); }
+  .t-login:not(.hep) .tl-steps li b { background: rgba(255,255,255,.18); color: #fff; }
+  .t-login:not(.hep) .tl-more { color: #fff; margin-top: 18px; }
+  .t-login:not(.hep) .tl-side .t-btn.ghost { margin-top: auto; padding-top: 18px; color: rgba(255,255,255,.75); justify-content: flex-start; padding-left: 0; }
+  .t-login:not(.hep) .logo { text-align: left; margin-bottom: 22px; }
+  .t-login:not(.hep) .logo .mark { margin: 0 0 12px; }
+  .t-login:not(.hep) .lead { text-align: left; }
   .t-nav .nic { width: 28px; flex-basis: 28px; display: grid; place-items: center; }
   .t-side .s-me .nm, .t-side .s-me .rm { display: block; }
   .t-nav { font-weight: 600; }
@@ -867,7 +920,7 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
   --info: #7FB1E8; --info-bg: #14283F; --info-line: #24456B;
   --shadow-card: 0 1px 2px rgba(0,0,0,.35); --shadow-pop: 0 10px 30px rgba(0,0,0,.5); --shadow-dialog: 0 28px 64px rgba(0,0,0,.6);
 }
-:root[data-theme="dark"] .t-btn:hover, :root[data-theme="dark"] .due-card .t-btn:hover { background: #17A09B; }
+:root[data-theme="dark"] .t-btn:not(.ghost):not(.outline):hover, :root[data-theme="dark"] .due-card .t-btn:hover { background: #17A09B; }
 :root[data-theme="dark"] .t-btn, :root[data-theme="dark"] .due-card .t-btn, :root[data-theme="dark"] .chat-fab, :root[data-theme="dark"] .t-install .ti-go, :root[data-theme="dark"] .t-avatar, :root[data-theme="dark"] .chat-msg.me .bubble, :root[data-theme="dark"] .b-act.solid { color: #fff; }
 :root[data-theme="dark"] .t-btn.outline { background: var(--surface); color: var(--ink); }
 :root[data-theme="dark"] .t-toast { background: #E8F1EF; color: #0C1514; }
@@ -885,6 +938,9 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
 :root[data-theme="dark"] .t-phone .cc { background: var(--surface-2); color: var(--ink-2); }
 :root[data-theme="dark"] .t-install { border-color: var(--teal-200); }
 :root[data-theme="dark"] .contract-card.danger { background: var(--surface); }
+:root[data-theme="dark"] .tl-qc-the { --qc-bg: var(--surface); }
+:root[data-theme="dark"] .tl-qc-ic { background: var(--surface-2); }
+:root[data-theme="dark"] .tl-steps li b { background: var(--surface-2); color: var(--ink); }
 :root[data-theme="dark"] .t-side .s-brand .mark { background: #FBF7F0; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -902,7 +958,7 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
   --info: #7FB1E8; --info-bg: #14283F; --info-line: #24456B;
   --shadow-card: 0 1px 2px rgba(0,0,0,.35); --shadow-pop: 0 10px 30px rgba(0,0,0,.5); --shadow-dialog: 0 28px 64px rgba(0,0,0,.6);
   }
-  :root:not([data-theme="light"]) .t-btn:hover,   :root:not([data-theme="light"]) .due-card .t-btn:hover { background: #17A09B; }
+  :root:not([data-theme="light"]) .t-btn:not(.ghost):not(.outline):hover,   :root:not([data-theme="light"]) .due-card .t-btn:hover { background: #17A09B; }
   :root:not([data-theme="light"]) .t-btn,   :root:not([data-theme="light"]) .due-card .t-btn,   :root:not([data-theme="light"]) .chat-fab,   :root:not([data-theme="light"]) .t-install .ti-go,   :root:not([data-theme="light"]) .t-avatar,   :root:not([data-theme="light"]) .chat-msg.me .bubble,   :root:not([data-theme="light"]) .b-act.solid { color: #fff; }
   :root:not([data-theme="light"]) .t-btn.outline { background: var(--surface); color: var(--ink); }
   :root:not([data-theme="light"]) .t-toast { background: #E8F1EF; color: #0C1514; }
@@ -920,6 +976,9 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
   :root:not([data-theme="light"]) .t-phone .cc { background: var(--surface-2); color: var(--ink-2); }
   :root:not([data-theme="light"]) .t-install { border-color: var(--teal-200); }
   :root:not([data-theme="light"]) .contract-card.danger { background: var(--surface); }
+  :root:not([data-theme="light"]) .tl-qc-the { --qc-bg: var(--surface); }
+  :root:not([data-theme="light"]) .tl-qc-ic { background: var(--surface-2); }
+  :root:not([data-theme="light"]) .tl-steps li b { background: var(--surface-2); color: var(--ink); }
   :root:not([data-theme="light"]) .t-side .s-brand .mark { background: #FBF7F0; }
 }
 

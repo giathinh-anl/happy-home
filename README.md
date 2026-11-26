@@ -228,6 +228,8 @@ Mỗi việc có nút làm ngay đi thẳng tới đúng chỗ (có sẵn bộ l
 
 ## Đăng nhập app khách thuê
 
+**Trang đăng nhập có phần giới thiệu** (26/11/2026): trên máy tính là thẻ hai cột (trái ô nhập, phải khung màu "App khách thuê" với băng-rôn 5 tính năng tự chuyển 4,5 giây, 3 bước vào app, liên kết sang `gioi-thieu/`); trên điện thoại băng-rôn và 3 bước nằm dưới ô nhập. Chỉ ghi việc app làm được thật; không nạp thêm tệp nào (app khách không dùng `js/promo.js` để mở nhanh). Máy bật "giảm chuyển động" thì không tự chuyển. Cùng lúc sửa lỗi rê chuột / chạm làm nút chữ và nút viền bị tô nền đậm, chữ không đọc được.
+
 Trước đây app khách thuê chỉ cần số điện thoại: ai biết một số là đọc được cả hồ sơ khách (CCCD, ngày sinh, hóa đơn, bạn cùng phòng) và gửi thay khách, còn OTP chỉ là mã cố định kiểm tra ngay trong trình duyệt. Giờ đăng nhập được kiểm ở **máy chủ**:
 
 1. **Chủ trọ cấp mã.** Trang Khách thuê: nút *Mã vào app* có ba lựa chọn: khách **chưa có mã**, **một khách** (khách quên mã / đổi điện thoại: chỉ người đó nhận mã mới, khách đang xin cấp lại mã được chọn sẵn) và **tất cả** (cả tòa bị đăng xuất, phải bấm hai lần). Cấp nhiều người thì có danh sách chép / tải Excel / in. Cũng cấp được từ menu ⋯ của từng khách. Mã 6 số ngẫu nhiên, hiện **một lần duy nhất**; máy chủ chỉ lưu bản băm (bcrypt) nên chủ trọ cũng không xem lại được. Quên thì cấp mã mới. Chỉ **chủ** cấp được, nhân viên thì không.
@@ -247,6 +249,12 @@ Giới hạn: mã 6 số được bảo vệ bằng khóa 15 phút sau 5 lần s
   - **Chủ trọ** — thấy toàn bộ (tài chính, cấu hình, thu chi, đổi trạng thái phòng, hủy hóa đơn…).
   - **Nhân viên vận hành** — ẩn dữ liệu tài chính và các mục ngoài phạm vi.
 - Đổi vai trò bất cứ lúc nào ở ô **Tài khoản** (góc phải thanh nav xanh).
+
+## Nhân viên (tài khoản thật)
+
+- Chủ trọ thêm **bao nhiêu nhân viên cũng được** ở *Công ty / nhóm → Thêm nhân viên* (email, quyền, **phạm vi tòa nhà**). Mỗi trình duyệt chỉ giữ **một** tài khoản đăng nhập: đăng nhập người thứ hai trên cùng trình duyệt là người trước bị đẩy ra (không phải bị xóa). Thử nhiều tài khoản thì dùng cửa sổ ẩn danh hoặc trình duyệt khác.
+- **Phạm vi tòa nhà** (từ 26/11/2026): nhân viên được giao tòa nào chỉ thấy tòa đó ở mọi nơi (danh sách tòa, menu đổi tòa, Tổng báo cáo, Khách chuyển khoản, chuông thông báo, báo việc mới); mở đường dẫn tòa khác thì về danh sách tòa. Không chọn tòa nào = thấy tất cả. Mã hóa đơn và số phiếu thu vẫn đánh tiếp theo **mọi** tòa của chủ trọ (web nhớ riêng các mã đã dùng ở tòa bị ẩn), nên không trùng, không ghi đè hóa đơn tòa khác. Đây là lọc ở web; máy chủ vẫn cho nhân viên đọc mọi tòa của chủ trọ.
+- **Lỗi đã sửa 26/11/2026: việc nhân viên làm không tới chủ trọ.** Trước đây mỗi dòng nhân viên lưu mang mã chủ là tài khoản của chính nhân viên, mà khóa là (mã chủ, mã dòng), nên "sửa" một hóa đơn thật ra tạo bản sao mang tên nhân viên; chủ trọ không thấy. Trên máy chủ thật có 5 sự cố, 3 hóa đơn, 9 dòng nhật ký như vậy (của nhân viên thêm ngày 22/09, chưa xóa). Nay nhân viên ghi và đọc đúng dữ liệu của chủ trọ (`datChuDuLieu` trong `js/backend.js`), bỏ qua các bản sao cũ. Kiểm thử: `tests/staff-data.test.js` (13 ca, chạy thật `js/backend.js` với máy chủ giả; thử phá 8 chỗ, bắt cả 8).
 
 
 ## Tính năng đã dựng
@@ -647,6 +655,7 @@ tests/
   tenant-class-collision.test.js # app khách: lớp phủ toàn màn hình (.tt của phần hướng dẫn) không trùng tên lớp với phần tử khác: node tests/tenant-class-collision.test.js
   menu.test.js        # menu nổi (nút Thêm, các nút ⋯): mở/đóng nhiều lần không để bộ nghe treo (chạy thật đoạn mã trên trang giả): node tests/menu.test.js
   bank-owner-only.test.js # giao dịch ngân hàng chỉ chủ trọ thấy; web đang mở thì tiền về tự ghi thu: node tests/bank-owner-only.test.js
+  staff-data.test.js  # nhân viên ghi/đọc đúng dữ liệu của chủ trọ, chỉ thấy tòa được giao, đánh số không trùng: node tests/staff-data.test.js
 ```
 
 ## Kiểm thử
@@ -687,6 +696,7 @@ node tests/code-requests.test.js
 node tests/tenant-class-collision.test.js
 node tests/menu.test.js
 node tests/bank-owner-only.test.js
+node tests/staff-data.test.js
 ```
 
 Không cần cài gì thêm cho các bộ trên. Hiện có kiểm thử cho luật điểm thanh toán (20 ca), nhắc nợ + phí trễ hạn (42 ca: phân mức, trần 10%, không cộng dồn phí, soạn tin) luật nhập liệu (29 ca) chia hóa đơn (27 ca) và phân loại chốt sổ (23 ca) và báo cáo tháng (83 ca) và hàm thuần của app khách (74 ca) và thông báo đẩy (hàm Edge 25 ca, service worker 12 ca) và việc hôm nay (23 ca) và ngày lịch (35 ca) và tiến độ sự cố (45 ca) và khách tự khai (66 ca) và giọng nói (87 ca) và ghi chỉ số ngoại tuyến (63 ca) và gia hạn hợp đồng (41 ca) và điểm thưởng (62 ca) và trang công khai phòng (36 ca); cả mười chín đã thử phá luật để chắc bộ kiểm thử bắt được lỗi. Các phần tính tiền hóa đơn và dò ý trợ lý ảo chưa có.

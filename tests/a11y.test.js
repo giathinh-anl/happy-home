@@ -13,6 +13,15 @@ const test = (ten, fn) => {
 const boChuThich = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');      // ghi chú nhắc tới confirm() thì không tính
 const t = doc('tenant-app/js/tenant.js'), css = doc('tenant-app/css/tenant.css'), th = doc('tenant-app/index.html');
 const ta = doc('js/pages/tenant-access.js'), comp = doc('js/components.js'), more = doc('js/pages/more.js'), app = doc('js/app.js');
+test('app khách: rê chuột / chạm không tô nền đậm cho nút chữ (ghost) và nút viền (outline), kẻo chữ không đọc được', () => {
+  const sach = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // từng bộ chọn (tách theo dấu phẩy) của các quy tắc có tô nền; ".t-btn:hover" trần là sai, trừ nút trong thẻ tiền cần trả (.due-card, luôn có nền)
+  const boChon = (sach.match(/[^{}]+\{[^}]*background[^}]*\}/g) || []).flatMap(r => r.split('{')[0].split(',').map(s => s.trim()));
+  const sai = boChon.filter(s => /\.t-btn:hover/.test(s) && !/\.due-card \.t-btn:hover/.test(s));
+  assert.deepStrictEqual(sai, []);
+  assert.match(sach, /\.t-btn:not\(\.ghost\):not\(\.outline\):hover \{ background: var\(--teal-700\); \}/);
+  assert.ok(+/tenant\.css\?v=(\d+)/.exec(th)[1] >= 55);
+});
 test('app khách trên máy tính: nút trong hộp nổi (đăng xuất...) phủ đủ bề ngang hộp, không dồn sang trái', () => {
   const i = css.indexOf('  .t-btn { max-width: 320px; }'), k = css.slice(i, css.indexOf('\n}', i));
   assert.ok(i > 0, 'không thấy giới hạn 320px của nút trên máy tính');
