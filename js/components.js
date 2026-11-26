@@ -215,7 +215,15 @@ HH.ui = (function () {
   }
 
   /* ---------- Menu thả xuống ---------- */
+  /* Menu nổi: nút "Thêm" của tòa, các nút ⋯, menu tài khoản...
+     Lỗi cũ (chủ trọ quay video 26/11, "lúc được lúc không"): mỗi lần mở lại gắn thêm một bộ nghe "bấm chỗ khác thì đóng"
+     { once: true } lên cả trang. Menu đóng bằng đường khác (bấm lại nút, cuộn, chọn mục) thì bộ nghe đó còn treo,
+     nên lần bấm nút kế tiếp menu vừa mở đã bị chính nó đóng ngay, cứ thế mãi cho tới khi bấm vào chỗ khác.
+     Nay: mọi bộ nghe gắn lúc mở đều được gỡ lúc đóng; bấm lại đúng nút đang mở thì đóng; cuộn nhẹ (bàn rê chuột) không đóng. */
+  let menuGo = null;      // gỡ các bộ nghe của menu đang mở
+  let menuNut = null;     // nút đã mở menu đang hiện
   function openMenu(anchor, items) {
+    if (menuNut === anchor && document.querySelector('.menu[data-floating]')) { closeMenus(); return null; }   // bấm lại: đóng
     closeMenus();
     const menu = document.createElement('div');
     menu.className = 'menu'; menu.dataset.floating = '1';
@@ -249,12 +257,30 @@ HH.ui = (function () {
       const btn = menu.querySelectorAll('button')[bi++];
       btn.addEventListener('click', () => { closeMenus(); it.onClick && it.onClick(); });
     });
-    setTimeout(() => document.addEventListener('click', closeMenus, { once: true }), 0);
-    // Cuộn hoặc đổi cỡ cửa sổ thì đóng, không để menu đứng lơ lửng lệch khỏi nút
-    window.addEventListener('scroll', closeMenus, { once: true, passive: true });
-    window.addEventListener('resize', closeMenus, { once: true });
+    // Bấm (chạm) ra ngoài menu và ngoài nút thì đóng. Nút tự lo việc bật/tắt ở trên.
+    const ngoai = (e) => { const t = e.target; if (menu.contains(t) || anchor.contains(t)) return; closeMenus(); };
+    // Cuộn hẳn trang (quá 24px) hoặc đổi cỡ cửa sổ thì đóng, không để menu lơ lửng lệch khỏi nút
+    const y0 = window.scrollY || 0, x0 = window.scrollX || 0;
+    const cuon = () => { if (Math.abs((window.scrollY || 0) - y0) > 24 || Math.abs((window.scrollX || 0) - x0) > 24) closeMenus(); };
+    const doiCo = () => closeMenus();
+    document.addEventListener('pointerdown', ngoai, true);
+    document.addEventListener('click', ngoai, true);           // bấm bằng bàn phím (Enter) vào nút khác cũng đóng
+    window.addEventListener('scroll', cuon, { passive: true });
+    window.addEventListener('resize', doiCo);
+    menuNut = anchor;
+    menuGo = () => {
+      document.removeEventListener('pointerdown', ngoai, true);
+      document.removeEventListener('click', ngoai, true);
+      window.removeEventListener('scroll', cuon);
+      window.removeEventListener('resize', doiCo);
+    };
+    return menu;
   }
-  function closeMenus() { document.querySelectorAll('.menu[data-floating]').forEach(m => m.remove()); }
+  function closeMenus() {
+    if (menuGo) { const go = menuGo; menuGo = null; go(); }
+    menuNut = null;
+    document.querySelectorAll('.menu[data-floating]').forEach(m => m.remove());
+  }
 
   /* ---------- PeriodSelector (§2.4) ---------- */
   // periodsWithData: Set các 'YYYY-MM' còn dữ liệu chưa xử lý (chấm đỏ)
