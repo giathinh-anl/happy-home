@@ -27,7 +27,7 @@
     { key: 'expiring', label: 'Sắp hết hạn hợp đồng', tone: 'warning', test: r => r.contractEnd && U.daysBetween(U.today(), r.contractEnd) >= 0 && U.daysBetween(U.today(), r.contractEnd) <= 30 },
     { key: 'expired',  label: 'Đã quá hạn hợp đồng',  tone: 'danger',  test: r => r.contractEnd && U.daysBetween(U.today(), r.contractEnd) < 0 },
     { key: 'reserved', label: 'Đang cọc giữ chỗ',     tone: 'warning', test: r => r.status === 'reserved' },
-    { key: 'debt',     label: 'Đang nợ tiền',         tone: 'danger',  test: r => r.debt > 0 },
+    { key: 'debt',     label: 'Đang nợ tiền',         tone: 'danger',  test: r => S.roomDebt(r) > 0 },     // nợ tính từ hóa đơn đã phát hành (S.roomDebt), không dùng số room.debt ghi sẵn
   ];
 
   function roomColumns(ctx) {
@@ -44,7 +44,7 @@
           return `${U.esc(r.tenantName || '')}${n > 1 ? ` <span class="faint text-xs">+${n - 1} người</span>` : ''}`;
         } },
       { key: 'contractEnd', label: 'Hạn hợp đồng', render: r => r.contractEnd ? U.fmtDate(r.contractEnd) : '<span class="faint">-</span>' },
-      { key: 'debt', label: 'Tài chính', align: 'right', sortable: true, render: r => r.debt ? `<span style="color:var(--danger)">Nợ ${U.currency(r.debt)}</span>` : '<span style="color:var(--success)">Đủ</span>' },
+      { key: 'debt', label: 'Tài chính', align: 'right', sortable: true, sortVal: r => S.roomDebt(r), render: r => { const n = S.roomDebt(r); return n ? `<span style="color:var(--danger)">Nợ ${U.currency(n)}</span>` : '<span style="color:var(--success)">Đủ</span>'; } },
     ];
   }
 
@@ -56,7 +56,8 @@
 
     // Dòng dưới cùng: ưu tiên cảnh báo nợ > sắp hết hạn > hạn hợp đồng > gợi ý cho thuê
     let foot;
-    if (r.debt > 0) foot = `<div class="rc-foot danger">${HH.icon('alert', 14)} Nợ ${U.currency(r.debt)}</div>`;
+    const no = S.roomDebt(r);
+    if (no > 0) foot = `<div class="rc-foot danger">${HH.icon('alert', 14)} Nợ ${U.currency(no)}</div>`;
     else if (occupied && days != null && days < 0) foot = `<div class="rc-foot danger">${HH.icon('alert', 14)} HĐ quá hạn ${Math.abs(days)} ngày</div>`;
     else if (occupied && days != null && days <= 30) foot = `<div class="rc-foot warn">${HH.icon('clock', 14)} Còn ${days} ngày HĐ</div>`;
     else if (occupied && days != null) foot = `<div class="rc-foot">${HH.icon('calendar', 14)} Đến ${U.fmtDate(r.contractEnd)}</div>`;
@@ -149,7 +150,7 @@
         <div class="field"><label>Giá thuê</label><div class="mono b">${U.currency(r.price)}</div></div>
         <div class="field"><label>Diện tích</label><div class="mono b">${r.area} m²</div></div>
         <div class="field"><label>Hết hạn HĐ</label><div class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '-'}</div></div>
-        <div class="field"><label>Công nợ</label><div class="mono b" style="color:${raw(r.debt ? 'var(--danger)' : 'inherit')}">${U.currency(r.debt)}</div></div>
+        <div class="field"><label>Công nợ</label><div class="mono b" style="color:${raw(S.roomDebt(r) ? 'var(--danger)' : 'inherit')}">${U.currency(S.roomDebt(r))}</div></div>
         <div class="field"><label>Số người tối đa</label><div>${r.maxOccupants}</div></div>
       </div>
       <div class="field" style="margin-top:16px">
@@ -507,7 +508,7 @@
         U.downloadCSV(`phong-${ctx.bid}.csv`, ['Tên phòng', 'Tầng', 'Loại phòng', 'DT (m2)', 'Giá thuê', 'Tình trạng', 'Khách thuê', 'Hạn hợp đồng', 'Công nợ'],
           S.roomsOf(ctx.bid).slice().sort((a, b) => a.code.localeCompare(b.code)).map(r => [
             r.code, r.floor, r.typeLabel, r.area, r.price, (UI.STATUS.room[r.status] || {}).label || r.status,
-            r.tenantName || '', r.contractEnd ? U.fmtDate(r.contractEnd) : '', r.debt || 0]));
+            r.tenantName || '', r.contractEnd ? U.fmtDate(r.contractEnd) : '', S.roomDebt(r)]));
         UI.toast('Đã tải file Excel (CSV) danh sách phòng', { type: 'ok' });
       };
       if (ctx._dt) ctx._dt.attach(document);
@@ -540,7 +541,7 @@
           <div class="b" style="margin-bottom:4px">${r.code} · ${r.typeLabel}</div>
           <div class="row"><span class="k">Khách thuê</span><span>${r.tenantName || 'chưa có'}</span></div>
           <div class="row"><span class="k">Hết hạn HĐ</span><span class="mono">${r.contractEnd ? U.fmtDate(r.contractEnd) : '-'}</span></div>
-          <div class="row"><span class="k">Công nợ</span><span class="mono">${U.currency(r.debt)}</span></div>`;
+          <div class="row"><span class="k">Công nợ</span><span class="mono">${U.currency(S.roomDebt(r))}</span></div>`;
         document.body.appendChild(tip);
       });
       cell.addEventListener('mousemove', (e) => {

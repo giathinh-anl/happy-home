@@ -179,8 +179,11 @@
           const coAnh = pending.length > 0;
           pending = []; ta.value = '';
           HH.router.render();
-          UI.toast('Đã gửi cho khách', { type: 'ok' });
-          if (coAnh) {
+          // Chỉ báo "Đã gửi" khi máy chủ đã nhận dòng tin (trước đây báo ngay, kể cả khi máy chủ từ chối)
+          const gui = await S.guiTraLoi(m);
+          if (gui.loi) UI.toast('Tin nhắn CHƯA tới khách: ' + gui.loi, { type: 'danger', sticky: true });
+          else UI.toast('Đã gửi cho khách', { type: 'ok' });
+          if (coAnh && !gui.loi) {
             const r = await S.sendSupportPhotos(m);
             if (r.missing) UI.toast('Máy chủ chưa bật gửi ảnh trong chat nên khách CHƯA thấy ảnh. Nhờ người quản trị chạy tệp migration-chat-photos.sql.', { type: 'warning' });
             else if (r.error) UI.toast('Chưa gửi được ảnh lên máy chủ: ' + (r.error.message || 'lỗi không rõ'), { type: 'danger' });
@@ -212,7 +215,12 @@
       if (res.error) return;                       // mạng chập chờn: bỏ qua lượt này
       if (ready !== true) ready = true;
       const them = S.mergeSupport(res.data);
-      if (them) HH.router.render();                // có tin mới thì vẽ lại
+      if (them) {                                  // có tin mới thì vẽ lại, GIỮ chữ đang gõ dở (trước đây bị xóa mỗi khi khách nhắn tới)
+        const ta = document.getElementById('spText'), dang = ta ? ta.value : '', dangGo = ta && document.activeElement === ta;
+        HH.router.render();
+        const ta2 = document.getElementById('spText');
+        if (ta2 && dang) { ta2.value = dang; ta2.dispatchEvent(new Event('input')); if (dangGo) { ta2.focus(); ta2.setSelectionRange(dang.length, dang.length); } }
+      }
     };
     poll = setInterval(tick, POLL_MS);
     tick();

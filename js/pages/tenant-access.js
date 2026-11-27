@@ -57,8 +57,11 @@
         <div class="row-gap-2 wrap" style="margin-top:12px">
           <button class="btn btn-sm btn-primary" id="acCopyCode">Chép mã</button>
           <button class="btn btn-sm btn-outline" id="acCopyMsg">Chép tin nhắn mời</button>
-          ${t.phone ? `<a class="btn btn-sm btn-outline" id="acZalo" href="https://zalo.me/${U.esc(String(t.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">Mở Zalo</a>` : ''}
-        </div></div>`;
+          ${t.phone ? `<a class="btn btn-sm btn-outline" id="acZalo" href="https://zalo.me/${U.esc(String(t.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">Mở Zalo</a>
+          <a class="btn btn-sm btn-outline" id="acSms" href="sms:${U.esc(String(t.phone).replace(/\D/g, ''))}?&body=${encodeURIComponent(msg)}">Nhắn SMS</a>` : ''}
+        </div>
+        ${t.phone ? `<p class="muted text-xs" style="margin-top:10px">"Mở Zalo" chỉ mở khung nhắn tin tới số của khách, không cần quét mã gì của app. Trên máy tính chưa đăng nhập Zalo thì Zalo bắt quét mã để <b>đăng nhập Zalo</b>.
+          Zalo báo "Tài khoản không tồn tại hoặc không cho phép tìm kiếm" nghĩa là số này chưa có Zalo hoặc khách tắt tìm bằng số điện thoại: bấm <b>Nhắn SMS</b>, hoặc <b>Chép tin nhắn mời</b> rồi gửi bằng cách khác.</p>` : ''}</div>`;
     res.querySelector('#acCopyCode').onclick = () => chep(code, 'mã');
     res.querySelector('#acCopyMsg').onclick = () => chep(msg, 'tin nhắn mời');
     const z = res.querySelector('#acZalo'); if (z) z.addEventListener('click', () => chep(msg, 'tin nhắn mời, dán vào Zalo'));

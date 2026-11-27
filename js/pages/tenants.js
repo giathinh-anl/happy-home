@@ -4,7 +4,8 @@
 (function () {
   const U = HH.util, S = HH.store, UI = HH.ui, V = HH.validate, h = U.html, raw = U.raw;
 
-  let tnSearch = '', tnFilter = null;
+  let tnSearch = '', tnFilter = null, cuonToiDs = false;
+  const noTamtruCua = (ctx) => S.tenantsOf(ctx.bid).filter(t => !t.tamtru).length;
   const TN_FILTERS = [
     { key: 'tamtru',   label: 'Đã đăng ký tạm trú',  tone: 'success', test: t => t.tamtru },
     { key: 'notamtru', label: 'Chưa đăng ký tạm trú', tone: 'warning', test: t => !t.tamtru },
@@ -28,12 +29,16 @@
   const VEH_TYPES = ['Xe máy', 'Ô tô', 'Xe đạp', 'Xe điện', 'Khác'];
   const vehIcon = (type) => ({ 'Xe máy': HH.ic('car', 16), 'Ô tô': HH.ic('car', 16), 'Xe đạp': HH.ic('car', 16), 'Xe điện': HH.ic('car', 16) }[type] || HH.ic('car', 16));
 
+  // "Phòng số P101 · Tòa Happy Home Quận 7": khách ở đâu nhìn là biết (chủ trọ nhờ 27/11)
+  const tenToa = (bid) => (S.building(bid) || {}).name || '';
+  const noiO = (t) => (t.roomCode ? `Phòng số ${t.roomCode}` : 'Chưa gắn phòng') + (tenToa(t.buildingId) ? ` · Tòa ${tenToa(t.buildingId)}` : '');
+
   function tenantRow(t) {
     const doc = (ok, label) => ok ? `<span class="tn-doc-ok">✓ ${label}</span>` : `<span class="tn-doc-miss">✗ ${label}</span>`;
     return `<tr>
       <td><div class="row-gap-2 tn-name">
         <span class="avatar" style="width:32px;height:32px;flex:0 0 32px;font-size:12px">${U.initials(t.fullName)}</span>
-        <div><b>${t.fullName}</b><div class="muted text-xs mono">${t.roomCode}</div>
+        <div><b>${U.esc(t.fullName)}</b><div class="muted text-xs tn-noi-o">${U.esc(noiO(t))}</div>
           <div class="tn-badges">${t.isRep ? '<span class="tn-tag rep">Đại diện hợp đồng</span>' : ''}
             <span class="tn-tag warn">${t.ttlock ? 'Đã kết nối' : 'Chưa kết nối'}</span>
             <span class="tn-tag ${t.appCodeSetAt ? 'rep' : 'warn'}" title="Mã để khách vào app khách thuê">${t.appCodeSetAt ? 'Đã có mã vào app' : 'Chưa có mã vào app'}</span></div></div></div></td>
@@ -74,7 +79,7 @@
     const body = pg.items.map(rc => {
       const grp = list.filter(t => (t.roomCode || '(chưa gắn phòng)') === rc);
       const chuaGan = rc.startsWith('(');
-      return `<tr class="tenant-group-head"><td colspan="9">${U.esc(rc)} <span class="cnt">(${grp.length}) khách thuê</span>`
+      return `<tr class="tenant-group-head"><td colspan="9">${U.esc(chuaGan ? rc : 'Phòng số ' + rc)}${tenToa(ctx.bid) ? ` <span class="muted">· Tòa ${U.esc(tenToa(ctx.bid))}</span>` : ''} <span class="cnt">(${grp.length}) khách thuê</span>`
         + `${chuaGan ? '' : ' ' + scoreBadge(ctx.bid, rc) + ' ' + HH.rewardsUI.badge(ctx.bid, rc)}</td></tr>`
         + grp.map(tenantRow).join('');
     }).join('');
@@ -116,7 +121,7 @@
           <div><div class="page-title-lg">Khách thuê</div>
             <div class="page-sub">${ctx.building.name} · ${total} người đang ở</div></div>
           <div class="page-actions">
-            <button class="btn btn-outline" id="tnTamtru">${raw(HH.icon('clock', 16))} Hết tạm trú/Visa
+            <button class="btn ${tnFilter === 'notamtru' ? 'btn-primary' : 'btn-outline'}" id="tnTamtru" aria-pressed="${tnFilter === 'notamtru' ? 'true' : 'false'}">${raw(HH.icon('clock', 16))} Chưa đăng ký tạm trú
               ${raw(noTamtru ? `<span class="cnt-badge">${noTamtru}</span>` : '')}</button>
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnReward">${HH.icon('sparkles', 16)} Điểm thưởng</button>` : '')}
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnAccess">${HH.icon('lock', 16)} Mã vào app</button>` : '')}
@@ -170,15 +175,25 @@
       }
       document.getElementById('tnExport').onclick = () => {
         U.downloadCSV(`khach-thue-${ctx.bid}.csv`,
-          ['Phòng', 'Họ tên', 'Đại diện', 'SĐT', 'Ngày sinh', 'Giới tính', 'Nghề nghiệp', 'Địa chỉ', 'Số CCCD', 'Ngày cấp', 'Nơi cấp', 'Biển số xe', 'TTLock', 'Tạm trú'],
-          S.tenantsOf(ctx.bid).map(t => [t.roomCode, t.fullName, t.isRep ? 'x' : '', t.phone, t.dob, t.gender,
+          ['Tòa', 'Phòng', 'Họ tên', 'Đại diện', 'SĐT', 'Ngày sinh', 'Giới tính', 'Nghề nghiệp', 'Địa chỉ', 'Số CCCD', 'Ngày cấp', 'Nơi cấp', 'Biển số xe', 'TTLock', 'Tạm trú'],
+          S.tenantsOf(ctx.bid).map(t => [tenToa(t.buildingId), t.roomCode, t.fullName, t.isRep ? 'x' : '', t.phone, t.dob, t.gender,
             t.occupation, t.address, t.idNumber, t.cccdIssueDate, t.cccdIssuePlace,
             S.vehiclesOf(t).map(v => `${v.plate}${v.type ? ' (' + v.type + ')' : ''}`).join('; '),
             t.ttlock ? 'Đã kết nối' : 'Chưa', t.tamtru ? 'Đã ĐK' : 'Chưa']));
         UI.toast('Đã tải file Excel (CSV) khách thuê', { type: 'ok' });
       };
       const tt = document.getElementById('tnTamtru');
-      if (tt) tt.onclick = () => { tnFilter = tnFilter === 'notamtru' ? null : 'notamtru'; tnPage.page = 1; HH.router.render(); };
+      /* Nút lọc khách chưa đăng ký tạm trú. Trước đây tên là "Hết tạm trú/Visa" (app không có ngày hết hạn tạm trú hay visa) và bấm xong
+         không có gì báo lại, danh sách lại nằm dưới màn hình, nên trông như hỏng ("lỗi rồi ko coi được", 27/11). Nay bấm là cuộn tới
+         danh sách và báo đang lọc bao nhiêu khách; bấm lần nữa bỏ lọc. */
+      if (tt) tt.onclick = () => {
+        tnFilter = tnFilter === 'notamtru' ? null : 'notamtru'; tnPage.page = 1; cuonToiDs = true; HH.router.render();
+      };
+      if (cuonToiDs) {
+        cuonToiDs = false;
+        const ds = document.querySelector('#tnBody'); if (ds) ds.closest('.dt-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        UI.toast(tnFilter === 'notamtru' ? `Đang lọc ${noTamtruCua(ctx)} khách chưa đăng ký tạm trú. Bấm lại nút để bỏ lọc.` : 'Đã bỏ lọc, đang hiện tất cả khách', { type: 'info' });
+      }
       const refresh = () => {
         tnPage.page = 1;
         const g = renderGroups(ctx); ctx._g = g;
@@ -278,7 +293,7 @@
         <div class="field"><label>Ngày cấp CCCD</label><div class="mono">${t.cccdIssueDate}</div></div>
         <div class="field"><label>Nơi cấp</label><div>${t.cccdIssuePlace}</div></div>
         <div class="field"><label>Nghề nghiệp</label><div>${t.occupation}</div></div>
-        <div class="field"><label>Phòng</label><div>${t.roomCode || 'chưa gắn phòng'}</div></div>
+        <div class="field"><label>Phòng / Tòa</label><div>${noiO(t)}</div></div>
         <div class="field"><label>Địa chỉ thường trú</label><div>${t.address}</div></div>
         <div class="field"><label>Xe đã đăng ký</label><div>${raw(S.vehiclesOf(t).length
           ? S.vehiclesOf(t).map(v => `<div class="mono">${vehIcon(v.type)} <b>${U.esc(v.plate || 'chưa có biển số')}</b>${v.brand ? ', ' + U.esc(v.brand) : ''}${v.color ? ', ' + U.esc(v.color) : ''}</div>`).join('')

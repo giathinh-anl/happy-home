@@ -279,7 +279,15 @@ HH.backend = (function () {
   const trungKhoa = (e) => !!e && (String(e.code) === '23505' || /duplicate key/i.test(e.message || ''));
   /** INSERT thuần (không ON CONFLICT). Trùng khóa = dòng đã lên máy chủ từ lần trước: coi như xong; một dòng trùng thì thử từng dòng. */
   async function chiThem(bang, rows) {
-    const { error } = await client.from(bang).insert(rows);
+    let error = null;
+    // Bảng thiếu cột (vd. audit_log không có updated_at mà jsToRow luôn gửi): bỏ cột đó rồi thử lại, như nhánh upsert ở saveMany.
+    // Lỗi thật 27/11: mọi lần nhân viên ghi nhật ký đều hỏng vì cột này, kéo theo cả lần lưu bị báo lỗi và thử lại liên tục.
+    for (let lan = 0; lan < 4; lan++) {
+      ({ error } = await client.from(bang).insert(rows));
+      const thieu = !error ? null : missingColumn(error);
+      if (!thieu) break;
+      rows = rows.map((r) => { const c = Object.assign({}, r); delete c[thieu]; return c; });
+    }
     if (!error) return { error: null };
     if (!trungKhoa(error)) { if (!isMissingTable(error)) console.error('[thêm ' + bang + ']', error.message); return { error: isMissingTable(error) ? null : error }; }
     for (const r of rows) {

@@ -2215,6 +2215,8 @@
   let micH = null;            // đang nghe bằng micro (hỏi bằng giọng nói); vẽ lại màn hình thì ngừng nghe, khỏi còn micro treo
   function screenChat() {
     if (micH) { const h0 = micH; micH = null; h0.dung(); }
+    // Giữ chữ khách đang gõ dở: màn này vẽ lại mỗi khi nhân viên trả lời tới (trước đây chữ đang gõ bị xóa mất)
+    const cu = el('chatIn'), dangGo = cu ? cu.value : '', dangTro = !!cu && document.activeElement === cu;
     loadChat();
     if (!chat.msgs.length) {
       pushMsg('bot', `Chào anh/chị <b>${esc(state.data.tenant.fullName)}</b>! Em là trợ lý của Happy Home.<br>
@@ -2259,6 +2261,7 @@
     };
     const bodyEl = el('chatBody'); bodyEl.scrollTop = bodyEl.scrollHeight;
     const inp = el('chatIn');
+    if (dangGo) { inp.value = dangGo; if (dangTro) { inp.focus(); inp.setSelectionRange(dangGo.length, dangGo.length); } }
     const send = () => {
       const v = inp.value.trim();
       if (chat.busy) return;
@@ -2411,8 +2414,13 @@
   async function pullStaffReplies() {
     if (!document.getElementById('chatBody')) { stopStaffPoll(); return; }   // đã rời màn chat
     let r;
+    /* Hỏi lùi lại 10 phút so với lần trước (tin đã hiện thì bỏ qua theo mã, chat.seen). Lỗi thật 27/11: nhân viên trả lời mà khách
+       không thấy. Máy chủ chỉ trả tin có created_at SAU mốc lần hỏi trước, nhưng created_at do máy của người trả lời ghi lúc bấm Gửi,
+       còn dòng tới máy chủ trễ vài giây (hoặc đồng hồ máy đó chậm): lần hỏi xen giữa đẩy mốc qua mặt tin đó, và hàm máy chủ lại
+       đánh dấu mọi tin là "khách đã đọc", nên tin mất hẳn. Máy chủ đã sửa thêm (supabase/migration-chat-fix.sql) nhưng app vẫn tự lùi mốc. */
+    const moc = chat.lastPull ? new Date(Date.parse(chat.lastPull) - 10 * 60000).toISOString() : null;
     try {
-      r = await rpc('tenant_messages', { p_after: chat.lastPull || null });
+      r = await rpc('tenant_messages', { p_after: moc });
     } catch (e) { return; }                       // mạng chập chờn: bỏ qua lượt này
     if (!r) return;
     chat.lastPull = r.now || chat.lastPull;

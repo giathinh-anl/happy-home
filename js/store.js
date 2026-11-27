@@ -898,9 +898,16 @@ HH.store = (function () {
     },
 
     // Tổng hợp cho 3 thẻ trang phòng (kiểu LOZIDO)
+    /* Công nợ tính từ HÓA ĐƠN đã phát hành (bỏ nháp và đã hủy), trừ phần đã trả. Trước đây thẻ "Tổng tiền khách nợ" cộng cả hóa đơn nháp,
+       còn chữ "Nợ…" của từng phòng là số room.debt ghi sẵn lúc tạo dữ liệu, không đổi khi thu tiền: hai số không khớp nhau (bạn chủ trọ phát hiện 27/11). */
+    roomDebt(r) {
+      if (!r) return 0;
+      return invoices.filter(i => i.buildingId === r.buildingId && i.roomCode === r.code && i.status !== 'cancelled' && i.status !== 'draft')
+        .reduce((s, i) => s + Math.max(0, (+i.total || 0) - (+i.paid || 0)), 0);
+    },
     roomSummary(bid) {
-      const debt = invoices.filter(i => i.buildingId === bid && i.status !== 'cancelled')
-        .reduce((s, i) => s + (i.total - i.paid), 0);
+      const debt = invoices.filter(i => i.buildingId === bid && i.status !== 'cancelled' && i.status !== 'draft')
+        .reduce((s, i) => s + Math.max(0, (+i.total || 0) - (+i.paid || 0)), 0);
       const deposit = contracts.filter(c => c.buildingId === bid && (c.status === 'active' || c.status === 'terminating'))
         .reduce((s, c) => s + (c.deposit || 0), 0);
       const incident = incidents.filter(x => x.buildingId === bid && x.status !== 'done').length;
@@ -1319,6 +1326,18 @@ HH.store = (function () {
       api.log('support.reply', `Trả lời khách ${phone}${m.roomCode ? ' (phòng ' + m.roomCode + ')' : ''}`);
       persist();
       return m;
+    },
+    /** Gửi NGAY câu trả lời vừa soạn lên máy chủ (không chờ lần lưu chung 350 ms sau, vốn đi lần lượt qua mọi bảng), để khách nhận sớm
+        và để báo đúng: trước đây trang Hỏi đáp luôn báo "Đã gửi cho khách" kể cả khi máy chủ từ chối. Trả { ok } hoặc { loi: 'lý do' }. */
+    async guiTraLoi(m) {
+      if (!m || !usingBackend()) return { ok: true };
+      let r;
+      try { r = await HH.backend.saveMany('supportMsgs', [m]); } catch (e) { r = { error: e }; }
+      if (!r || !r.error) return { ok: true };
+      const tn = String(r.error.message || '');
+      return { loi: /row-level security|permission|42501/i.test(tn + ' ' + (r.error.code || ''))
+        ? 'máy chủ từ chối: tài khoản này thiếu quyền "Khách thuê" hoặc chưa được giao tòa của khách này (chủ trọ sửa ở Công ty / nhóm)'
+        : /fetch|network/i.test(tn) ? 'mất kết nối mạng, app sẽ tự gửi lại khi có mạng' : 'máy chủ báo lỗi: ' + tn };
     },
     /** Ảnh đã có trong bộ nhớ của một tin, hoặc null (chưa tải) */
     supportPhotosOf(id) { return supportPhotos[id] || null; },
