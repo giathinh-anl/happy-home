@@ -254,6 +254,18 @@ HH.backend = (function () {
     return { ok: true };
   }
 
+  /* ---------- Ảnh CCCD khách tự gửi từ app khách (supabase/migration-tenant-self.sql) ----------
+     Bảng riêng, chỉ tải khi mở hồ sơ một khách (mỗi ảnh vài trăm KB). Nhân viên đọc được nếu có quyền Khách thuê của tòa đó. */
+  /** { data: { front?: { data, luc }, back?: { data, luc } } }, { missing: true } khi máy chủ chưa chạy migration, hoặc { error } */
+  async function anhCccdKhach(tenantId) {
+    if (!enabled || !tenantId) return { data: {} };
+    const { data, error } = await client.from('tenant_docs').select('kind, data, created_at').eq('owner_id', chuGhi()).eq('tenant_id', tenantId);
+    if (error) return isMissingTable(error) ? { data: {}, missing: true } : { error };
+    const out = {};
+    (data || []).forEach((r) => { out[r.kind === 'cccd_back' ? 'back' : 'front'] = { data: r.data, luc: r.created_at }; });
+    return { data: out };
+  }
+
   /* ---------- Chỉ gửi những dòng THẬT SỰ đổi ----------
      Trước đây mỗi lần lưu là đẩy lại toàn bộ mọi bảng. Từ khi phòng có ảnh
      (mỗi tấm vài trăm KB nằm ngay trong dòng) thì mỗi lần bấm Lưu phải tải
@@ -438,6 +450,6 @@ HH.backend = (function () {
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail, datChuDuLieu,
     LINK_NV, linkNhanVien, taoTaiKhoanNhanVien,
-    loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, demViec,
+    loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, anhCccdKhach, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, demViec,
     client: () => client, KINDS };
 })();

@@ -1199,3 +1199,14 @@ html[data-vt="fade"]::view-transition-new(root) { animation: vtZoomIn .5s var(--
   .link-btn { padding: 13px 8px; margin: -11px -8px -13px; }
   .t-section-head a { display: inline-block; padding: 12px 6px; margin: -12px -6px; }
 }
+
+/* Giấy tờ tùy thân: khách tự gửi ảnh CCCD hai mặt (màn Tài khoản) */
+.cccd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cccd-tile { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cccd-pic { position: relative; aspect-ratio: 1.58; border-radius: 12px; overflow: hidden; display: grid; place-items: center; background: var(--surface-2); border: 1px dashed var(--line-2); color: var(--ink-3, var(--neutral-400)); }
+.cccd-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cccd-st { position: absolute; left: 6px; top: 6px; }
+.cccd-st .t-badge { box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.cccd-meta { font-size: 14px; text-align: center; }
+.cccd-tile .t-btn { width: 100%; max-width: none; }
+@media (max-width: 340px) { .cccd-grid { grid-template-columns: 1fr; } }

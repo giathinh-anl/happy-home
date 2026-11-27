@@ -291,7 +291,7 @@
     if (error) { if (rpcMissing(error)) throw new Error('NOT_ACTIVATED'); return fromCache(new Error(error.message)); }
     if (data == null) { sessionLost(); throw new Error('SESSION'); }
     await Promise.all([loadNotices().then(n => { data.notices = n; }), loadIncidentUpdates(data.incidents), loadIncidentRatings(data.incidents),
-      loadBank().then(b => { if (b !== undefined) data.bank = b; })]);
+      loadBank().then(b => { if (b !== undefined) data.bank = b; }), loadCccd().then(c => { if (c) data.cccd = c; })]);
     state.offline = null;
     applyBank(data.bank);
     saveCache(data);
@@ -307,6 +307,16 @@
       if (r.error) { if (rpcMissing(r.error)) noBank = true; return undefined; }
       if (r.data == null) return undefined;       // phiên hết hạn: tenant_data đã xử lý
       return r.data.bank || null;
+    } catch (e) { return undefined; }
+  }
+  /* Khách đã nộp mặt CCCD nào (supabase/migration-tenant-self.sql): { front, back }. undefined = chưa biết (chưa chạy migration, lỗi mạng) */
+  let noCccd = false;
+  async function loadCccd() {
+    if (noCccd) return undefined;
+    try {
+      const r = await client.rpc('tenant_cccd_status', { p_token: state.token });
+      if (r.error) { if (rpcMissing(r.error)) noCccd = true; return undefined; }
+      return r.data && typeof r.data === 'object' ? { front: !!r.data.front, back: !!r.data.back } : undefined;
     } catch (e) { return undefined; }
   }
   /* Tiến độ sửa chữa chủ nhà đã chọn cho khách thấy (supabase/migration-incident-tracking.sql). Chưa chạy migration hay lỗi
@@ -1546,6 +1556,7 @@
           ? '<span class="t-badge success"><span class="d"></span>Đã đăng ký</span>'
           : '<span class="t-badge warning"><span class="d"></span>Chưa đăng ký</span>'}</span></div>
       </div>
+      <div class="t-card" id="cccdCard">${cccdHtml()}</div>
       <div class="t-card" style="padding:0;overflow:hidden">
         ${installMode() === 'prompt' || installMode() === 'ios' ? `<button class="t-action" id="installRow"><span class="aic">${HH.ic('download', 20)}</span>Cài app về màn hình chính<span class="chev">›</span></button>` : ''}
         <button class="t-action" data-nav="#/history"><span class="aic">${ico('card', 26)}</span>Lịch sử thanh toán<span class="chev">›</span></button>
@@ -1566,6 +1577,7 @@
     `, { tab: 'account' });
     document.querySelectorAll('[data-nav]').forEach(x => x.onclick = () => go(x.dataset.nav));
     const ir = el('installRow'); if (ir) ir.onclick = installNow;
+    noiCccd();
     drawPushRow();
     document.querySelectorAll('[data-theme-set]').forEach(b => b.onclick = () => {
       setTheme(b.dataset.themeSet);
@@ -1578,6 +1590,67 @@
       alert('• Trang chủ: xem tiền cần đóng và hạn thanh toán\n• Hóa đơn: xem chi tiết từng khoản\n• Phòng của tôi: hợp đồng, điều khoản, tài sản, bảng giá\n• Gửi chỉ số: tự gửi số điện kèm ảnh đồng hồ cho chủ nhà\n• Báo hỏng: gửi yêu cầu sửa chữa và theo dõi tiến độ');
     };
     el('logoutBtn').onclick = hoiDangXuat;
+  }
+
+  /* ---------- Giấy tờ tùy thân: khách tự gửi ảnh CCCD hai mặt (supabase/migration-tenant-self.sql) ----------
+     Bạn chủ trọ báo 27/11: app khách không có chỗ úp CCCD. Ảnh nén trên máy rồi gửi từng mặt; chủ nhà xem trong hồ sơ khách.
+     Ảnh vừa gửi chỉ giữ trong bộ nhớ để khách thấy lại (không lưu vào máy, không tải ảnh cũ từ máy chủ về). */
+  const ANH_HOP_LE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+  const CCCD_MOI = {};
+  const MAT_CCCD = [['front', 'Mặt trước'], ['back', 'Mặt sau']];
+  function cccdHtml() {
+    const c = state.data && state.data.cccd;
+    const o = MAT_CCCD.map(([k, ten]) => {
+      const da = c ? !!c[k] : null, anh = CCCD_MOI[k];
+      const nhan = da == null ? '' : da ? '<span class="t-badge success"><span class="d"></span>Đã nộp</span>' : '<span class="t-badge warning"><span class="d"></span>Chưa nộp</span>';
+      return `<div class="cccd-tile">
+        <div class="cccd-pic">${anh ? `<img src="${anh}" alt="CCCD ${ten.toLowerCase()} vừa gửi">` : ico('card', 40)}${nhan ? `<span class="cccd-st">${nhan}</span>` : ''}</div>
+        <div class="cccd-meta"><b>${ten}</b></div>
+        <button type="button" class="t-btn outline sm" data-cccd="${k}">${ico('camera', 22)}${da ? 'Gửi lại' : 'Gửi ảnh'}</button>
+        <input type="file" accept="image/*" hidden data-cccd-in="${k}" aria-label="Chọn ảnh CCCD ${ten.toLowerCase()}">
+      </div>`;
+    }).join('');
+    return `<div class="t-section-head"><h3>Giấy tờ tùy thân (CCCD)</h3></div>
+      <p class="sp-note" style="margin-bottom:12px">Chụp rõ cả 4 góc thẻ, không bị lóa. Ảnh chỉ gửi cho chủ nhà để làm hồ sơ và đăng ký tạm trú.</p>
+      <div class="cccd-grid">${o}</div>`;
+  }
+  function noiCccd() {
+    const box = el('cccdCard'); if (!box) return;
+    box.querySelectorAll('[data-cccd]').forEach(b => b.onclick = () => { const i = box.querySelector(`[data-cccd-in="${b.dataset.cccd}"]`); if (i) i.click(); });
+    box.querySelectorAll('[data-cccd-in]').forEach(i => i.onchange = () => {
+      const f = i.files && i.files[0]; i.value = '';
+      if (f) guiCccd(i.dataset.cccdIn, f, box.querySelector(`[data-cccd="${i.dataset.cccdIn}"]`));
+    });
+  }
+  /* Nén từ bậc rõ nét tới bậc nhỏ cho tới khi vừa giới hạn của máy chủ (700.000 ký tự) */
+  async function nenCccd(file) {
+    for (const [canh, cl] of [[1600, 0.82], [1280, 0.75], [1000, 0.68], [800, 0.6]]) {
+      const d = await compressImg(file, canh, cl);
+      if (typeof d === 'string' && d.length <= 690000 && ANH_HOP_LE.test(d)) return d;
+    }
+    return null;
+  }
+  const LOI_CCCD = { bad_image: 'Ảnh này không đọc được. Anh/chị chụp lại giúp em (ảnh JPG, PNG hoặc WebP).',
+    too_big: 'Ảnh nặng quá, anh/chị chụp lại gần hơn giúp em.', bad_kind: 'Có lỗi khi gửi ảnh, anh/chị thử lại giúp em.' };
+  async function guiCccd(k, file, btn) {
+    if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+    const ten = k === 'front' ? 'mặt trước' : 'mặt sau';
+    try {
+      if (!/^image\//.test(file.type || 'image/')) { toast('Chỉ gửi được ảnh. Anh/chị chọn lại giúp em.'); return; }
+      const d = await nenCccd(file);
+      if (!d) { toast(LOI_CCCD.bad_image); return; }
+      const r = await rpc('tenant_upload_cccd', { p_kind: k === 'front' ? 'cccd_front' : 'cccd_back', p_data: d });
+      if (!r.ok) { toast(LOI_CCCD[r.error] || LOI_CCCD.bad_kind); return; }
+      CCCD_MOI[k] = d;
+      state.data.cccd = Object.assign({ front: false, back: false }, state.data.cccd, { [k]: true });
+      toast('Đã gửi ảnh CCCD ' + ten + ' cho chủ nhà');
+    } catch (e) {
+      if (e.message === 'SESSION') return;
+      toast(e.message === 'NOT_ACTIVATED' ? 'Hệ thống chưa bật chức năng gửi CCCD. Anh/chị báo chủ nhà giúp em.' : 'Không kết nối được máy chủ. Thử lại sau.');
+    } finally {
+      const box = el('cccdCard');
+      if (box) { box.innerHTML = cccdHtml(); noiCccd(); }
+    }
   }
 
   /* ---------- màn hình: ĐỔI MÃ VÀO APP ----------

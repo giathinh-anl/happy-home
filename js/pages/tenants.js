@@ -80,7 +80,7 @@
       const grp = list.filter(t => (t.roomCode || '(chưa gắn phòng)') === rc);
       const chuaGan = rc.startsWith('(');
       return `<tr class="tenant-group-head"><td colspan="9">${U.esc(chuaGan ? rc : 'Phòng số ' + rc)}${tenToa(ctx.bid) ? ` <span class="muted">· Tòa ${U.esc(tenToa(ctx.bid))}</span>` : ''} <span class="cnt">(${grp.length}) khách thuê</span>`
-        + `${chuaGan ? '' : ' ' + scoreBadge(ctx.bid, rc) + ' ' + HH.rewardsUI.badge(ctx.bid, rc)}</td></tr>`
+        + `${chuaGan ? '' : ' ' + scoreBadge(ctx.bid, rc)}</td></tr>`
         + grp.map(tenantRow).join('');
     }).join('');
     return { body, pg };
@@ -123,7 +123,6 @@
           <div class="page-actions">
             <button class="btn ${tnFilter === 'notamtru' ? 'btn-primary' : 'btn-outline'}" id="tnTamtru" aria-pressed="${tnFilter === 'notamtru' ? 'true' : 'false'}">${raw(HH.icon('clock', 16))} Chưa đăng ký tạm trú
               ${raw(noTamtru ? `<span class="cnt-badge">${noTamtru}</span>` : '')}</button>
-            ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnReward">${HH.icon('sparkles', 16)} Điểm thưởng</button>` : '')}
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnAccess">${HH.icon('lock', 16)} Mã vào app</button>` : '')}
             ${raw(S.isOwner() ? `<button class="btn btn-outline" id="tnInvite">${HH.icon('send', 16)} Mời khách khai ${cho ? `<span class="cnt-badge">${cho}</span>` : ''}</button>` : '')}
             <button class="btn btn-outline" id="tnExport">${raw(HH.icon('sheet', 16))} Xuất Excel</button>
@@ -153,7 +152,6 @@
       const wirePg = () => { const g = ctx._g; if (g && g.pg) g.pg.attach(document, () => { HH.router.render(); }); };
       wirePg();
       document.querySelector('[data-primary-new]').onclick = () => HH.router.go(`/b/${ctx.bid}/tenants/new`);
-      const rwb = document.getElementById('tnReward'); if (rwb) rwb.onclick = () => HH.rewardsUI.settingsDialog(ctx);
       const acc = document.getElementById('tnAccess'); if (acc) acc.onclick = () => HH.tenantAccess.bulkDialog(ctx);
       const inv = document.getElementById('tnInvite'); if (inv) inv.onclick = () => HH.onboardingUI.inviteDialog(ctx);
       const invL = document.getElementById('tnInvList'); if (invL) invL.onclick = () => HH.onboardingUI.listDialog(ctx);
@@ -211,7 +209,6 @@
   };
 
   function wireRows(ctx) {
-    document.querySelectorAll('[data-reward]').forEach(b => b.onclick = (e) => { e.stopPropagation(); HH.rewardsUI.roomDialog(ctx, b.dataset.reward); });
     document.querySelectorAll('[data-tn]').forEach(b => b.onclick = (e) => {
       e.stopPropagation();
       const t = S.tenantById(b.dataset.tn);
@@ -300,9 +297,24 @@
           : '<span class="faint">Chưa có</span>')}</div></div>
       </div>
       <div class="grid-2" style="margin-top:12px">
-        <div class="ocr-img" style="min-height:140px">${raw(t.cccdFront ? 'Ảnh CCCD mặt trước' : '<span style="color:var(--danger)">Chưa có ảnh mặt trước</span>')}</div>
-        <div class="ocr-img" style="min-height:140px">${raw(t.cccdBack ? 'Ảnh CCCD mặt sau' : '<span style="color:var(--danger)">Chưa có ảnh mặt sau</span>')}</div>
-      </div>`, footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>` });
+        <div class="ocr-img" style="min-height:140px" data-cccd="front">${raw(t.cccdFront ? 'Đã nộp mặt trước' : '<span style="color:var(--danger)">Chưa có ảnh mặt trước</span>')}</div>
+        <div class="ocr-img" style="min-height:140px" data-cccd="back">${raw(t.cccdBack ? 'Đã nộp mặt sau' : '<span style="color:var(--danger)">Chưa có ảnh mặt sau</span>')}</div>
+      </div>`, footHtml: `<span class="spacer"></span><button class="btn btn-outline" data-close>Đóng</button>`,
+      // Ảnh khách tự gửi từ app khách (Tài khoản → Giấy tờ tùy thân): tải riêng khi mở hồ sơ
+      onMount(el) { if (HH.backend && HH.backend.enabled && HH.backend.anhCccdKhach) hienAnhCccd(el, t); } });
+  }
+
+  async function hienAnhCccd(el, t) {
+    const r = await HH.backend.anhCccdKhach(t.id);
+    if (!r || !r.data) return;
+    [['front', 'mặt trước'], ['back', 'mặt sau']].forEach(([k, ten]) => {
+      const o = r.data[k], box = el.querySelector(`[data-cccd="${k}"]`);
+      if (!o || !box || !/^data:image\/(jpeg|png|webp);base64,/.test(o.data)) return;
+      const d = new Date(o.luc), luc = isNaN(d) ? '' : `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+      box.innerHTML = `<img src="${o.data}" alt="CCCD ${ten}" style="width:100%;display:block;cursor:zoom-in">`
+        + `<span class="ocr-tag">Khách gửi từ app${luc ? ' ngày ' + luc : ''}</span>`;
+      box.querySelector('img').onclick = () => phongToAnh(o.data, 'Ảnh CCCD ' + ten + ' · ' + t.fullName);
+    });
   }
 
   /* ---------------- Thêm khách thuê (OCR) ---------------- */
