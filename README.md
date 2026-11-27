@@ -177,6 +177,8 @@ Chưa có: tự đọc chữ trên ảnh CCCD (OCR) cho khách (khóa API của 
 
 Khi thử bằng thao tác thật tôi còn sửa: ô ngày sinh đổi từ bánh xe chọn ngày (phải vuốt về năm 1998 rất lâu) sang gõ số, tự chèn dấu `/`; danh sách lời mời tự nhảy tới tab còn việc khi dữ liệu mới về; biểu mẫu thêm khách không bị vẽ lại giữa chừng khi web tự đồng bộ (trước đây mất những gì vừa gõ).
 
+**Khách đang ở cũng tự gửi ảnh CCCD từ app** (từ 28/11/2026): app khách → *Tài khoản → Giấy tờ tùy thân*, mỗi mặt một nút *Gửi ảnh* (chụp hoặc chọn ảnh có sẵn), ảnh nén trên máy rồi gửi; nhãn *Đã nộp / Chưa nộp* trên từng mặt, gửi lại thì thay ảnh cũ. Chủ trọ (và nhân viên có quyền *Khách thuê* của tòa đó) xem ảnh trong *Khách thuê → Xem hồ sơ*, bấm để phóng to; cột "Hình" ở danh sách tự thành đã nộp. Máy chủ: `supabase/migration-tenant-self.sql` (bảng `tenant_docs` riêng, chỉ nhận ảnh JPG/PNG/WebP tối đa ~500 KB; người lạ không đọc được), **đã chạy trên máy chủ thật 28/11/2026** (so mã băm trước khi chạy, kiểm lại quyền bằng câu chỉ đọc). Kiểm thử: `tests/db/tenant-self.test.py` (16 ca, thử phá 12 chỗ đều bắt được), `tests/tenant-cccd.test.js`.
+
 ## Báo hỏng có theo dõi tiến độ
 
 Trang **Sự cố & sửa chữa** không còn chỉ là ba trạng thái. Bấm vào một sự cố (hoặc menu "⋯ → Tiến độ & cập nhật") để xem **dòng thời gian** và cập nhật:
