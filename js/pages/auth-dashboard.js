@@ -36,7 +36,7 @@ HH.pages = HH.pages || {};
           <div class="login-form-wrap">
           <form class="login-form" id="loginForm" novalidate>
             <div class="login-mini-logo"><img src="assets/logo-mark.svg" alt="" width="44" height="38"><span>happy home</span></div>
-            <div><h1 id="authTitle">Đăng nhập</h1><p class="lead">${raw(backend ? 'Tài khoản của bạn' : 'Hệ thống quản lý')}</p></div>
+            <div><h1 id="authTitle">Đăng nhập</h1><p class="lead">${raw(backend && HH.backend.LINK_NV ? '<b>Trang dành cho nhân viên</b> · dùng song song với trang chủ trọ được' : backend ? 'Tài khoản của bạn' : 'Hệ thống quản lý')}</p></div>
             <div id="loginError" class="alert alert-danger hidden"><span class="ic">${HH.ic('alert', 16)}</span><div id="loginErrText">Email hoặc mật khẩu không đúng</div></div>
             <div class="field" id="nameField" style="display:none">
               <label for="fullName">Họ và tên</label>
@@ -58,6 +58,7 @@ HH.pages = HH.pages || {};
             ${raw(demoBlock)}
             <button class="btn btn-primary btn-lg btn-block" id="loginBtn" type="submit">Đăng nhập</button>
             ${raw(hint)}
+            ${raw(backend && HH.backend.LINK_NV ? '<a href="./#/login" style="text-align:center;display:block;margin-top:4px">Bạn là chủ trọ? Mở trang chủ trọ →</a>' : '')}
             <a href="tenant-app/index.html" style="text-align:center;display:block;margin-top:4px">Bạn là khách thuê? Đăng nhập tại đây →</a>
             <a href="gioi-thieu/" style="text-align:center;display:block;margin-top:4px">Xem giới thiệu Happy Home →</a>
           </form>

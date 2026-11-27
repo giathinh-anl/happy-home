@@ -394,7 +394,8 @@ HH.store = (function () {
   if (!usingBackend()) { if (!loadPersisted()) persist(); setTimeout(() => { if (api.refreshExpiryFlags()) persist(); }, 0); }
 
   /* ---------- Trạng thái ứng dụng ---------- */
-  const PREFS_KEY = 'hh_prefs_v1';
+  // Link nhân viên ("?nv", xem js/backend.js): cài đặt cất riêng, kẻo tab chủ trọ và tab nhân viên đè vai trò / quyền của nhau
+  const PREFS_KEY = /[?&]nv(?:[=&]|$)/.test((typeof location !== 'undefined' && location.search) || '') ? 'hh_prefs_nv_v1' : 'hh_prefs_v1';
   const defaultPrefs = { auth: false, role: 'owner', userName: 'Nguyễn Văn A',
     period: CUR_PERIOD, roomView: 'map' };
   let prefs = Object.assign({}, defaultPrefs);

@@ -98,12 +98,43 @@ HH.backend = (function () {
     return o;
   }
 
+  /* Link riêng cho nhân viên (địa chỉ có "?nv"): phiên đăng nhập cất ở khóa riêng. Lỗi bạn chủ trọ báo 27/11: chủ trọ và nhân viên mở
+     cùng một trình duyệt thì dùng chung MỘT phiên (Supabase cất phiên theo trang web), người đăng nhập sau chiếm phiên, nên bấm F5 ở tab
+     chủ trọ thì thành nhân viên và ngược lại. Nay link nhân viên và link chủ trọ có phiên riêng, mở song song được. */
+  const LINK_NV = typeof location !== 'undefined' && /[?&]nv(?:[=&]|$)/.test(location.search || '');
   function init() {
     if (enabled && !client) {
-      client = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey,
-        { auth: { persistSession: true, autoRefreshToken: true } });
+      const auth = { persistSession: true, autoRefreshToken: true };
+      if (LINK_NV) auth.storageKey = 'hh-nhanvien-auth';
+      client = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth });
     }
     return client;
+  }
+  /** Địa chỉ đăng nhập dành cho nhân viên (đưa cho nhân viên) */
+  function linkNhanVien() {
+    try { const u = new URL(location.href); u.hash = '#/login'; u.search = '?nv'; return u.href; } catch (e) { return '?nv#/login'; }
+  }
+
+  /** Chủ trọ tạo tài khoản đăng nhập cho nhân viên ngay (khỏi bắt nhân viên tự đăng ký). Dùng một kết nối TẠM không lưu phiên,
+      nên phiên của chủ trọ đang mở không bị đổi. Trả { ok } | { daCo } (email đã có tài khoản: nhân viên dùng mật khẩu cũ) |
+      { canXacNhan } (máy chủ bắt xác nhận email) | { loi }. */
+  async function taoTaiKhoanNhanVien(email, matKhau, ten) {
+    if (!enabled) return { loi: 'Chưa nối máy chủ' };
+    let tam;
+    try {
+      tam = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey,
+        { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'hh-tao-nv-tam' } });
+      const { data, error } = await tam.auth.signUp({ email, password: matKhau, options: { data: { full_name: ten || email.split('@')[0] } } });
+      if (error) {
+        if (/already|registered|exists/i.test(error.message || '')) return { daCo: true };
+        if (/password/i.test(error.message || '')) return { loi: 'Mật khẩu chưa đủ mạnh (tối thiểu 8 ký tự, nên có chữ và số)' };
+        return { loi: error.message || 'Không tạo được tài khoản' };
+      }
+      // Supabase trả người dùng "giả" không có danh tính khi email đã tồn tại (chống dò email)
+      if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) return { daCo: true };
+      return data && data.session ? { ok: true } : { canXacNhan: true };
+    } catch (e) { return { loi: 'Không kết nối được máy chủ' }; }
+    finally { try { if (tam) await tam.auth.signOut(); } catch (e) { /* không có phiên */ } }
   }
 
   /* ---------- Auth ---------- */
@@ -406,6 +437,7 @@ HH.backend = (function () {
   }
 
   return { enabled, init, signUp, signIn, signOut, getSession, currentUserId, currentEmail, changePassword, updateDisplayName, findStaffByEmail, datChuDuLieu,
+    LINK_NV, linkNhanVien, taoTaiKhoanNhanVien,
     loadAll, loadKind, loadSupportPhotos, saveSupportPhotos, saveMany, saveOne, hasColumn, primeSig, deleteOne, deleteAll, deleteByBuilding, rpc, postFacebook, demViec,
     client: () => client, KINDS };
 })();

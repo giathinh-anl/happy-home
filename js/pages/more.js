@@ -1099,15 +1099,28 @@
           </div></div>` : '')}
       </div>
 
+      ${raw(S.usingBackend() && S.isOwner() ? `<div class="card" style="margin-bottom:16px"><div class="card-pad">
+        <b>Link đăng nhập cho nhân viên</b>
+        <div class="muted text-sm" style="margin:4px 0 10px">Gửi link này cho nhân viên. Link riêng nên bạn và nhân viên mở cùng một máy vẫn không bị lẫn tài khoản
+          (trước đây dùng chung một link thì bấm F5 là nhảy từ chủ trọ sang nhân viên và ngược lại).</div>
+        <div class="row-gap-2 wrap"><input class="input mono" id="nvLink" readonly value="${U.esc(HH.backend.linkNhanVien())}" style="flex:1;min-width:240px" aria-label="Link đăng nhập cho nhân viên">
+          <button class="btn btn-outline" id="nvLinkCopy" type="button">${HH.ic('copy', 16)} Chép link</button></div>
+      </div></div>` : '')}
       <div class="alert alert-info"><span class="ic">${HH.ic('info', 16)}</span><div>
-        <b>Cách nhân viên đăng nhập:</b> bạn thêm nhân viên bằng <b>email</b> → nhân viên vào trang đăng nhập,
-        bấm <b>Đăng ký</b> bằng <u>đúng email đó</u> và tự đặt mật khẩu → hệ thống tự nhận diện và cấp đúng quyền bạn đã chọn.
-        <div class="text-xs" style="margin-top:4px">Chủ trọ không thấy và không cần biết mật khẩu của nhân viên.</div>
+        <b>Cách nhân viên vào:</b> lúc thêm nhân viên, nhập <b>mật khẩu ban đầu</b> là app tạo tài khoản ngay: bạn đưa link nhân viên, email và mật khẩu,
+        nhân viên đăng nhập được luôn rồi tự đổi mật khẩu ở Cài đặt chung. Để trống mật khẩu thì nhân viên tự <b>Đăng ký</b> bằng <u>đúng email đó</u>.
+        Hệ thống tự nhận diện và cấp đúng quyền, đúng tòa bạn đã chọn.
       </div></div>`;
     },
     mount() {
       const nb = document.querySelectorAll('[data-primary-new]');
       nb.forEach(b => b.onclick = () => staffForm(null));
+      const lc = document.getElementById('nvLinkCopy');
+      if (lc) lc.onclick = () => {
+        const v = document.getElementById('nvLink').value;
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(() => UI.toast('Đã chép link đăng nhập cho nhân viên', { type: 'ok' }), () => UI.toast('Trình duyệt không cho chép, hãy bôi đen rồi chép tay', { type: 'warning' }));
+        else UI.toast('Trình duyệt không hỗ trợ chép, hãy bôi đen rồi chép tay', { type: 'warning' });
+      };
       document.querySelectorAll('[data-staffmenu]').forEach(b => b.onclick = () => {
         const s = S.staffById(b.dataset.staffmenu);
         UI.openMenu(b, [
@@ -1145,7 +1158,7 @@
         <div class="grid-2">
           <div class="field"><label>Email đăng nhập *</label>
             <input class="input" data-s="email" value="${existing ? existing.email : ''}" placeholder="nhanvien@gmail.com" ${raw(isNew ? '' : 'disabled')}>
-            <span class="hint">Nhân viên sẽ đăng ký tài khoản bằng đúng email này</span></div>
+            <span class="hint">Nhân viên đăng nhập bằng đúng email này</span></div>
           <div class="field"><label>Họ và tên</label><input class="input" data-s="fullName" value="${existing ? (existing.fullName || '') : ''}" placeholder="Trần Thị B"></div>
           <div class="field"><label>Số điện thoại</label><input class="input mono" data-s="phone" value="${existing ? (existing.phone || '') : ''}" placeholder="09xxxxxxxx"></div>
           <div class="field"><label>Vai trò</label><select class="select" data-s="role">
@@ -1153,6 +1166,10 @@
             <option value="manager" ${existing && existing.role === 'manager' ? 'selected' : ''}>Quản lý</option>
           </select></div>
         </div>
+        ${raw(isNew && S.usingBackend() ? `<div class="field" style="margin-top:12px"><label for="nvPw">Mật khẩu ban đầu <span class="hint" style="font-weight:400">· nhập thì app tạo tài khoản ngay (tối thiểu 8 ký tự); để trống thì nhân viên tự đăng ký</span></label>
+          <div class="pw-field"><input class="input" id="nvPw" type="password" autocomplete="new-password" placeholder="Để trống nếu nhân viên tự đăng ký">
+            <button type="button" class="toggle" id="nvPwToggle" aria-label="Hiện mật khẩu">${HH.ic('eye', 16)}</button></div>
+          <span class="err" id="nvPwErr" role="alert" style="display:none"></span></div>` : '')}
         <div class="field" style="margin-top:16px">
           <label>Phạm vi tòa nhà <span class="hint" style="font-weight:400">· nhân viên chỉ thấy các tòa được chọn; không chọn = tất cả</span></label>
           <div class="card" style="box-shadow:none"><div class="card-pad" style="padding:10px 12px">${raw(bHtml || '<span class="faint">Chưa có tòa nhà</span>')}</div></div>
@@ -1177,33 +1194,62 @@
           { el: '[data-s="fullName"]', ten: 'Họ và tên', batBuoc: false, kiem: V.hoTen },
           { el: '[data-s="phone"]', ten: 'Số điện thoại', batBuoc: false, kiem: V.sdt },
         ]);
-        el.querySelector('[data-save]').onclick = (e) => {
+        const pwEl = el.querySelector('#nvPw'), pwErr = el.querySelector('#nvPwErr');
+        const baoPw = (t) => { if (!pwErr) return; pwErr.textContent = t || ''; pwErr.style.display = t ? 'block' : 'none'; if (pwEl) { if (t) pwEl.setAttribute('aria-invalid', 'true'); else pwEl.removeAttribute('aria-invalid'); } };
+        const pwT = el.querySelector('#nvPwToggle');
+        if (pwT) pwT.onclick = () => { pwEl.type = pwEl.type === 'password' ? 'text' : 'password'; pwT.setAttribute('aria-label', pwEl.type === 'password' ? 'Hiện mật khẩu' : 'Ẩn mật khẩu'); };
+        if (pwEl) pwEl.oninput = () => baoPw('');
+        el.querySelector('[data-save]').onclick = async (e) => {
           const g = (k) => ((el.querySelector(`[data-s="${k}"]`) || {}).value || '').trim();
           const email = (isNew ? g('email') : existing.email).toLowerCase();
           if (!rules.check()) return;
+          const pw = pwEl ? pwEl.value : '';
+          if (pw && pw.length < 8) { baoPw('Mật khẩu tối thiểu 8 ký tự'); pwEl.focus(); return; }
           const permissions = [...el.querySelectorAll('[data-perm]')].filter(c => c.checked).map(c => c.dataset.perm);
           const buildingIds = [...el.querySelectorAll('[data-bld]')].filter(c => c.checked).map(c => c.dataset.bld);
-          e.currentTarget.classList.add('loading');
-          setTimeout(() => {
-            const patch = { email, fullName: g('fullName'), phone: g('phone') ? V.chuanSdt(g('phone')) : '', role: g('role'), permissions, buildingIds };
-            if (isNew) {
-              S.addStaff(Object.assign({ id: U.uid('st'), status: 'active', createdAt: new Date().toISOString() }, patch));
-              S.log('staff.add', `Thêm nhân viên ${email} (${permissions.length} quyền)`);
-            } else { S.updateStaff(existing.id, patch); S.log('staff.update', `Cập nhật quyền nhân viên ${email}`); }
-            close();
-            if (isNew) UI.modal({ title: 'Đã thêm nhân viên', bodyHtml: `
-              <div class="alert alert-success" style="margin-bottom:12px"><span class="ic">✓</span><div>Đã thêm <b>${U.esc(email)}</b> với ${permissions.length} quyền.</div></div>
-              <p class="b" style="margin-bottom:6px">Hướng dẫn cho nhân viên:</p>
-              <ol style="padding-left:20px;line-height:1.9">
-                <li>Mở trang đăng nhập của hệ thống</li>
-                <li>Bấm <b>"Chưa có tài khoản? Đăng ký"</b></li>
-                <li>Đăng ký bằng <b class="mono">${U.esc(email)}</b> và tự đặt mật khẩu (≥6 ký tự)</li>
-                <li>Đăng nhập, hệ thống tự cấp đúng quyền bạn đã chọn</li>
-              </ol>`,
-              footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Đã hiểu</button>` });
-            else UI.toast('Đã lưu nhân viên', { type: 'ok' });
-            HH.router.render();
-          }, 350);
+          const btn = e.currentTarget; btn.classList.add('loading'); btn.disabled = true;
+          // Tạo tài khoản đăng nhập ngay (chủ trọ đặt mật khẩu ban đầu). Lỗi thì dừng, chưa thêm nhân viên.
+          let tk = null;
+          if (isNew && pw) {
+            tk = await HH.backend.taoTaiKhoanNhanVien(email, pw, g('fullName'));
+            if (tk.loi) { btn.classList.remove('loading'); btn.disabled = false; baoPw('Chưa tạo được tài khoản: ' + tk.loi); return; }
+          }
+          const patch = { email, fullName: g('fullName'), phone: g('phone') ? V.chuanSdt(g('phone')) : '', role: g('role'), permissions, buildingIds };
+          if (isNew) {
+            S.addStaff(Object.assign({ id: U.uid('st'), status: 'active', createdAt: new Date().toISOString() }, patch));
+            S.log('staff.add', `Thêm nhân viên ${email} (${permissions.length} quyền)${tk && tk.ok ? ', đã tạo tài khoản đăng nhập' : ''}`);
+          } else { S.updateStaff(existing.id, patch); S.log('staff.update', `Cập nhật quyền nhân viên ${email}`); }
+          close();
+          if (isNew) {
+            const link = S.usingBackend() ? HH.backend.linkNhanVien() : '';
+            const linkHtml = link ? `<div class="row-gap-2 wrap" style="margin:8px 0 4px"><input class="input mono" readonly value="${U.esc(link)}" style="flex:1;min-width:220px" aria-label="Link đăng nhập cho nhân viên">
+                <button class="btn btn-outline" type="button" id="nvChep">${HH.ic('copy', 16)} Chép link và email</button></div>` : '';
+            const huongDan = tk && tk.ok
+              ? `<div class="alert alert-success" style="margin-bottom:12px"><span class="ic">✓</span><div>Đã thêm <b>${U.esc(email)}</b> với ${permissions.length} quyền và <b>đã tạo tài khoản đăng nhập</b>.</div></div>
+                 <p>Gửi cho nhân viên <b>link</b> dưới đây, <b>email</b> <span class="mono">${U.esc(email)}</span> và <b>mật khẩu bạn vừa đặt</b>. Nhân viên đăng nhập được ngay, rồi tự đổi mật khẩu ở Cài đặt chung.</p>${linkHtml}`
+              : tk && tk.daCo
+              ? `<div class="alert alert-info" style="margin-bottom:12px"><span class="ic">${HH.ic('info', 16)}</span><div>Đã thêm <b>${U.esc(email)}</b>. Email này <b>đã có tài khoản</b> từ trước nên mật khẩu bạn nhập không được dùng: nhân viên đăng nhập bằng mật khẩu của họ.</div></div>${linkHtml}`
+              : tk && tk.canXacNhan
+              ? `<div class="alert alert-info" style="margin-bottom:12px"><span class="ic">${HH.ic('info', 16)}</span><div>Đã thêm <b>${U.esc(email)}</b> và tạo tài khoản. Máy chủ bắt xác nhận email: nhân viên mở thư xác nhận rồi đăng nhập bằng mật khẩu bạn đặt.</div></div>${linkHtml}`
+              : `<div class="alert alert-success" style="margin-bottom:12px"><span class="ic">✓</span><div>Đã thêm <b>${U.esc(email)}</b> với ${permissions.length} quyền.</div></div>
+                 <p class="b" style="margin-bottom:6px">Hướng dẫn cho nhân viên:</p>
+                 <ol style="padding-left:20px;line-height:1.9">
+                   <li>Mở link đăng nhập cho nhân viên${link ? ' (dưới đây)' : ''}</li>
+                   <li>Bấm <b>"Chưa có tài khoản? Đăng ký"</b></li>
+                   <li>Đăng ký bằng <b class="mono">${U.esc(email)}</b> và tự đặt mật khẩu (≥6 ký tự)</li>
+                   <li>Đăng nhập, hệ thống tự cấp đúng quyền bạn đã chọn</li>
+                 </ol>${linkHtml}`;
+            UI.modal({ title: 'Đã thêm nhân viên', bodyHtml: huongDan,
+              footHtml: `<span class="spacer"></span><button class="btn btn-primary" data-close>Đã hiểu</button>`,
+              onMount(m) {
+                const ch = m.querySelector('#nvChep');
+                if (ch) ch.onclick = () => {
+                  const t = `Link đăng nhập Happy Home cho nhân viên: ${link}\nEmail: ${email}`;
+                  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => UI.toast('Đã chép link và email (mật khẩu gửi riêng)', { type: 'ok' }), () => UI.toast('Trình duyệt không cho chép', { type: 'warning' }));
+                };
+              } });
+          } else UI.toast('Đã lưu nhân viên', { type: 'ok' });
+          HH.router.render();
         };
       },
     });
